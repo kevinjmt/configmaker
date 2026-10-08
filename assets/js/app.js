@@ -17,22 +17,22 @@ const SECTIONS = [
   { id: 'others', icon: 'fa-solid fa-box-open' },
 ];
 const SLOT_DEFS = [
-  { id: 'cpu', sec: 'pc', icon: 'fa-solid fa-microchip', q: 'processeur', w: 125 },
-  { id: 'mb', sec: 'pc', icon: 'fa-solid fa-circuit-board', q: 'carte mere', w: 70 },
-  { id: 'ram', sec: 'pc', icon: 'fa-solid fa-memory', q: 'memoire DDR5', w: 15 },
-  { id: 'cooler', sec: 'pc', icon: 'fa-solid fa-fan', q: 'ventirad watercooling', w: 10 },
-  { id: 'ssd1', sec: 'pc', icon: 'fa-solid fa-hard-drive', q: 'SSD NVMe', w: 8, addMore: 'ssd' },
-  { id: 'gpu', sec: 'pc', icon: 'fa-solid fa-gamepad', q: 'carte graphique', w: 250 },
-  { id: 'case', sec: 'pc', icon: 'fa-solid fa-computer', q: 'boitier PC', w: 0 },
-  { id: 'psu', sec: 'pc', icon: 'fa-solid fa-plug-circle-bolt', q: 'alimentation PC', w: 0 },
+  { id: 'cpu', sec: 'pc', icon: 'lucide:cpu', q: 'processeur', w: 125 },
+  { id: 'mb', sec: 'pc', icon: 'bi:bi-motherboard', q: 'carte mere', w: 70 },
+  { id: 'ram', sec: 'pc', icon: 'lucide:memory-stick', q: 'memoire DDR5', w: 15 },
+  { id: 'cooler', sec: 'pc', icon: 'lucide:fan', q: 'ventirad watercooling', w: 10 },
+  { id: 'ssd1', sec: 'pc', icon: 'lucide:hard-drive', q: 'SSD NVMe', w: 8, addMore: 'ssd' },
+  { id: 'gpu', sec: 'pc', icon: 'bi:bi-gpu-card', q: 'carte graphique', w: 250 },
+  { id: 'case', sec: 'pc', icon: 'lucide:pc-case', q: 'boitier PC', w: 0 },
+  { id: 'psu', sec: 'pc', icon: 'fa-solid fa-plug', q: 'alimentation PC', w: 0 },
   { id: 'os', sec: 'pc', icon: 'fa-brands fa-windows', q: 'Windows 11 licence', w: 0, addMore: 'pcx' },
-  { id: 'desk', sec: 'setup', icon: 'fa-solid fa-table', q: 'bureau gaming', w: 0 },
-  { id: 'chair', sec: 'setup', icon: 'fa-solid fa-chair', q: 'chaise gaming', w: 0 },
-  { id: 'screen1', sec: 'setup', icon: 'fa-solid fa-tv', q: 'ecran PC', w: 45, addMore: 'screen' },
-  { id: 'keyboard', sec: 'setup', icon: 'fa-solid fa-keyboard', q: 'clavier', w: 3 },
-  { id: 'mouse', sec: 'setup', icon: 'fa-solid fa-computer-mouse', q: 'souris', w: 2 },
-  { id: 'pad', sec: 'setup', icon: 'fa-solid fa-tablet-button', q: 'tapis de souris XXL', w: 0 },
-  { id: 'headset', sec: 'setup', icon: 'fa-solid fa-headset', q: 'casque gaming', w: 3 },
+  { id: 'desk', sec: 'setup', icon: 'ti:ti-desk', q: 'bureau gaming', w: 0 },
+  { id: 'chair', sec: 'setup', icon: 'ti:ti-armchair', q: 'chaise gaming', w: 0 },
+  { id: 'screen1', sec: 'setup', icon: 'lucide:monitor', q: 'ecran PC', w: 45, addMore: 'screen' },
+  { id: 'keyboard', sec: 'setup', icon: 'lucide:keyboard', q: 'clavier', w: 3 },
+  { id: 'mouse', sec: 'setup', icon: 'lucide:mouse', q: 'souris', w: 2 },
+  { id: 'pad', sec: 'setup', icon: 'lucide:square', q: 'tapis de souris XXL', w: 0 },
+  { id: 'headset', sec: 'setup', icon: 'lucide:headset', q: 'casque gaming', w: 3 },
   { id: 'opt1', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0, addMore: 'opt' },
   { id: 'opt2', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
   { id: 'opt3', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
@@ -109,6 +109,18 @@ function persist() { save(LS.state, state); }
 
 /* ---------- Helpers ---------- */
 function defOf(slot) { return SLOT_DEFS.find(d => d.id === slot.defId) || { icon: 'fa-solid fa-box', sec: 'others', q: '' }; }
+/* Multi-provider icons: 'lucide:cpu' | 'bi:bi-motherboard' | 'fa-solid fa-...' */
+function iconHtml(ic) {
+  if (ic.startsWith('lucide:')) return `<i data-lucide="${ic.slice(7)}"></i>`;
+  if (ic.startsWith('bi:')) return `<i class="bi ${ic.slice(3)}"></i>`;
+  if (ic.startsWith('ti:')) return `<i class="ti ${ic.slice(3)}"></i>`;
+  return `<i class="${ic}"></i>`;
+}
+function refreshIcons(root) {
+  const scope = root || document;
+  if (window.lucide && lucide.createIcons) { lucide.createIcons(); return; }
+  scope.querySelectorAll('i[data-lucide]').forEach(e => { e.className = 'fa-solid fa-microchip'; e.removeAttribute('data-lucide'); });
+}
 function sel(slot) { return slot.products.find(p => p.id === slot.selectedId) || null; }
 function unitTotal(p) { return (Number(p.price) || 0) * (Number(p.qty) || 1) + (Number(p.delivery) || 0); }
 function slotTotal(slot) { const p = sel(slot); return p ? unitTotal(p) : 0; }
@@ -166,12 +178,13 @@ function renderSlots() {
     host.appendChild(wrap);
   });
   updateBenchState();
+  refreshIcons();
 }
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
   const el = document.createElement('div');
   el.className = 'slot' + (activeSlot === id ? ' sel' : '');
-  const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : `<i class="${d.icon}"></i>`;
+  const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
   let priceHtml = `<div class="slot-price">—</div><div class="slot-vendor">${esc(slotName(id))}</div>`;
@@ -183,7 +196,7 @@ function slotCard(id) {
       <div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
   el.innerHTML = `
-    <button class="slot-main" data-act="pick">
+    <button class="slot-main${p ? '' : ' empty'}" data-act="pick">
       <span class="slot-visual">${visual}</span>
       <span class="slot-info"><span class="slot-type">${esc(slotName(id))}</span><span class-right></span>
         <div class="slot-name">${title}</div><div class="slot-specs">${specs}</div></span>
@@ -829,7 +842,10 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.10', `
+  openModal('Changelog — v2.13', `
+    <div class="chlog"><h3>v2.13 — Bureau, chaise, alimentation</h3><p class="hint">Bureau : vrai bureau de travail (Tabler desk, vérifié visuellement) ; chaise : fauteuil de bureau (Tabler armchair) ; alimentation : bloc + éclair (Lucide battery-charging).</p></div>
+    <div class="chlog"><h3>v2.12 — Icônes affinées</h3><p class="hint">Refroidissement : ventilateur ; boîtier : vraie tour PC (pc-case) ; alimentation : éclair (wattage) ; bureau : mallette/espace de travail ; chaise : dossier haut (rocking-chair).</p></div>
+    <div class="chlog"><h3>v2.11 — Vraies icônes composants</h3><p class="hint">Font Awesome Free n'a ni carte mère ni GPU : les visuels composants passent sur Lucide + Bootstrap Icons (gratuits) — cpu, motherboard, memory-stick, snowflake, hard-drive, gpu-card, box, plug-zap, lamp-desk, armchair, monitor, keyboard, mouse, square, headset. Repli automatique si un CDN est injoignable.</p></div>
     <div class="chlog"><h3>v2.10 — Vrai « Aperçu du produit »</h3><p class="hint">« Choisir » récupère désormais les specs exactes de la page produit Idealo (section Aperçu, une info par ligne, sans troncature) : la fiche s'ouvre aussitôt puis s'enrichit en arrière-plan sans écraser vos saisies.</p></div>
     <div class="chlog"><h3>v2.9 — Correctif specs rapides</h3><p class="hint">Les specs rapides ne répètent plus le nom du produit ni le prix (ni les faux produits « N produits »). Nettoyage aussi appliqué à l'affichage des fiches déjà enregistrées.</p></div>
     <div class="chlog"><h3>v2.8 — Alternatives unifiées</h3><p class="hint">« Ajouter une alternative » devient « Voir les alternatives » (texte et prix centrés). La section « Mes fiches » disparaît du panneau : chaque ligne d'alternative porte ses boutons ouvrir-sur-Idealo, modifier et supprimer. Le menu reste ouvert après vos actions.</p></div>
