@@ -53,6 +53,7 @@ const I18N = {
     'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
     'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
     'picker.err': 'Chargement impossible (limite de requêtes ou blocage). Réessayez dans une minute ou ouvrez sur idealo.fr.',
+    'alts.see': 'Voir les alternatives',
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
     'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks YouTube', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
@@ -73,6 +74,7 @@ const I18N = {
     'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
     'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
     'picker.err': 'Could not load the list (rate limit or block). Retry in a minute or open on idealo.fr.',
+    'alts.see': 'See alternatives',
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
     'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'YouTube benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
@@ -100,7 +102,8 @@ function defaultState() {
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
-let activeSlot = null, pickerFilter = '', phMode = 'total', sumTab = 'desc';
+let activeSlot = null, phMode = 'total', sumTab = 'desc';
+const openAlts = new Set();
 let prefs = load(LS.prefs, {});
 function persist() { save(LS.state, state); }
 
@@ -187,32 +190,56 @@ function slotCard(id) {
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
     </div>
     ${p.tracking || p.tstatus ? `<div class="delivery-tag"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus))}</div>` : ''}
-    <div class="slot-alt-tab"><button class="alt-toggle" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${lang === 'en' ? 'Add / compare alternative' : 'Ajouter une alternative'} (${s.products.length}) <i class="fa-solid fa-chevron-down"></i></button>
-    <div class="alt-list hidden" data-alts></div></div>` : ''}`;
+    <div class="slot-alt-tab"><button class="alt-toggle" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    if (b.dataset.act === 'alts') { const l = el.querySelector('[data-alts]'); if (l) l.classList.toggle('hidden'); return; }
+    if (b.dataset.act === 'alts') { openAlts.has(id) ? openAlts.delete(id) : openAlts.add(id); renderSlots(); return; }
     slotAction(id, b.dataset.act);
   }));
   const alts = el.querySelector('[data-alts]');
-  if (alts) renderAlts(alts, s);
+  if (alts) renderAlts(alts, s, id);
   return el;
 }
-function renderAlts(host, s) {
+function renderAlts(host, s, slotId) {
   const cur = sel(s);
   const sorted = [...s.products].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
-  host.innerHTML = sorted.length ? '' : `<p class="hint">${lang === 'en' ? 'No alternatives yet — add fiches from the picker.' : 'Aucune alternative — ajoutez des fiches depuis le sélecteur.'}</p>`;
+  host.innerHTML = sorted.length ? '' : `<p class="hint">${lang === 'en' ? 'No alternatives yet — pick one from the Idealo results or create a fiche.' : 'Aucune alternative — choisissez-en une depuis les résultats Idealo ou créez une fiche.'}</p>`;
   sorted.forEach(p => {
     const diff = cur ? (Number(p.price) - Number(cur.price)) * (Number(p.qty) || 1) : 0;
     const cls = !cur || p.id === cur.id ? 'same' : diff > 0 ? 'up' : 'down';
     const lbl = !cur || p.id === cur.id ? (lang === 'en' ? 'current' : 'actuel') : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
     row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '');
-    row.innerHTML = `<span><strong>${esc(p.name)}</strong><br><small style="color:var(--muted)">${esc(p.vendor || '')} · ${eur(p.price)}</small></span><span class="diff ${cls}">${lbl}</span>`;
+    row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong> · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
     row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
+    const acts = document.createElement('div');
+    acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
+    const open = document.createElement('button');
+    open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
+    open.title = 'Idealo';
+    open.onclick = e => { e.stopPropagation(); window.open(p.idealo || idealoSearchUrl(p.name), '_blank', 'noopener'); };
+    const edit = document.createElement('button');
+    edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
+    edit.title = lang === 'en' ? 'Edit' : 'Modifier';
+    edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
+    const del = document.createElement('button');
+    del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+    del.title = lang === 'en' ? 'Remove' : 'Supprimer';
+    del.onclick = e => { e.stopPropagation(); altRemove(slotId, p.id); };
+    acts.append(open, edit, del);
+    row.appendChild(acts);
     host.appendChild(row);
   });
+}
+function altRemove(slotId, pid) {
+  const s = state.slots[slotId]; if (!s) return;
+  if (!confirm(lang === 'en' ? 'Delete this entry?' : 'Supprimer cette fiche ?')) return;
+  s.products = s.products.filter(x => x.id !== pid);
+  if (s.selectedId === pid) s.selectedId = s.products[0]?.id || null;
+  if (!s.products.length) openAlts.delete(slotId);
+  persist(); refresh();
 }
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
@@ -381,7 +408,7 @@ function chooseIdealoItem(it) {
   openProductForm(activeSlot, np);
 }
 function openPicker(id) {
-  activeSlot = id; pickerFilter = ''; $('#pickerSearch').value = '';
+  activeSlot = id;
   const s = state.slots[id], cur = sel(s);
   $('#idealoQuery').value = (cur && cur.name) || slotName(id);
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
@@ -396,39 +423,8 @@ function openPicker(id) {
 function closePicker() { activeSlot = null; $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); renderSlots(); }
 function renderPicker() {
   const s = state.slots[activeSlot]; if (!s) return;
-  const d = defOf(s);
   $('#pickerTitle').textContent = slotName(activeSlot);
   $('#pickerIdealoSearch').href = currentIdealoUrl;
-  const fc = $('#fichesCount'); if (fc) fc.textContent = s.products.length;
-  const cur = sel(s);
-  const list = s.products.filter(p => (p.name + ' ' + p.vendor).toLowerCase().includes(pickerFilter.toLowerCase()));
-  const host = $('#pickerList'); host.innerHTML = '';
-  if (!list.length) host.innerHTML = `<p class="hint">${lang === 'en' ? 'No entries yet. Create a fiche from the Idealo page (paste URL, quick specs, price).' : 'Aucune fiche. Créez-en une depuis la page Idealo (URL, specs rapides, prix).'}</p>`;
-  list.forEach(p => {
-    const diff = cur && cur.id !== p.id ? (Number(p.price) - Number(cur.price)) * (Number(p.qty) || 1) : 0;
-    const card = document.createElement('div');
-    card.className = 'pick-card' + (cur && cur.id === p.id ? ' current' : '');
-    card.innerHTML = `${p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}
-      <div class="pi"><div class="pn">${esc(p.name)}</div><div class="ps">${esc(productQuickSpecs(p))}</div>
-      <div class="ps">${esc(p.vendor || '')} · ${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div></div>
-      <div><div class="pp">${hasDiscount(p) ? `<span class="old" style="text-decoration:line-through;color:var(--muted);font-weight:700;font-size:.78rem">${eur(p.oldPrice)}</span> ` : ''}${eur(p.price)}${hasDiscount(p) ? ` <span class="disc-badge"><i class="fa-solid fa-tag"></i> −${discPct(p)}%</span>` : ''}</div>
-      ${cur && cur.id !== p.id ? `<div class="pdiff diff ${diff > 0 ? 'up' : diff < 0 ? 'down' : 'same'}">${diff > 0 ? '+' : ''}${eur(diff)} ${lang === 'en' ? 'vs current' : 'vs actuel'}</div>` : ''}</div>`;
-    const selBtn = document.createElement('button');
-    selBtn.className = 'mini-btn'; selBtn.innerHTML = `<i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Select' : 'Choisir'}`;
-    selBtn.onclick = () => { s.selectedId = p.id; persist(); refresh(); renderPicker(); toast(lang === 'en' ? 'Selected' : 'Sélectionné'); };
-    const editBtn = document.createElement('button');
-    editBtn.className = 'mini-btn'; editBtn.innerHTML = `<i class="fa-solid fa-pen"></i>`;
-    editBtn.title = lang === 'en' ? 'Edit' : 'Modifier';
-    editBtn.onclick = () => openProductForm(activeSlot, p);
-    const linkBtn = document.createElement('a');
-    linkBtn.className = 'mini-btn'; linkBtn.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
-    linkBtn.title = 'Idealo'; linkBtn.target = '_blank'; linkBtn.rel = 'noopener';
-    linkBtn.href = p.idealo || idealoSearchUrl(p.name);
-    const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
-    wrap.append(selBtn, editBtn, linkBtn);
-    card.appendChild(wrap);
-    host.appendChild(card);
-  });
 }
 
 /* ---------- Product form ---------- */
@@ -806,7 +802,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.6', `
+  openModal('Changelog — v2.8', `
+    <div class="chlog"><h3>v2.8 — Alternatives unifiées</h3><p class="hint">« Ajouter une alternative » devient « Voir les alternatives » (texte et prix centrés). La section « Mes fiches » disparaît du panneau : chaque ligne d'alternative porte ses boutons ouvrir-sur-Idealo, modifier et supprimer. Le menu reste ouvert après vos actions.</p></div>
     <div class="chlog"><h3>v2.6 — Nouveau & brouillon auto</h3><p class="hint">Bouton Nouveau (avec confirmation si modifications non sauvées ; l’historique est conservé). Le brouillon courant est restauré tel quel au rechargement de la page.</p></div>
     <div class="chlog"><h3>v2.5 — Benchmarks YouTube natifs</h3><p class="hint">Vraies vidéos de benchmark chargées dans l'app pour votre trio CPU+GPU+RAM (miniatures, lecture intégrée, repli YouTube si l'auteur bloque l'intégration). Cache 24 h.</p></div>
     <div class="chlog"><h3>v2.4 — Catalogue Idealo natif</h3><p class="hint">Listes Idealo affichées directement dans l'app par catégorie (17 catégories réelles) : image, specs, prix « à partir de », offres, tri, filtre, pagination « charger plus », recherche. « Choisir » pré-remplit la fiche (nom, image, prix, lien). Cache 6 h, repli onglet en cas de limite.</p></div>
@@ -891,7 +888,6 @@ function bind() {
   $('#sumPower').onclick = () => switchSum('power');
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
   $('#pickerClose').onclick = closePicker;
-  $('#pickerSearch').addEventListener('input', e => { pickerFilter = e.target.value; renderPicker(); });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null);
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);

@@ -117,7 +117,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-list{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .alt-item{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:.82rem;background:var(--surface)}
 .alt-item.current{border-color:var(--brand)}
-.alt-item .diff{font-weight:900;margin-left:auto;white-space:nowrap}
+.alt-item .diff{font-weight:900;white-space:nowrap}
+.alt-item .grow{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alt-item .mini-btn{padding:10px 11px;font-size:.78rem}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
 .delivery-tag{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 10px 84px}
 .hidden{display:none!important}
