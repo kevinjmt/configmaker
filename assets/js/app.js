@@ -44,7 +44,7 @@ const I18N = {
   fr: {
     'nav.exportAll': 'Export données', 'nav.install': 'Installer',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
-    'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
+    'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
@@ -64,7 +64,7 @@ const I18N = {
   en: {
     'nav.exportAll': 'Export data', 'nav.install': 'Install',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
-    'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
+    'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
@@ -686,8 +686,45 @@ function doSave() {
   cfgs[state.name] = cfgs[state.name] || [];
   cfgs[state.name].push({ version: state.version, savedAt: Date.now(), name: state.name, budget: state.budget, total: totals().total, snapshot: JSON.parse(JSON.stringify(state)) });
   save(LS.configs, cfgs);
+  lastSavedJson = JSON.stringify(state);
   refresh(); drawPrices();
   toast((lang === 'en' ? 'Saved — v' : 'Enregistré — v') + state.version);
+}
+/* ---------- New config + draft tracking ---------- */
+let lastSavedJson = '';
+function baselineSaved() {
+  // Draft restored from storage counts as saved iff it matches the last snapshot
+  try {
+    const arr = (load(LS.configs, {})[state.name]) || [];
+    if (!arr.length) return;
+    if (JSON.stringify(arr[arr.length - 1].snapshot) === JSON.stringify(state)) lastSavedJson = JSON.stringify(state);
+  } catch { /* ignore */ }
+}
+function isDirty() { return JSON.stringify(state) !== lastSavedJson; }
+function wipeToNew() {
+  state = defaultState();
+  persist();
+  lastSavedJson = JSON.stringify(state);
+  activeSlot = null; idealToken++; idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE;
+  benchCacheQ = '';
+  closeModal(); showPage('config');
+  $('#pickerPanel').classList.add('hidden');
+  $('#summaryPanel').classList.remove('hidden');
+  refresh();
+  toast(lang === 'en' ? 'New config' : 'Nouvelle config');
+}
+function newConfig() {
+  const pristine = JSON.stringify(state) === JSON.stringify(defaultState());
+  if (!isDirty() || pristine) { wipeToNew(); return; }
+  const t = totals();
+  openModal(lang === 'en' ? 'Start a new config?' : 'Nouvelle configuration ?', `
+    <p>${lang === 'en' ? 'Unsaved changes to' : 'Modifications non sauvées de'} <strong>${esc(state.name)}</strong>
+    (${eur(t.total)}${state.version ? ' · v' + esc(state.version) : ''}) ${lang === 'en' ? 'will be lost.' : 'seront perdues.'}</p>
+    <p class="hint">${lang === 'en' ? 'Saved configs and history are kept — only the current draft is wiped.' : 'Les configs sauvées et l’historique sont conservés — seul le brouillon courant est effacé.'}</p>
+    <div class="btn-row"><button class="btn" id="n_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>
+    <button class="btn btn-primary" id="n_wipe"><i class="fa-solid fa-file-circle-plus"></i> ${lang === 'en' ? 'Erase & new' : 'Effacer & nouveau'}</button></div>`);
+  $('#n_cancel').onclick = closeModal;
+  $('#n_wipe').onclick = wipeToNew;
 }
 function openLoad() {
   const cfgs = load(LS.configs, {});
@@ -705,7 +742,7 @@ function openLoad() {
     row.className = 'list-row';
     row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${arr.length} save(s) · v${esc(last.version)} · ${eur(last.total)}</small></span>`;
     const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${lang === 'en' ? 'Load' : 'Charger'}`;
-    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); closeModal(); refresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
     row.appendChild(b); host.appendChild(row);
   });
   $('#l_file').onclick = () => $('#l_fileIn').click();
@@ -728,7 +765,7 @@ function openHistory() {
     : `<p class="hint">${lang === 'en' ? 'No saves yet for this config.' : 'Aucune sauvegarde pour cette config.'}</p>`);
   $$('#modalBody [data-r]').forEach(b => b.onclick = () => {
     const v = cfgs[Number(b.dataset.r)];
-    state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); closeModal(); refresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
+    state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
   });
 }
 function encodeShare(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
@@ -740,7 +777,7 @@ function decodeShare(s) {
 function importConfig(obj) {
   if (!obj || !obj.slots) throw new Error('bad');
   state = obj; if (!state.order) state.order = Object.keys(state.slots);
-  persist(); refresh();
+  persist(); lastSavedJson = JSON.stringify(state); refresh();
 }
 function openShare() {
   const code = encodeShare(state);
@@ -769,7 +806,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.5', `
+  openModal('Changelog — v2.6', `
+    <div class="chlog"><h3>v2.6 — Nouveau & brouillon auto</h3><p class="hint">Bouton Nouveau (avec confirmation si modifications non sauvées ; l’historique est conservé). Le brouillon courant est restauré tel quel au rechargement de la page.</p></div>
     <div class="chlog"><h3>v2.5 — Benchmarks YouTube natifs</h3><p class="hint">Vraies vidéos de benchmark chargées dans l'app pour votre trio CPU+GPU+RAM (miniatures, lecture intégrée, repli YouTube si l'auteur bloque l'intégration). Cache 24 h.</p></div>
     <div class="chlog"><h3>v2.4 — Catalogue Idealo natif</h3><p class="hint">Listes Idealo affichées directement dans l'app par catégorie (17 catégories réelles) : image, specs, prix « à partir de », offres, tri, filtre, pagination « charger plus », recherche. « Choisir » pré-remplit la fiche (nom, image, prix, lien). Cache 6 h, repli onglet en cas de limite.</p></div>
     <div class="chlog"><h3>v2.0 — Webapp (2026)</h3><p class="hint">Nouvelle webapp façon configomatic : fiches liées Idealo (specs rapides, vendeur, prix, remise, livraison incluse), manuels, changement boutique, alternatives triées avec écarts, suivi colis, historique des prix + budget, conso (W), benchmarks YouTube (CPU+GPU+RAM), simulateur PCIe, FR/EN, light/dark/système, PWA installable, 100 % local.</p></div>
@@ -835,6 +873,7 @@ function bind() {
   $('#configName').addEventListener('input', e => { state.name = e.target.value; persist(); });
   $('#budgetInput').addEventListener('input', e => { state.budget = parseFloat(e.target.value) || 0; persist(); renderSummary(); if (!$('#page-prices').classList.contains('hidden')) drawPrices(); });
   $('#saveBtn').onclick = doSave;
+  $('#newBtn').onclick = newConfig;
   $('#loadBtn').onclick = openLoad;
   $('#historyBtn').onclick = openHistory;
   $('#shareBtn').onclick = openShare;
@@ -912,6 +951,7 @@ function bind() {
   // load from share link
   if (location.hash.includes('#c=')) {
     try { importConfig(decodeShare(location.hash)); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ }
-  }
+  } else baselineSaved(); // draft restored as-is; dirty iff different from last save
+  window.addEventListener('beforeunload', () => persist()); // belt & braces: draft always restorable
   applyTheme(); applyLang(); bind(); refresh(); showBench();
 })();
