@@ -56,6 +56,8 @@ const I18N = {
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
     'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks YouTube', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
+    'bench.loading': 'Chargement des vidéos…', 'bench.play': 'Lire',
+    'bench.err': 'Vidéos non chargeables pour le moment (limite de requêtes). Utilisez les liens ci-dessous.',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.',
   },
@@ -74,6 +76,8 @@ const I18N = {
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
     'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'YouTube benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
+    'bench.loading': 'Loading videos…', 'bench.play': 'Play',
+    'bench.err': 'Videos unavailable right now (rate limit). Use the links below.',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.',
   }
@@ -607,12 +611,50 @@ function updateBenchState() {
   $('#benchBtn').disabled = !ok;
   $('#benchBtn').title = ok ? benchQuery() : (lang === 'en' ? 'Select CPU + GPU + RAM first' : 'Sélectionnez CPU + GPU + RAM d’abord');
 }
-function showBench() {
+let benchCacheQ = '', benchBusy = false;
+async function showBench() {
   const q = benchQuery();
   $('#benchQuery').innerHTML = `${lang === 'en' ? 'Search:' : 'Recherche :'} <code class="k">${esc(q)}</code>`;
   $('#benchOpen').href = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
-  const variants = [q, `${benchParts().cpu} ${benchParts().gpu} test gaming`, `${benchParts().gpu} thermals noise test`];
-  $('#benchGrid').innerHTML = variants.map(v => `<a class="list-row" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${encodeURIComponent(v)}"><i class="fa-brands fa-youtube" style="color:#e03131;font-size:1.4rem"></i><span class="grow"><strong>${esc(v)}</strong><br><small style="color:var(--muted)">youtube.com → ${esc(v)}</small></span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`).join('');
+  const grid = $('#benchGrid');
+  const st = $('#benchStatus');
+  if (!q || benchParts().cpu === '' && benchParts().gpu === '' && benchParts().ram === '') {
+    grid.innerHTML = `<p class="hint">${lang === 'en' ? 'Select CPU + GPU + RAM to load matching benchmark videos.' : 'Sélectionnez CPU + GPU + RAM pour charger les vidéos de benchmark correspondantes.'}</p>`;
+    if (st) st.textContent = '';
+    return;
+  }
+  if (q === benchCacheQ && grid.dataset.loaded === '1') return;
+  benchCacheQ = q; benchBusy = true;
+  grid.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  if (st) st.textContent = t('bench.loading');
+  const r = await Tube.search(q);
+  benchBusy = false;
+  grid.dataset.loaded = '1';
+  if (r.error || !r.items.length) {
+    if (st) st.textContent = '';
+    const variants = [q, `${benchParts().cpu} ${benchParts().gpu} test gaming`, `${benchParts().gpu} thermals noise test`];
+    grid.innerHTML = `<p class="hint">${esc(t('bench.err'))}</p>` + variants.map(v => `<a class="list-row" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${encodeURIComponent(v)}"><i class="fa-brands fa-youtube" style="color:#e03131;font-size:1.4rem"></i><span class="grow"><strong>${esc(v)}</strong><br><small style="color:var(--muted)">youtube.com → ${esc(v)}</small></span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`).join('');
+    return;
+  }
+  if (st) st.textContent = `${r.items.length} vidéos${r.cached ? ' · ' + t('picker.cached') : ''}`;
+  grid.innerHTML = '';
+  r.items.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'video-card';
+    card.innerHTML = `<button class="vthumb" aria-label="Play"><img src="${esc(v.thumb)}" alt="" loading="lazy" onerror="this.remove()"><span class="play"><i class="fa-solid fa-play"></i></span></button>
+      <div class="vt"><strong>${esc(v.title)}</strong></div>
+      <div class="vbtns"><button class="mini-btn" data-play><i class="fa-solid fa-play"></i> ${t('bench.play')}</button>
+      <a class="mini-btn" target="_blank" rel="noopener" href="${esc(v.url)}"><i class="fa-brands fa-youtube"></i> YouTube</a></div>`;
+    card.querySelector('[data-play]').onclick = () => playVideo(v);
+    card.querySelector('.vthumb').onclick = () => playVideo(v);
+    grid.appendChild(card);
+  });
+}
+function playVideo(v) {
+  openModal(v.title, `
+    <div class="video-embed"><iframe src="https://www.youtube-nocookie.com/embed/${esc(v.id)}" title="${esc(v.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+    <div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(v.url)}"><i class="fa-brands fa-youtube"></i> ${lang === 'en' ? 'Open on YouTube' : 'Ouvrir sur YouTube'}</a></div>
+    <p class="hint">${lang === 'en' ? 'If the player refuses to load, the author disabled embedding — use the YouTube button.' : "Si le lecteur refuse de charger, l'auteur a désactivé l'intégration — utilisez le bouton YouTube."}</p>`);
 }
 function openBenchPopup() {
   const q = benchQuery();
@@ -620,8 +662,19 @@ function openBenchPopup() {
     <p class="hint">${lang === 'en' ? 'Same configuration search on YouTube:' : 'Recherche de la même configuration sur YouTube :'}</p>
     <p><code class="k">${esc(q)}</code></p>
     <div class="btn-row"><a class="btn btn-primary" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}"><i class="fa-brands fa-youtube"></i> YouTube</a>
-    <button class="btn" id="bCopy"><i class="fa-solid fa-copy"></i> ${lang === 'en' ? 'Copy' : 'Copier'}</button></div>`);
+    <button class="btn" id="bCopy"><i class="fa-solid fa-copy"></i> ${lang === 'en' ? 'Copy' : 'Copier'}</button></div>
+    <div id="bList" style="margin-top:12px"><p class="hint">${t('bench.loading')}</p></div>`);
   $('#bCopy').onclick = () => { navigator.clipboard?.writeText(q); toast(lang === 'en' ? 'Copied' : 'Copié'); };
+  Tube.search(q).then(r => {
+    const host = $('#bList'); if (!host) return;
+    if (!r.items.length) { host.innerHTML = ''; return; }
+    host.innerHTML = r.items.slice(0, 6).map(v => `<a class="list-row" href="#" data-vid="${esc(v.id)}"><i class="fa-brands fa-youtube" style="color:#e03131;font-size:1.3rem"></i><span class="grow"><strong>${esc(v.title)}</strong></span><i class="fa-solid fa-play"></i></a>`).join('');
+    host.querySelectorAll('[data-vid]').forEach(a => a.onclick = e => {
+      e.preventDefault();
+      const v = r.items.find(x => x.id === a.dataset.vid);
+      if (v) playVideo(v);
+    });
+  });
 }
 
 /* ---------- Save / load / history / share / export ---------- */
@@ -716,7 +769,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.4', `
+  openModal('Changelog — v2.5', `
+    <div class="chlog"><h3>v2.5 — Benchmarks YouTube natifs</h3><p class="hint">Vraies vidéos de benchmark chargées dans l'app pour votre trio CPU+GPU+RAM (miniatures, lecture intégrée, repli YouTube si l'auteur bloque l'intégration). Cache 24 h.</p></div>
     <div class="chlog"><h3>v2.4 — Catalogue Idealo natif</h3><p class="hint">Listes Idealo affichées directement dans l'app par catégorie (17 catégories réelles) : image, specs, prix « à partir de », offres, tri, filtre, pagination « charger plus », recherche. « Choisir » pré-remplit la fiche (nom, image, prix, lien). Cache 6 h, repli onglet en cas de limite.</p></div>
     <div class="chlog"><h3>v2.0 — Webapp (2026)</h3><p class="hint">Nouvelle webapp façon configomatic : fiches liées Idealo (specs rapides, vendeur, prix, remise, livraison incluse), manuels, changement boutique, alternatives triées avec écarts, suivi colis, historique des prix + budget, conso (W), benchmarks YouTube (CPU+GPU+RAM), simulateur PCIe, FR/EN, light/dark/système, PWA installable, 100 % local.</p></div>
     <div class="chlog"><h3>2025.08.09 — Excel FR/EN</h3><p class="hint">Config Maker tableur : PC + setup + options, quantités, livraison, totaux, manuel intégré.</p></div>`);
