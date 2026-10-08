@@ -1,0 +1,16 @@
+{
+  "name": "ConfigMaker by KJ",
+  "short_name": "ConfigMaker",
+  "description": "Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1410",
+  "theme_color": "#1a8744",
+  "lang": "fr",
+  "icons": [
+    { "src": "assets/icons/configmakericon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/configmakericon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

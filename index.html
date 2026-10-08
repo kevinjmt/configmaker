@@ -1,85 +1,186 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr" data-theme="system">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Config Maker</title>	
-    <link rel="shortcut icon" type="image/png" href="./assets/icons/configmaker.png"/>
-    <link rel="stylesheet" href="assets/css/index.css">
-	<meta name="description" content="A PC and laptop Config Maker">
-
-    <meta property="og:title" content="Config Maker" />
-	<meta property="og:type" content="website" />
-	<meta property="og:url" content="https://kevinjmt.github.io/configmaker" />
-	<meta property="og:description" content="A PC and laptop Config Maker" />
-	<meta property="og:image" content="https://kevinjmt.github.io/configmaker/assets/icons/configmakericon.png" />	
-	<meta property="og:image:secure_url" content="https://kevinjmt.github.io/configmaker/assets/icons/configmakericon.png" />
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ConfigMaker by KJ — v2.0</title>
+<meta name="description" content="ConfigMaker by KJ — configurateur PC & setup style TopAchat configomatic, prix Idealo, consommation, manuels, historique.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0a0f1e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ConfigMaker">
+<link rel="apple-touch-icon" href="./assets/icons/configmakericon.png">
+<link rel="shortcut icon" type="image/png" href="./assets/icons/configmakericon.png">
+<meta property="og:title" content="ConfigMaker by KJ — v2.0">
+<meta property="og:type" content="website">
+<meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
+<meta property="og:image" content="./assets/icons/configmakericon.png">
+<link rel="stylesheet" href="./assets/css/app.css?v=20">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
+<div class="bg-orb bg-orb-green bg-pos-1" data-bg-parallax="0.08" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-teal bg-pos-2" data-bg-parallax="0.16" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-lime bg-pos-3" data-bg-parallax="0.24" aria-hidden="true"></div>
 
-    <div class="hero-block">
-        <img class="hero-img" src="./assets/imgs/hero.png">
-        <div class="hero-text">
-            <img style="height: 15vh; border-radius: 15px;" src="./assets/icons/configmakericon.png">
-            <h4 class="bubble">
-                A PC and Laptop Config Maker
-            </h4>
-            <h1 class="hero-title">
-                Config Maker
-            </h1>
-            <h2 class="subtitle">
-                <a href="./#download">Download</a>
-            </h2>
+<nav id="topnav" aria-label="Navigation principale">
+  <div class="nav-spacer"></div>
+  <div class="kjbrand">
+    <a href="./" aria-label="ConfigMaker accueil">
+      <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.0</button></small></span>
+    </a>
+  </div>
+  <div class="menutitles" id="menu">
+    <button class="icon-btn" id="exportAllBtn" data-i18n-title="nav.exportAll" title="Exporter toutes les données locales"><i class="fa-solid fa-file-export"></i><span data-i18n="nav.exportAll">Export données</span></button>
+    <button class="icon-btn" id="installBtn" data-i18n-title="nav.install" title="Installer l'app"><i class="fa-solid fa-mobile-screen-button"></i><span data-i18n="nav.install">Installer</span></button>
+    <button class="icon-btn" id="themeBtn" title="Thème : système"><i class="fa-solid fa-circle-half-stroke"></i></button>
+    <button class="icon-btn flag-btn" id="langBtn" title="Switch to English"><img src="./assets/icons/uk.png" class="flag" alt="EN" id="langFlag"></button>
+    <button class="icon-btn burger-close" id="burgerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="iloveburgers">
+    <div class="ham" id="burger" role="button" aria-label="Menu" tabindex="0"><div class="bur"><span class="ger q"></span><span class="ger w"></span><span class="ger e"></span></div></div>
+  </div>
+</nav>
+
+<div class="pagebody container">
+  <!-- HERO -->
+  <header class="hero-block glass">
+    <div class="hero-top">
+      <div class="config-id">
+        <label class="fld-label" for="configName" data-i18n="hero.configName">Nom de la config</label>
+        <div class="config-name-row">
+          <input id="configName" class="config-name" value="Ma Config" maxlength="60">
+          <span class="ver-chip" id="versionChip" title="Version auto (yyyy.mm.dd-hh.mm)">—</span>
         </div>
+      </div>
+      <div class="budget-box">
+        <label class="fld-label" for="budgetInput" data-i18n="hero.budget">Budget (€)</label>
+        <div class="budget-row"><input id="budgetInput" class="budget-input" type="number" min="0" step="1" value="1500"><span>€</span></div>
+      </div>
     </div>
+    <div class="pill-row">
+      <div class="pill" role="toolbar" aria-label="Actions config">
+        <button id="loadBtn"><i class="fa-solid fa-folder-open"></i><span data-i18n="hero.load">Charger</span></button>
+        <button id="saveBtn"><i class="fa-solid fa-floppy-disk"></i><span data-i18n="hero.save">Sauver</span></button>
+        <button id="historyBtn"><i class="fa-solid fa-clock-rotate-left"></i><span data-i18n="hero.history">Historique</span></button>
+        <button id="shareBtn"><i class="fa-solid fa-share-nodes"></i><span data-i18n="hero.share">Partager</span></button>
+        <button id="exportBtn"><i class="fa-solid fa-file-arrow-down"></i><span data-i18n="hero.export">Exporter</span></button>
+        <button id="benchBtn" disabled title=""><i class="fa-brands fa-youtube"></i><span data-i18n="hero.bench">Benchmarks</span></button>
+      </div>
+    </div>
+    <div class="pill-row">
+      <div class="pill tabs" role="tablist" aria-label="Pages">
+        <button id="tabConfig" class="active" role="tab" aria-selected="true"><i class="fa-solid fa-computer"></i><span data-i18n="tabs.config">Config</span></button>
+        <button id="tabBench" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i><span data-i18n="tabs.bench">Benchmarks</span></button>
+        <button id="tabPrices" role="tab" aria-selected="false"><i class="fa-solid fa-chart-line"></i><span data-i18n="tabs.prices">Prix</span></button>
+      </div>
+    </div>
+  </header>
 
-    <h1 id="download" style="padding-top: 100px;">
-        Downloads
-    </h1>
-    <div style="margin-top: 100px;" class="div-download">
-        <div class="download-columns">
-            <a class="download-jkeys" target="_blank" href="./assets/downloads/Config Maker 2025.08.09 FR by KJ.xlsx">
-                <div class="download-jkeys-div">
-                    <img style="height: 40px; margin-right: 10%;" src="./assets/icons/fr.png">
-                    <h2 class="text-download">Config Maker 2025.08.09</h2>
-                </div>
-            </a>
-            <a class="download-jkeys" target="_blank" href="./assets/downloads/Config Maker 2025.08.09 EN by KJ.xlsx">
-                <div class="download-jkeys-div">
-                    <img style="height: 40px; margin-right: 10%;" src="./assets/icons/uk.png">
-                    <h2 class="text-download">Config Maker 2025.08.09</h2>
-                </div>
-            </a>
+  <!-- MAIN SPLIT -->
+  <main id="page-config" class="split">
+    <section class="col-left" aria-label="Composants">
+      <div id="slotSections"></div>
+    </section>
+    <section class="col-right" aria-label="Détail">
+      <!-- Picker (when a slot is being chosen) -->
+      <div id="pickerPanel" class="glass panel hidden">
+        <div class="picker-head">
+          <h2 id="pickerTitle">—</h2>
+          <button class="icon-btn" id="pickerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
-    </div>
-    
-    <div style="margin-top: 100px;" class="install">
-        <h1>
-            Key Instructions
-        </h1>
-        <h3>Download Excel file (works with LibreOffice too!)</h3>
-        <h3>Add your budget</h3>
-        <h3>Put your PC components names, links and prices</h3>
-        <h3>Add setup elements and options if necessary</h3>
-        <h3>See your config price, print or save as a beautiful PDF</h3>
-        <h3>And update super easily !</h3>
-        <h3 style="color: limegreen; margin-top: 25px;">See integrated manual for more details!</h3>
-    </div>
+        <div class="picker-tools">
+          <div class="search-row">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="pickerSearch" data-i18n-ph="picker.search" placeholder="Rechercher une référence…">
+          </div>
+          <div class="picker-links">
+            <a id="pickerIdealoSearch" href="#" target="_blank" rel="noopener" class="btn btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>
+            <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
+          </div>
+          <p class="hint" data-i18n="picker.hint">Idealo n'offre pas d'API publique : collez l'URL de la page Idealo + les specs affichées en haut de la fiche, l'app suit prix, remises et livraison.</p>
+        </div>
+        <div id="pickerList" class="picker-list"></div>
+        <div id="productFormWrap" class="hidden"></div>
+      </div>
+      <!-- Summary -->
+      <div id="summaryPanel" class="glass panel">
+        <div class="pill tabs small" role="tablist" aria-label="Résumés">
+          <button id="sumDesc" class="active"><i class="fa-solid fa-list"></i><span data-i18n="sum.desc">Description</span></button>
+          <button id="sumCharts"><i class="fa-solid fa-chart-pie"></i><span data-i18n="sum.charts">Graphiques</span></button>
+          <button id="sumPower"><i class="fa-solid fa-bolt"></i><span data-i18n="sum.power">Conso.</span></button>
+        </div>
+        <button id="summaryFold" class="fold-btn"><i class="fa-solid fa-chevron-down"></i><span data-i18n="sum.fold">Résumé</span></button>
+        <div id="summaryBody" class="summary-body">
+          <div id="sumDescPane"></div>
+          <div id="sumChartsPane" class="hidden"></div>
+          <div id="sumPowerPane" class="hidden"></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-    <div class="install laptops">
-        <h1 style="color: white;">
-            Usable for laptops !
-        </h1>
-        <img class="hero-img laptopimage" src="./assets/imgs/laptop.png">
-        <h3 style="color: whitesmoke;">Fill specs like a PC and that's it !</h3>
+  <main id="page-bench" class="glass panel hidden">
+    <h2><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.title">Benchmarks YouTube</span></h2>
+    <p class="hint" id="benchQuery">—</p>
+    <div class="btn-row">
+      <a id="benchOpen" class="btn btn-primary" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.open">Voir sur YouTube</span></a>
+      <button id="benchCopy" class="btn"><i class="fa-solid fa-copy"></i> <span data-i18n="bench.copy">Copier la recherche</span></button>
     </div>
+    <div class="video-grid" id="benchGrid"></div>
+  </main>
 
-    <footer>
-        <h3 style="margin-top: 100px; padding-top: 20px;">Made with ❤️ by <a target="_blank" href="https://kevinjmt.github.io/">KJ</a></h3>
-    </footer>
+  <main id="page-prices" class="glass panel hidden">
+    <h2><i class="fa-solid fa-chart-line"></i> <span data-i18n="prices.title">Historique des prix</span></h2>
+    <div class="seg">
+      <button id="phTotal" class="active" data-i18n="prices.total">Total config</button>
+      <button id="phPer" data-i18n="prices.per">Par composant</button>
+    </div>
+    <canvas id="priceChart" width="800" height="320"></canvas>
+    <div id="priceLegend" class="legend"></div>
+    <p class="hint" data-i18n="prices.hint">Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.</p>
+  </main>
+
+  <section class="glass panel downloads">
+    <h2><i class="fa-solid fa-file-excel"></i> <span data-i18n="dl.title">Fichiers Excel d'origine</span></h2>
+    <div class="btn-row">
+      <a class="btn" href="./assets/downloads/Config Maker 2025.08.09 FR by KJ.xlsx"><img src="./assets/icons/fr.png" class="flag" alt="FR"> Config Maker FR (xlsx)</a>
+      <a class="btn" href="./assets/downloads/Config Maker 2025.08.09 EN by KJ.xlsx"><img src="./assets/icons/uk.png" class="flag" alt="EN"> Config Maker EN (xlsx)</a>
+    </div>
+  </section>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.0 · configurateur</small></p>
+      <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
+    </div>
+    <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
+    <div class="footercol"><p>KJ</p><a target="_blank" rel="noopener" href="https://kevinjmt.github.io/">Portfolio</a><a target="_blank" rel="noopener" href="https://github.com/kevinjmt">GitHub</a></div>
+  </div>
+  <div class="footer-bottom"><span>Made with ❤️ by KJ using AI</span><a href="#topnav">Haut de page ↑</a></div>
+</footer>
+
+<!-- Generic modal -->
+<div id="modalOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal glass" id="modalBox">
+    <div class="modal-head"><h2 id="modalTitle">—</h2><button class="icon-btn" id="modalClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button></div>
+    <div id="modalBody" class="modal-body"></div>
+  </div>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="./assets/js/app.js?v=20"></script>
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+</script>
 </body>
 </html>
