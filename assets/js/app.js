@@ -136,7 +136,16 @@ function openModal(title, html) { $('#modalTitle').textContent = title; $('#moda
 function closeModal() { $('#modalOverlay').classList.add('hidden'); }
 
 /* ---------- Slot rendering ---------- */
-function productQuickSpecs(p) { return String(p.specs || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 2).join(' · '); }
+function productQuickSpecs(p) {
+  let spec = String(p.specs || '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
+  const nm = String(p.name || '').trim();
+  if (nm.length > 3) {
+    const escRe = nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    spec = spec.replace(new RegExp(escRe, 'ig'), '').replace(/[\d\s ]+[.,]\d{2}\s*€/g, '');
+    spec = spec.replace(/\s+/g, ' ').replace(/^[·,;:\-–\s]+/, '').replace(/(\s*[·,;:]){2,}/g, ' ').trim();
+  }
+  return spec;
+}
 function renderSlots() {
   const host = $('#slotSections'); host.innerHTML = '';
   ['pc', 'setup', 'others'].forEach(sec => {
@@ -406,6 +415,24 @@ function chooseIdealoItem(it) {
   np.name = it.name; np.image = it.img; np.idealo = it.url;
   np.price = it.price || 0; np.specs = it.specs; np.vendor = '';
   openProductForm(activeSlot, np);
+  // Enrich in background from the /prix/ page ("Aperçu du produit"), only filling untouched fields
+  if (!it.url) return;
+  const before = { name: np.name, image: np.image, price: String(np.price || ''), specs: np.specs };
+  Idealo.product(it.url).then(d => {
+    if (!d || d.error) return;
+    if (d.specs) np.specs = d.specs;
+    if (d.price && !np.price) np.price = d.price;
+    if (d.img && !np.image) np.image = d.img;
+    if (d.name && !before.name) np.name = d.name;
+    if ($('#modalOverlay').classList.contains('hidden')) { persist(); refresh(); return; }
+    const fn = $('#f_name'), fi = $('#f_image'), fp = $('#f_price'), fs = $('#f_specs');
+    if (!fn || fn.value !== before.name) return; // form closed or switched to another fiche
+    let changed = false;
+    if (fs && fs.value === before.specs && np.specs !== before.specs) { fs.value = np.specs; changed = true; }
+    if (fp && fp.value === before.price && np.price) { fp.value = np.price; changed = true; }
+    if (fi && !fi.value.trim() && np.image) { fi.value = np.image; changed = true; }
+    if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
+  });
 }
 function openPicker(id) {
   activeSlot = id;
@@ -802,7 +829,9 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.8', `
+  openModal('Changelog — v2.10', `
+    <div class="chlog"><h3>v2.10 — Vrai « Aperçu du produit »</h3><p class="hint">« Choisir » récupère désormais les specs exactes de la page produit Idealo (section Aperçu, une info par ligne, sans troncature) : la fiche s'ouvre aussitôt puis s'enrichit en arrière-plan sans écraser vos saisies.</p></div>
+    <div class="chlog"><h3>v2.9 — Correctif specs rapides</h3><p class="hint">Les specs rapides ne répètent plus le nom du produit ni le prix (ni les faux produits « N produits »). Nettoyage aussi appliqué à l'affichage des fiches déjà enregistrées.</p></div>
     <div class="chlog"><h3>v2.8 — Alternatives unifiées</h3><p class="hint">« Ajouter une alternative » devient « Voir les alternatives » (texte et prix centrés). La section « Mes fiches » disparaît du panneau : chaque ligne d'alternative porte ses boutons ouvrir-sur-Idealo, modifier et supprimer. Le menu reste ouvert après vos actions.</p></div>
     <div class="chlog"><h3>v2.6 — Nouveau & brouillon auto</h3><p class="hint">Bouton Nouveau (avec confirmation si modifications non sauvées ; l’historique est conservé). Le brouillon courant est restauré tel quel au rechargement de la page.</p></div>
     <div class="chlog"><h3>v2.5 — Benchmarks YouTube natifs</h3><p class="hint">Vraies vidéos de benchmark chargées dans l'app pour votre trio CPU+GPU+RAM (miniatures, lecture intégrée, repli YouTube si l'auteur bloque l'intégration). Cache 24 h.</p></div>

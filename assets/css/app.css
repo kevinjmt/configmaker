@@ -98,8 +98,11 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot-visual i{font-size:1.4rem;color:var(--muted)}
 .slot-info{flex:1;min-width:0}
 .slot-type{font-size:.68rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.slot-name{font-weight:900;font-size:.98rem;margin:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.slot-specs{font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-name{font-weight:900;font-size:.98rem;margin:1px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.slot-specs{font-size:.78rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+@media (max-width:767px){
+  .slot-specs{display:block;-webkit-line-clamp:unset;overflow:visible}
+}
 .slot-side{text-align:right;flex:0 0 auto}
 .slot-vendor{font-size:.72rem;color:var(--muted);font-weight:700}
 .slot-price{font-weight:900;font-size:1.05rem}

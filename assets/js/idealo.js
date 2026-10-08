@@ -67,7 +67,10 @@ const Idealo = (() => {
       if (/^\d+\s+offres?\s*$/i.test(ln)) break;
       if (/^[\d\s]+[.,]\d{2}\s*€\s*$/.test(ln)) break;
       if (/^à partir de\b/i.test(ln)) break;
-      if (altName && ln.toLowerCase() === altName.toLowerCase()) continue;
+      if (/^\d+$/.test(ln)) continue;
+      if (altName && altName.length > 3) ln = ln.split(altName).join(' ').split(altName.toLowerCase()).join(' ');
+      ln = ln.replace(/\s+/g, ' ').trim();
+      if (!ln) continue;
       out.push(ln);
       if (out.join(' ').length > 140) break;
     }
@@ -88,6 +91,7 @@ const Idealo = (() => {
       const id = imgProductId(img);
       if (!id) continue;
       if (items.some(x => x.pid === id)) continue;
+      if (/\d+\s+produits\b/i.test(text)) continue; // filter card, not a product
       const lines = text.split('\n');
       let offers = 0, price = 0;
       const mp = text.match(/à partir de\s+([\d\s]+[.,]\d{2})\s*€/i);
@@ -100,6 +104,7 @@ const Idealo = (() => {
       let pre = money ? text.slice(0, money.index) : (mp ? text.slice(0, mp.index) : text);
       const mo = pre.match(/(\d+)\s+offres?\s*$/i);
       if (mo) offers = parseInt(mo[1], 10) || 0;
+      if (!price && !offers) continue; // no usable listing data
       const specs = cleanSpecs(lines, alt);
       const slug = imgSlug(img);
       items.push({
@@ -116,12 +121,15 @@ const Idealo = (() => {
     let s = String(b || ' ').replace(/\s+/g, ' ').trim();
     s = s.replace(/\d+\s+Note\s*\u2205\s*\d+\/20/gi, '')
       .replace(/(\d+)\s+offres?\b.*/i, '')
+      .replace(/(\d+)\s+à partir de/i, 'à partir de')
       .replace(/à partir de\s+.*/i, '')
+      .replace(/[\d\s]+[.,]\d{2}\s*€\s*$/i, '')
       .replace(/\.{3}plus.*/i, '')
       .replace(/\]\([^)]*\)/g, '')
       .replace(/https?:\/\/\S+/g, '')
       .replace(/\s+/g, ' ').trim();
-    if (alt && s.toLowerCase().startsWith(alt.toLowerCase())) s = s.slice(alt.length).trim();
+    if (alt && alt.length > 3) s = s.split(alt).join(' ').split(alt.toLowerCase()).join(' ');
+    s = s.replace(/\s+/g, ' ').replace(/^[·,;:\-–\s]+/, '').trim();
     return s.slice(0, 160);
   }
 
@@ -165,7 +173,18 @@ const Idealo = (() => {
   function parseMarkdown(md, baseUrl) {
     md = String(md || '');
     const linked = parseLinked(md);
-    const blocks = parseBlocks(md).filter(b => !linked.some(l => l.pid && l.pid === b.pid));
+    const byPid = {};
+    linked.forEach(l => { if (l.pid) byPid[l.pid] = l; });
+    const blocks = parseBlocks(md).filter(b => {
+      const l = b.pid && byPid[b.pid];
+      if (l && (!l.price || !l.specs)) { // enrich thin linked cards
+        if (!l.price && b.price) l.price = b.price;
+        if (!l.specs && b.specs) l.specs = b.specs;
+        if (!l.offers && b.offers) l.offers = b.offers;
+        if (!l.img && b.img) l.img = b.img;
+      }
+      return !l;
+    });
     const sugg = parseSuggestions(md).filter(s => ![...linked, ...blocks].some(x => x.url === s.url));
     const items = [...linked, ...blocks, ...sugg];
     let next = null;
@@ -198,22 +217,63 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  async function list(url) {
-    const c = cache[url];
-    if (c && (Date.now() - c.t) < TTL && c.md) {
-      try { const p = parseMarkdown(c.md, url); return { items: p.items, next: p.next, cached: true }; } catch { /* fall through */ }
+  /* Full product fiche from a /prix/ page: the text next to "Aperçu du produit". */
+  function parseProduct(md, url) {
+    md = String(md || '');
+    const out = { name: '', img: '', specs: '', offers: 0, price: 0, url };
+    const mh = md.match(/^# (.+)$/m) || md.match(/^Title: (.+?)(?: au meilleur prix| [|│]|\s*$)/m);
+    if (mh) out.name = mh[1].trim();
+    const mi = md.match(/!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_gross[^)]*)\)/i)
+      || md.match(/!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_mittelgross[^)]*)\)/i);
+    if (mi) out.img = mi[1];
+    const mp = md.match(/à partir de\s*([\d\s]+[.,]\d{2})\s*€/i);
+    if (mp) out.price = parsePrice(mp[1]);
+    const mo = md.match(/Comparez\s*(\d+)\s*offres/i) || md.match(/(\d+)\s+offres?\b/i);
+    if (mo) out.offers = parseInt(mo[1].replace(/\s/g, ''), 10) || 0;
+    let sec = '';
+    const ma = md.match(/Aperçu du produit\s*:?\s*([\s\S]*?)(?:\[Détails du produit\]|## |\*\*Produits similaires)/);
+    if (ma) sec = ma[1];
+    else {
+      const md2 = md.match(/## Détails du produit\s*([\s\S]*?)(?:## |\n\*   )/);
+      if (md2) sec = md2[1];
     }
+    const lines = sec.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .split(/\n| {2,}/).map(s => s.replace(/^[\*_\-–:·\s]+/, '').trim())
+      .filter(s => s && !/^(variante|neuf\b|d'occasion)/i.test(s));
+    out.specs = lines.slice(0, 40).join('\n');
+    return out;
+  }
+
+  async function cachedMd(url) {
+    const c = cache[url];
+    if (c && (Date.now() - c.t) < TTL && c.md) return { md: c.md, cached: true };
+    const md = await queued(() => fetchMd(url));
+    if (!md || md.length < 500) throw new Error('empty');
+    cache[url] = { t: Date.now(), md: md.slice(0, 400000) };
+    persist();
+    return { md, cached: false };
+  }
+
+  async function list(url) {
     try {
-      const md = await queued(() => fetchMd(url));
-      if (!md || md.length < 500) throw new Error('empty');
-      cache[url] = { t: Date.now(), md: md.slice(0, 400000) };
-      persist();
+      const { md, cached } = await cachedMd(url);
       const p = parseMarkdown(md, url);
-      return { items: p.items, next: p.next, cached: false };
+      return { items: p.items, next: p.next, cached };
     } catch (e) {
       return { items: [], next: null, cached: false, error: String((e && e.message) || e) };
     }
   }
 
-  return { list, parseMarkdown, sortUrl };
+  async function product(url) {
+    try {
+      const { md } = await cachedMd(url);
+      const d = parseProduct(md, url);
+      if (!d.specs && !d.price) throw new Error('empty');
+      return d;
+    } catch (e) {
+      return { error: String((e && e.message) || e) };
+    }
+  }
+
+  return { list, product, parseMarkdown, parseProduct, sortUrl };
 })();
