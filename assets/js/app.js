@@ -254,7 +254,7 @@ const IDEALO_CATS = [
   { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172/casques-gamer.html' },
 ];
 const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset' };
-let currentCatKey = 'root', currentIdealoUrl = IDEALO_CATS[0].url;
+let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0;
 function slotCatKey(slotId) {
   if (slotId.startsWith('ssd_')) return 'ssd';
@@ -263,24 +263,13 @@ function slotCatKey(slotId) {
   const s = state.slots[slotId];
   return (s && SLOT_CAT[s.defId]) || 'root';
 }
-function buildCatChips() {
-  const host = $('#catChips'); if (!host) return; host.innerHTML = '';
-  IDEALO_CATS.forEach(c => {
-    const b = document.createElement('button');
-    b.className = 'chipbtn' + (c.key === currentCatKey ? ' active' : '');
-    b.textContent = c.label;
-    b.dataset.cat = c.key;
-    b.onclick = () => { loadCategory(c.key); loadIdealoList(c.url); };
-    host.appendChild(b);
-  });
-}
 function loadCategory(key) {
   const c = IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0];
   currentCatKey = c.key;
+  currentCatLabel = c.label;
   currentIdealoUrl = c.url;
   const a = $('#pickerIdealoSearch'); if (a) a.href = c.url;
   const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(c.url, '_blank', 'noopener');
-  $$('#catChips .chipbtn').forEach(b => b.classList.toggle('active', b.dataset.cat === c.key));
 }
 const IDEAL_PAGE = 12;
 async function loadIdealoList(url, mode = 'fresh') {
@@ -351,7 +340,7 @@ function renderIdealo() {
     host.innerHTML = `<p class="hint">${lang === 'en' ? 'No results.' : 'Aucun résultat.'}</p>`;
     if (st) st.textContent = '';
   } else {
-    if (st) st.textContent = `${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
+    if (st) st.textContent = `${currentCatLabel} · ${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
   }
   const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
   shown.forEach(it => {
@@ -808,7 +797,6 @@ function bind() {
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
-  buildCatChips();
   $('#pickerClose').onclick = closePicker;
   $('#pickerSearch').addEventListener('input', e => { pickerFilter = e.target.value; renderPicker(); });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null);
@@ -818,7 +806,7 @@ function bind() {
     currentIdealoUrl = url;
     $('#pickerIdealoSearch').href = url;
     const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
-    $$('#catChips .chipbtn').forEach(b => b.classList.remove('active'));
+    currentCatLabel = `“${q}”`;
     loadIdealoList(url);
   };
   $('#idealoGo').onclick = goIdealo;
