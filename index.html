@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ConfigMaker by KJ — v2.0</title>
+<title>ConfigMaker by KJ — v2.4</title>
 <meta name="description" content="ConfigMaker by KJ — configurateur PC & setup style TopAchat configomatic, prix Idealo, consommation, manuels, historique.">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0a0f1e" media="(prefers-color-scheme: dark)">
@@ -14,11 +14,11 @@
 <meta name="apple-mobile-web-app-title" content="ConfigMaker">
 <link rel="apple-touch-icon" href="./assets/icons/configmakericon.png">
 <link rel="shortcut icon" type="image/png" href="./assets/icons/configmakericon.png">
-<meta property="og:title" content="ConfigMaker by KJ — v2.0">
+<meta property="og:title" content="ConfigMaker by KJ — v2.4">
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=20">
+<link rel="stylesheet" href="./assets/css/app.css?v=24">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&display=swap" rel="stylesheet">
@@ -33,7 +33,7 @@
   <div class="kjbrand">
     <a href="./" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.0</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.4</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -96,17 +96,49 @@
           <button class="icon-btn" id="pickerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="picker-tools">
+          <div id="catChips" class="chips" aria-label="Catégories Idealo"></div>
+            <div class="search-row">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input id="idealoQuery" data-i18n-ph="picker.idealoPh" placeholder="Rechercher sur idealo.fr…">
+              <button id="idealoGo" class="mini-btn"><i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+            <div class="tools-row">
+              <div class="search-row grow mini">
+                <i class="fa-solid fa-filter"></i>
+                <input id="idealoFilter" data-i18n-ph="picker.filterPh" placeholder="Filtrer les résultats…">
+              </div>
+              <select id="idealoSort" class="sort-sel" aria-label="Tri">
+                <option value="rel" data-i18n="picker.sortRel">Pertinence</option>
+                <option value="asc" data-i18n="picker.sortAsc">Prix croissant</option>
+                <option value="desc" data-i18n="picker.sortDesc">Prix décroissant</option>
+              </select>
+            </div>
+            <div id="idealoStatus" class="hint"></div>
+            <div class="picker-links" id="idealoRetryWrap" style="display:none">
+              <button id="idealoRetry" class="btn btn-sm"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="picker.retry">Réessayer</span></button>
+              <button id="idealoOpenFallback" class="btn btn-sm"><i class="fa-solid fa-external-link"></i> idealo.fr</button>
+            </div>
+            <div id="idealoList" class="picker-list"></div>
+            <button id="idealoMore" class="add-row-btn hidden"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.more">Charger plus</span></button>
+          <div class="sec-title" style="margin-top:14px"><h2><i class="fa-solid fa-layer-group"></i> <span data-i18n="picker.fiches">Mes fiches</span></h2><span class="count" id="fichesCount">0</span></div>
           <div class="search-row">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="pickerSearch" data-i18n-ph="picker.search" placeholder="Rechercher une référence…">
+            <i class="fa-solid fa-filter"></i>
+            <input id="pickerSearch" data-i18n-ph="picker.search" placeholder="Filtrer mes fiches…">
           </div>
+          <div id="pickerList" class="picker-list"></div>
           <div class="picker-links">
             <a id="pickerIdealoSearch" href="#" target="_blank" rel="noopener" class="btn btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>
             <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
           </div>
-          <p class="hint" data-i18n="picker.hint">Idealo n'offre pas d'API publique : collez l'URL de la page Idealo + les specs affichées en haut de la fiche, l'app suit prix, remises et livraison.</p>
+          <div class="idealo-under">
+            <div class="search-row grow">
+              <i class="fa-solid fa-link"></i>
+              <input id="idealoUrl" data-i18n-ph="picker.urlPh" placeholder="Collez l'URL exacte de la fiche /prix/…">
+            </div>
+            <button id="idealoChoose" class="btn btn-sm btn-primary"><i class="fa-solid fa-check"></i> <span data-i18n="picker.choose">Choisir cette page</span></button>
+          </div>
+          <p class="hint" data-i18n="picker.hint">Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.</p>
         </div>
-        <div id="pickerList" class="picker-list"></div>
         <div id="productFormWrap" class="hidden"></div>
       </div>
       <!-- Summary -->
@@ -160,7 +192,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.0 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.4 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -178,7 +210,8 @@
 </div>
 <div id="toast" class="toast hidden"></div>
 
-<script src="./assets/js/app.js?v=20"></script>
+<script src="./assets/js/idealo.js?v=24"></script>
+<script src="./assets/js/app.js?v=24"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

@@ -1,6 +1,5 @@
-/* ConfigMaker v2.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
-   Idealo: no public API / scraping blocked (CORS, anti-bot, ToS) -> manual "fiche liée Idealo"
-   (URL + quick specs pasted from the Idealo page) + deep links. No "add to cart". */
+/* ConfigMaker v2.4 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+   Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -47,8 +46,14 @@ const I18N = {
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
-    'picker.search': 'Rechercher une référence…', 'picker.new': 'Nouvelle fiche',
-    'picker.hint': "Idealo n'offre pas d'API publique : collez l'URL de la page Idealo + les specs affichées en haut de la fiche, l'app suit prix, remises et livraison.",
+    'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
+    'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
+    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir cette page', 'picker.chooseBtn': 'Choisir',
+    'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
+    'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
+    'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
+    'picker.err': 'Chargement impossible (limite de requêtes ou blocage). Réessayez dans une minute ou ouvrez sur idealo.fr.',
+    'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
     'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks YouTube', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
@@ -59,8 +64,14 @@ const I18N = {
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
-    'picker.search': 'Search a reference…', 'picker.new': 'New entry',
-    'picker.hint': 'Idealo offers no public API: paste the Idealo page URL + the quick specs shown at the top of the listing; the app tracks price, discounts and delivery.',
+    'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
+    'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
+    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this page', 'picker.chooseBtn': 'Select',
+    'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
+    'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
+    'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
+    'picker.err': 'Could not load the list (rate limit or block). Retry in a minute or open on idealo.fr.',
+    'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
     'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'YouTube benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
@@ -221,12 +232,172 @@ function addSlot(kind) {
 }
 
 /* ---------- Picker ---------- */
-function idealoSearchUrl(q) { return 'https://www.idealo.fr/chercher/' + encodeURIComponent(q || ''); }
+function idealoSearchUrl(q) { return 'https://www.idealo.fr/prechcat.html?q=' + encodeURIComponent(q || ''); }
+/* Real categories from https://www.idealo.fr/scat/1342/informatique.html (+ Composants PC) */
+const IDEALO_CATS = [
+  { key: 'root', label: 'Informatique', url: 'https://www.idealo.fr/scat/1342/informatique.html' },
+  { key: 'cpu', label: 'Processeurs', url: 'https://www.idealo.fr/cat/3019/processeurs.html' },
+  { key: 'mb', label: 'Cartes mères', url: 'https://www.idealo.fr/cat/3018/cartes-meres.html' },
+  { key: 'ram', label: 'Barrettes RAM', url: 'https://www.idealo.fr/cat/4552/barrettes-de-ram.html' },
+  { key: 'cooler', label: 'Refroidissement', url: 'https://www.idealo.fr/scat/3206/refroidisseurs-ventilateurs.html' },
+  { key: 'ssd', label: 'SSD', url: 'https://www.idealo.fr/cat/14613/ssd.html' },
+  { key: 'gpu', label: 'Cartes graphiques', url: 'https://www.idealo.fr/cat/16073/cartes-graphiques.html' },
+  { key: 'case', label: 'Boîtiers PC', url: 'https://www.idealo.fr/cat/3090/boitiers-pc.html' },
+  { key: 'psu', label: 'Alimentations', url: 'https://www.idealo.fr/cat/5432/alimentation-pc.html' },
+  { key: 'os', label: "Systèmes d'exploitation", url: 'https://www.idealo.fr/cat/10052/systemes-d-exploitation.html' },
+  { key: 'desk', label: 'Bureaux', url: 'https://www.idealo.fr/cat/14953/bureaux.html' },
+  { key: 'chair', label: 'Fauteuils gamer', url: 'https://www.idealo.fr/cat/26049/fauteuils-gamer.html' },
+  { key: 'screen', label: 'Écrans', url: 'https://www.idealo.fr/cat/3832/moniteurs.html' },
+  { key: 'keyboard', label: 'Claviers', url: 'https://www.idealo.fr/cat/3047/claviers-ordinateur.html' },
+  { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
+  { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
+  { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172/casques-gamer.html' },
+];
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset' };
+let currentCatKey = 'root', currentIdealoUrl = IDEALO_CATS[0].url;
+let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0;
+function slotCatKey(slotId) {
+  if (slotId.startsWith('ssd_')) return 'ssd';
+  if (slotId.startsWith('screen_')) return 'screen';
+  if (slotId.startsWith('pcx_') || slotId.startsWith('opt_')) return 'root';
+  const s = state.slots[slotId];
+  return (s && SLOT_CAT[s.defId]) || 'root';
+}
+function buildCatChips() {
+  const host = $('#catChips'); if (!host) return; host.innerHTML = '';
+  IDEALO_CATS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'chipbtn' + (c.key === currentCatKey ? ' active' : '');
+    b.textContent = c.label;
+    b.dataset.cat = c.key;
+    b.onclick = () => { loadCategory(c.key); loadIdealoList(c.url); };
+    host.appendChild(b);
+  });
+}
+function loadCategory(key) {
+  const c = IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0];
+  currentCatKey = c.key;
+  currentIdealoUrl = c.url;
+  const a = $('#pickerIdealoSearch'); if (a) a.href = c.url;
+  const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(c.url, '_blank', 'noopener');
+  $$('#catChips .chipbtn').forEach(b => b.classList.toggle('active', b.dataset.cat === c.key));
+}
+const IDEAL_PAGE = 12;
+async function loadIdealoList(url, mode = 'fresh') {
+  // mode: 'fresh' (new base url) | 'more' (show more / fetch next sort variant)
+  const my = ++idealToken;
+  if (mode === 'fresh') {
+    idealBase = url; idealUrl = url;
+    idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE; idealErr = ''; idealCached = false;
+  }
+  idealBusy = true; renderIdealo();
+  const need = mode === 'fresh' || mode === 'variant' ? [idealSort] : nextVariant();
+  if (mode === 'more' && !need.length && idealNextUrl && !idealFetched['next:' + idealNextUrl]) {
+    const r2 = await Idealo.list(idealNextUrl);
+    if (my !== idealToken) return;
+    idealBusy = false;
+    if (r2.error) { idealErr = r2.error; }
+    else {
+      r2.items.forEach(it => { if (it.url && !idealPool.some(x => x.url === it.url)) idealPool.push(it); });
+      idealFetched['next:' + idealNextUrl] = true;
+      idealNextUrl = r2.next || null;
+      if (r2.cached) idealCached = true;
+    }
+    renderIdealo();
+    return;
+  }
+  for (const v of need) {
+    const u = v === 'rel' ? idealBase : Idealo.sortUrl(idealBase, v);
+    const r = await Idealo.list(u);
+    if (my !== idealToken) return; // stale
+    if (r.error) { idealErr = r.error; }
+    else {
+      r.items.forEach(it => { if (it.url && !idealPool.some(x => x.url === it.url)) idealPool.push(it); });
+      idealFetched[v] = true;
+      if (r.cached) idealCached = true;
+      if (r.next && !idealNextUrl) idealNextUrl = r.next;
+    }
+  }
+  idealBusy = false;
+  renderIdealo();
+}
+function nextVariant() {
+  for (const v of ['rel', 'asc', 'desc']) if (!idealFetched[v]) return [v];
+  return [];
+}
+function idealMore() {
+  const q = idealQ.trim().toLowerCase();
+  const len = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q)).length;
+  if (idealShown < len) { idealShown += IDEAL_PAGE; renderIdealo(); }
+  else loadIdealoList(null, 'more');
+}
+function renderIdealo() {
+  const host = $('#idealoList'); if (!host) return;
+  const st = $('#idealoStatus');
+  const q = idealQ.trim().toLowerCase();
+  let items = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q));
+  if (idealSort === 'asc') items = [...items].sort((a, b) => (a.price || 1e12) - (b.price || 1e12));
+  if (idealSort === 'desc') items = [...items].sort((a, b) => (b.price || 0) - (a.price || 0));
+  const shown = items.slice(0, idealShown);
+  const moreLeft = items.length - shown.length;
+  host.innerHTML = '';
+  if (idealBusy && !items.length) {
+    host.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+    if (st) st.textContent = t('picker.loading');
+  } else if (idealErr && !items.length) {
+    host.innerHTML = `<p class="hint">${esc(t('picker.err'))}<br><code class="k">${esc(idealErr)}</code></p>`;
+    if (st) st.textContent = '';
+  } else if (!items.length) {
+    host.innerHTML = `<p class="hint">${lang === 'en' ? 'No results.' : 'Aucun résultat.'}</p>`;
+    if (st) st.textContent = '';
+  } else {
+    if (st) st.textContent = `${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
+  }
+  const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
+  shown.forEach(it => {
+    const card = document.createElement('div');
+    card.className = 'pick-card';
+    card.innerHTML = `${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}
+      <div class="pi"><div class="pn">${esc(it.name)}</div><div class="ps">${esc(it.specs)}</div>
+      <div class="ps">${it.offers ? `${it.offers} ${t('picker.offers')} · ` : ''}${it.price ? `${t('picker.from')} ${eur(it.price)}` : ''}</div></div>
+      <div><div class="pp">${it.price ? eur(it.price) : '—'}</div></div>`;
+    const choose = document.createElement('button');
+    choose.className = 'mini-btn'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
+    choose.onclick = () => chooseIdealoItem(it);
+    const link = document.createElement('a');
+    link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
+    link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
+    const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
+    wrap.append(choose, link);
+    card.appendChild(wrap);
+    host.appendChild(card);
+  });
+  const more = $('#idealoMore');
+  if (more) {
+    const canMore = moreLeft > 0 || (nextVariant().length > 0 && !idealBusy);
+    more.classList.toggle('hidden', !canMore);
+    const lbl = more.querySelector('span');
+    if (lbl) lbl.textContent = moreLeft > 0 ? `${t('picker.more')} (+${Math.min(moreLeft, IDEAL_PAGE)})` : t('picker.more');
+  }
+}
+function chooseIdealoItem(it) {
+  if (!activeSlot) return;
+  const np = blankProduct();
+  np.name = it.name; np.image = it.img; np.idealo = it.url;
+  np.price = it.price || 0; np.specs = it.specs; np.vendor = '';
+  openProductForm(activeSlot, np);
+}
 function openPicker(id) {
   activeSlot = id; pickerFilter = ''; $('#pickerSearch').value = '';
+  const s = state.slots[id], cur = sel(s);
+  $('#idealoQuery').value = (cur && cur.name) || slotName(id);
+  $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
+  const url = (IDEALO_CATS.find(x => x.key === slotCatKey(id)) || IDEALO_CATS[0]).url;
+  loadCategory(slotCatKey(id));
   $('#pickerPanel').classList.remove('hidden');
   $('#summaryPanel').classList.add('hidden');
   renderSlots(); renderPicker();
+  loadIdealoList(url);
   if (window.innerWidth < 960) $('#pickerPanel').scrollIntoView({ behavior: 'smooth' });
 }
 function closePicker() { activeSlot = null; $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); renderSlots(); }
@@ -234,7 +405,8 @@ function renderPicker() {
   const s = state.slots[activeSlot]; if (!s) return;
   const d = defOf(s);
   $('#pickerTitle').textContent = slotName(activeSlot);
-  $('#pickerIdealoSearch').href = idealoSearchUrl((sel(s) && sel(s).name) || slotName(activeSlot) || d.q);
+  $('#pickerIdealoSearch').href = currentIdealoUrl;
+  const fc = $('#fichesCount'); if (fc) fc.textContent = s.products.length;
   const cur = sel(s);
   const list = s.products.filter(p => (p.name + ' ' + p.vendor).toLowerCase().includes(pickerFilter.toLowerCase()));
   const host = $('#pickerList'); host.innerHTML = '';
@@ -555,7 +727,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.0', `
+  openModal('Changelog — v2.4', `
+    <div class="chlog"><h3>v2.4 — Catalogue Idealo natif</h3><p class="hint">Listes Idealo affichées directement dans l'app par catégorie (17 catégories réelles) : image, specs, prix « à partir de », offres, tri, filtre, pagination « charger plus », recherche. « Choisir » pré-remplit la fiche (nom, image, prix, lien). Cache 6 h, repli onglet en cas de limite.</p></div>
     <div class="chlog"><h3>v2.0 — Webapp (2026)</h3><p class="hint">Nouvelle webapp façon configomatic : fiches liées Idealo (specs rapides, vendeur, prix, remise, livraison incluse), manuels, changement boutique, alternatives triées avec écarts, suivi colis, historique des prix + budget, conso (W), benchmarks YouTube (CPU+GPU+RAM), simulateur PCIe, FR/EN, light/dark/système, PWA installable, 100 % local.</p></div>
     <div class="chlog"><h3>2025.08.09 — Excel FR/EN</h3><p class="hint">Config Maker tableur : PC + setup + options, quantités, livraison, totaux, manuel intégré.</p></div>`);
 }
@@ -635,9 +808,41 @@ function bind() {
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
+  buildCatChips();
   $('#pickerClose').onclick = closePicker;
   $('#pickerSearch').addEventListener('input', e => { pickerFilter = e.target.value; renderPicker(); });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null);
+  const goIdealo = () => {
+    const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
+    const url = idealoSearchUrl(q);
+    currentIdealoUrl = url;
+    $('#pickerIdealoSearch').href = url;
+    const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
+    $$('#catChips .chipbtn').forEach(b => b.classList.remove('active'));
+    loadIdealoList(url);
+  };
+  $('#idealoGo').onclick = goIdealo;
+  $('#idealoQuery').addEventListener('keydown', e => { if (e.key === 'Enter') goIdealo(); });
+  $('#idealoFilter').addEventListener('input', e => { idealQ = e.target.value; idealShown = IDEAL_PAGE; renderIdealo(); });
+  $('#idealoSort').addEventListener('change', e => {
+    idealSort = e.target.value; idealShown = IDEAL_PAGE;
+    if (!idealBase || idealFetched[idealSort]) renderIdealo();
+    else loadIdealoList(null, 'variant');
+  });
+  $('#idealoMore').onclick = () => idealMore();
+  $('#idealoRetry').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh');
+  $('#idealoChoose').onclick = () => {
+    if (!activeSlot) return;
+    const url = $('#idealoUrl').value.trim();
+    if (!url || !/idealo\.fr\/prix\//i.test(url)) { toast(lang === 'en' ? 'Paste an exact /prix/ listing URL' : 'Collez une URL exacte de fiche /prix/'); return; }
+    const np = blankProduct();
+    np.idealo = url;
+    try {
+      const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
+      np.name = slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+    } catch { np.name = ''; }
+    openProductForm(activeSlot, np);
+  };
   $('#phTotal').onclick = () => { phMode = 'total'; $('#phTotal').classList.add('active'); $('#phPer').classList.remove('active'); drawPrices(); };
   $('#phPer').onclick = () => { phMode = 'per'; $('#phPer').classList.add('active'); $('#phTotal').classList.remove('active'); drawPrices(); };
   $('#benchCopy').onclick = () => { navigator.clipboard?.writeText(benchQuery()); toast(lang === 'en' ? 'Copied' : 'Copié'); };

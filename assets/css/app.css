@@ -138,6 +138,20 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .pick-card .ps{font-size:.76rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pick-card .pp{font-weight:900;white-space:nowrap}
 .pick-card .pdiff{font-size:.75rem;font-weight:800}
+/* v2.4 — native Idealo results */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px 2px;scrollbar-width:thin}
+.chipbtn{flex:0 0 auto;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:var(--radius-pill);padding:8px 13px;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap}
+.chipbtn:hover{border-color:var(--brand);color:var(--brand-ink)}
+.chipbtn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tools-row{display:flex;gap:8px;align-items:center}
+.tools-row .grow{flex:1}
+.search-row.mini{padding:8px 12px}
+.search-row .mini-btn{flex:0 0 auto}
+.sort-sel{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-pill);padding:9px 12px;color:var(--ink);font:inherit;font-size:.8rem;font-weight:800;flex:0 0 auto}
+.skel{height:74px;border-radius:14px;background:linear-gradient(90deg,var(--bg-soft) 25%,var(--line) 50%,var(--bg-soft) 75%);background-size:200% 100%;animation:sk 1.2s infinite}
+@keyframes sk{to{background-position:-200% 0}}
+.idealo-under{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.idealo-under .search-row{flex:1;min-width:200px}
 /* buttons */
 .btn{display:inline-flex;align-items:center;gap:10px;font-weight:900;font-size:.9rem;padding:12px 18px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;box-shadow:var(--shadow-sm)}
 .btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
