@@ -92,7 +92,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -193,9 +193,11 @@ function slotCard(id) {
   if (p) {
     const old = hasDiscount(p) ? `<span class="old">${eur(p.oldPrice)}</span>` : '';
     const badge = hasDiscount(p) ? `<span class="disc-badge"><i class="fa-solid fa-tag"></i> −${discPct(p)}%</span>` : '';
+    const discounted = !!(p.promo || hasDiscount(p));
+    const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
     const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
-    priceHtml = `<div class="slot-price${p.promo ? ' promo' : ''}">${old}${eur(p.price)}${badge}${p.promo ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>
+    priceHtml = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${eur(p.price)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>
       <div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>
       <div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
@@ -516,6 +518,7 @@ function chooseIdealoItem(it) {
     if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     if (o.url && !np.store) np.store = o.url;
     if (o.promo) np.promo = true;
+    np.isBest = o.price <= (it.price || o.price);
     syncEnrich();
   });
 }
@@ -592,7 +595,7 @@ async function openMerchants(slotId) {
     return;
   }
   openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `<p class="hint">${t('picker.loading')}</p>`);
-  if (p.best || p.promo) { p.best = null; p.promo = false; persist(); refresh(); }
+  if (p.best || p.isBest) { p.best = null; p.isBest = false; persist(); refresh(); }
   const r = await Idealo.offers(p.idealo);
   if (r.error || !r.offers.length) {
     openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `
@@ -621,6 +624,9 @@ async function openMerchants(slotId) {
     if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     p.store = o.url || p.store;
     p.promo = !!o.promo;
+    const ship = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
+    const minTotal = Math.min(...r.offers.filter(x => x.price).map(x => x.price + ship(x)));
+    p.isBest = (o.price + ship(o)) <= minTotal + 1e-9;
     persist(); closeModal(); refresh();
     toast(lang === 'en' ? 'Merchant selected' : 'Marchand sélectionné');
   });
@@ -991,6 +997,17 @@ function applyOfferRefresh(cur, offers, withFlags) {
   let ch = false;
   const qty = cur.qty || 1;
   const shipOf = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
+  if (!o) {
+    // chosen vendor gone from listing: keep coherent old data, but still evaluate flags
+  } else {
+    if (o.price && o.price !== cur.price) { cur.price = o.price; ch = true; }
+    if (!cur.vendor && o.merchant) { cur.vendor = o.merchant; ch = true; }
+    if (o.delivered > 0 && o.price) {
+      const d = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+      if (d !== cur.delivery) { cur.delivery = d; ch = true; }
+    }
+    if (!cur.store && o.url) { cur.store = o.url; ch = true; }
+  }
   if (withFlags) {
     const curTotal = unitTotal(cur);
     let best = null;
@@ -1002,18 +1019,12 @@ function applyOfferRefresh(cur, offers, withFlags) {
     if (best && best.total < curTotal - 0.005) {
       if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
     } else if (cur.best) { cur.best = null; ch = true; }
+    const noBetter = !best || best.total >= curTotal - 0.005;
+    if (!!cur.isBest !== noBetter) { cur.isBest = noBetter; ch = true; }
     const ref = o;
     const promo = !!(ref && ref.promo);
     if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
   }
-  if (!o) return ch; // chosen vendor gone from listing: keep coherent old data
-  if (o.price && o.price !== cur.price) { cur.price = o.price; ch = true; }
-  if (!cur.vendor && o.merchant) { cur.vendor = o.merchant; ch = true; }
-  if (o.delivered > 0 && o.price) {
-    const d = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
-    if (d !== cur.delivery) { cur.delivery = d; ch = true; }
-  }
-  if (!cur.store && o.url) { cur.store = o.url; ch = true; }
   return ch;
 }
 async function refreshPrices() {
@@ -1093,7 +1104,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.24', `
+  openModal('Changelog — v2.25', `
+    <div class="chlog"><h3>v2.25 — Couleurs meilleur prix & promo</h3><p class="hint">Prix en vert quand c'est le meilleur, orange + % quand une remise est disponible (bon plan Idealo ou remise saisie), € vert quand mieux existe ailleurs. Le % reste affiché tant qu'une remise existe.</p></div>
     <div class="chlog"><h3>v2.24 — Sections repliables</h3><p class="hint">PC / Setup / Autres repliables (titre + total conservés, pointillés repliés avec le contenu), textes agrandis, ligne budget réduite à l'écart avec phrase explicative au survol.</p></div>
     <div class="chlog"><h3>v2.23 — Résumé enrichi</h3><p class="hint">Petite icône par composant dans le résumé, lignes pointillées sous chaque section, et clic sur une ligne pour retrouver et surligner le composant à gauche.</p></div>
     <div class="chlog"><h3>v2.22 — Refresh visible et complet</h3><p class="hint">Popup « Actualisation des prix » persistante avec compteur, composants en cours grisés avec animation de chargement, et prix des alternatives aussi actualisés (requêtes dédupliquées par page).</p></div>
