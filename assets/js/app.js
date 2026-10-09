@@ -37,8 +37,6 @@ const SLOT_DEFS = [
   { id: 'opt2', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
   { id: 'opt3', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
 ];
-const ADD_MORE = { ssd: 'SSD', screen: 'Écran', pcx: 'Composant', opt: 'Option' };
-
 /* ---------- i18n ---------- */
 const I18N = {
   fr: {
@@ -167,12 +165,11 @@ function renderSlots() {
     const done = ids.filter(id => sel(state.slots[id])).length;
     wrap.innerHTML = `<div class="sec-title"><h2><i class="${SECTIONS.find(s => s.id === sec).icon}"></i> ${esc(secName(sec))}</h2><span class="count">${done}/${ids.length}</span></div>`;
     ids.forEach(id => wrap.appendChild(slotCard(id)));
-    const addable = ids.map(id => defOf(state.slots[id]).addMore).find(Boolean);
-    if (addable) {
+    {
       const b = document.createElement('button');
       b.className = 'add-row-btn';
-      b.innerHTML = `<i class="fa-solid fa-plus"></i> ${lang === 'en' ? 'Add' : 'Ajouter'} ${ADD_MORE[addable].toLowerCase()} / ${lang === 'en' ? 'option' : 'option'}`;
-      b.onclick = () => addSlot(addable);
+      b.innerHTML = `<i class="fa-solid fa-plus"></i> ${sec === 'pc' ? (lang === 'en' ? 'Add PC part' : 'Ajouter un composant PC') : sec === 'setup' ? (lang === 'en' ? 'Add setup item' : 'Ajouter un élément setup') : (lang === 'en' ? 'Add another item' : 'Ajouter un autre élément')}`;
+      b.onclick = () => openAddPopup(sec);
       wrap.appendChild(b);
     }
     host.appendChild(wrap);
@@ -196,6 +193,7 @@ function slotCard(id) {
       <div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
   el.innerHTML = `
+    ${id.includes('_') ? `<button class="slot-remove" data-act="rmslot" title="${lang === 'en' ? 'Remove this component' : 'Supprimer ce composant'}"><i class="fa-solid fa-xmark"></i></button>` : ''}
     <button class="slot-main${p ? '' : ' empty'}" data-act="pick">
       <span class="slot-visual">${visual}</span>
       <span class="slot-info"><span class="slot-type">${esc(slotName(id))}</span><span class-right></span>
@@ -218,6 +216,7 @@ function slotCard(id) {
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.act === 'alts') { openAlts.has(id) ? openAlts.delete(id) : openAlts.add(id); renderSlots(); return; }
+    if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
     slotAction(id, b.dataset.act);
   }));
   const alts = el.querySelector('[data-alts]');
@@ -279,15 +278,44 @@ function slotAction(id, act) {
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
 }
-function addSlot(kind) {
-  const id = kind + '_' + uid();
-  const sec = kind === 'screen' ? 'setup' : kind === 'ssd' ? 'pc' : kind === 'pcx' ? 'pc' : 'others';
-  state.slots[id] = { defId: kind === 'screen' ? 'screen1' : kind === 'ssd' ? 'ssd1' : kind === 'pcx' ? 'os' : 'opt1', customLabel: kind === 'opt' ? ((lang === 'en' ? 'Option ' : 'Option ') + (Object.keys(state.slots).length + 1)) : '', products: [], selectedId: null };
-  // insert before end of its section
-  const ids = state.order.filter(x => defOf(state.slots[x]).sec === sec);
-  const last = ids[ids.length - 1];
-  state.order.splice(state.order.indexOf(last) + 1, 0, id);
+function openAddPopup(sec) {
+  const types = sec === 'others'
+    ? [{ defId: 'opt1', icon: 'fa-solid fa-puzzle-piece', label: lang === 'en' ? 'Option' : 'Option' }]
+    : SLOT_DEFS.filter(d => d.sec === sec).map(d => ({ defId: d.id, icon: d.icon, label: (SLOT_NAMES[lang] && SLOT_NAMES[lang][d.id]) || SLOT_NAMES.fr[d.id] || d.id }));
+  openModal(lang === 'en' ? 'Select component type' : 'Choisir le type de composant', `
+    <div class="type-grid">${types.map(t => `<button class="type-btn" data-def="${t.defId}">${iconHtml(t.icon)}<span>${esc(t.label)}</span></button>`).join('')}</div>`);
+  refreshIcons();
+  $$('#modalBody .type-btn').forEach(b => b.onclick = () => { closeModal(); addSlotByDef(b.dataset.def); });
+}
+function addSlotByDef(defId) {
+  const d = SLOT_DEFS.find(x => x.id === defId); if (!d) return;
+  const prefix = { ssd1: 'ssd', screen1: 'screen', os: 'pcx' }[defId] || (d.sec === 'others' ? 'opt' : defId);
+  let n = 1;
+  while (state.slots[`${prefix}_${n}`]) n++;
+  const id = `${prefix}_${n}`;
+  state.slots[id] = { defId, customLabel: id, products: [], selectedId: null };
+  // insert below the concerned component type (after last slot of the same group)
+  const sameGroup = sid => {
+    const dd = state.slots[sid].defId;
+    return dd === defId || (defId.startsWith('opt') && dd.startsWith('opt'));
+  };
+  const group = state.order.filter(sameGroup);
+  if (group.length) state.order.splice(state.order.indexOf(group[group.length - 1]) + 1, 0, id);
+  else {
+    const ids = state.order.filter(x => defOf(state.slots[x]).sec === d.sec);
+    const last = ids[ids.length - 1];
+    state.order.splice(last ? state.order.indexOf(last) + 1 : state.order.length, 0, id);
+  }
   persist(); refresh(); openPicker(id);
+}
+function removeSlot(slotId) {
+  if (!state.slots[slotId] || !slotId.includes('_')) return;
+  if (!confirm(lang === 'en' ? 'Remove this component?' : 'Supprimer ce composant ?')) return;
+  delete state.slots[slotId];
+  state.order = state.order.filter(x => x !== slotId);
+  openAlts.delete(slotId);
+  if (activeSlot === slotId) { activeSlot = null; $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); }
+  persist(); refresh();
 }
 
 /* ---------- Picker ---------- */
@@ -909,7 +937,9 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.16', `
+  openModal('Changelog — v2.18', `
+    <div class="chlog"><h3>v2.18 — Détails d'affichage</h3><p class="hint">Bouton de suppression plus grand, marges entre les sections, emplacements ajoutés nommés ssd_1, opt_2… au lieu d'identifiants aléatoires.</p></div>
+    <div class="chlog"><h3>v2.17 — Ajout ciblé de composants</h3><p class="hint">Les boutons d'ajout (« composant PC », « élément setup », « autre élément ») ouvrent une popup de choix du type, inséré sous le même type. Les emplacements ajoutés ont un bouton de suppression (×).</p></div>
     <div class="chlog"><h3>v2.16 — Achat + marchand le moins cher</h3><p class="hint">Bouton panier déplacé sur le bouton composant (ouvre la boutique de la fiche). À la sélection d'un composant, le marchand le moins cher est appliqué par défaut (vendeur, prix, port, lien), sans écraser vos saisies.</p></div>
     <div class="chlog"><h3>v2.15 — Marchands au clic</h3><p class="hint">Sélection du marchand au clic sur sa ligne (sans bouton), bouton panier vers la page de l'offre, et titre de popup corrigé.</p></div>
     <div class="chlog"><h3>v2.14 — Choix du marchand</h3><p class="hint">Le bouton boutique ouvre la liste des marchands lue sur la page Idealo (prix croissants, note, livraison) : un clic applique vendeur, prix, frais de port et lien de l'offre. Repli manuel si la liste est inaccessible.</p></div>
