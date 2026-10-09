@@ -123,6 +123,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot-vendor{font-size:.72rem;color:var(--muted);font-weight:700}
 .slot-price{font-weight:900;font-size:1.05rem}
 .slot-price .old{font-size:.78rem;color:var(--muted);text-decoration:line-through;font-weight:700;margin-right:6px}
+.better-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#0ca678,#099268);color:#fff;font-weight:900;font-size:.78rem;padding:0 5px;cursor:help;vertical-align:2px}
+.promo-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#f59f00,#e8890c);color:#fff;font-weight:900;font-size:.78rem;padding:0 5px;cursor:help;vertical-align:2px}
+.slot-price.promo{color:#d97a06}
 .disc-badge{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--warning),#d9480f);padding:3px 8px;border-radius:var(--radius-pill);margin-left:6px}
 .slot-deliv{font-size:.72rem;color:var(--muted)}
 .slot-actions{display:flex;gap:4px;flex-wrap:wrap;padding:0 14px 10px 84px}

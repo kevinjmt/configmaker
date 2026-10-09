@@ -291,12 +291,17 @@ const Idealo = (() => {
       const dm = body.match(/\[([\d\s]+[.,]\d{2})\s*€ livraison incl\.\]/i);
       const delivered = dm ? parsePrice(dm[1]) : 0;
       const mm = body.match(/\/marchand\/(\d+)\/([^/.)\s]+)/);
-      const merchant = mm ? merchantName(mm[2]) : '';
+      let merchant = mm ? merchantName(mm[2]) : '';
+      if (!merchant) {
+        const tm = body.match(/Marchand:\s*\[([^\]]+)\]/i) || m[0].match(/Marchand:\s*\[([^\]]+)\]/i);
+        if (tm) merchant = tm[1].trim();
+      }
       const rm = body.match(/\[\*\*([\d,]+)\*\*\]\([^)]*marchand[^)]*\)/);
       const lm = body.match(/\[\*?\s*Livraison:\s*([^\]]+)\]/i);
       const sid = (relUrl.match(/[?&]sid=(\d+)/) || [])[1] || (mm ? mm[1] : '');
       offers.push({
         title, price, delivered, merchant,
+        promo: /Code Promo/i.test(body),
         rating: rm ? rm[1] : '',
         delivery: lm ? lm[1].trim() : '',
         sid, url: absUrl(relUrl),
@@ -326,9 +331,9 @@ const Idealo = (() => {
     }
   }
 
-  async function offers(url) {
+  async function offers(url, force) {
     try {
-      let { md, cached } = await cachedMd(url);
+      let { md, cached } = await cachedMd(url, force);
       let items = parseOffers(md);
       if (!items.length) { // stale/partial render: refetch once, bypassing cache
         md = (await cachedMd(url, true)).md;

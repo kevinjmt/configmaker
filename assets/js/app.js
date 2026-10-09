@@ -92,7 +92,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -143,7 +143,8 @@ function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList
 
 /* ---------- Modal ---------- */
 function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalOverlay').classList.remove('hidden'); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); editingPid = null; }
+let editingPid = null;
 
 /* ---------- Slot rendering ---------- */
 function productQuickSpecs(p) {
@@ -188,7 +189,9 @@ function slotCard(id) {
   if (p) {
     const old = hasDiscount(p) ? `<span class="old">${eur(p.oldPrice)}</span>` : '';
     const badge = hasDiscount(p) ? `<span class="disc-badge"><i class="fa-solid fa-tag"></i> −${discPct(p)}%</span>` : '';
-    priceHtml = `<div class="slot-price">${old}${eur(p.price)}${badge}</div>
+    const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
+    const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
+    priceHtml = `<div class="slot-price${p.promo ? ' promo' : ''}">${old}${eur(p.price)}${badge}${p.promo ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>
       <div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>
       <div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
@@ -507,6 +510,7 @@ function chooseIdealoItem(it) {
     if (o.price) np.price = o.price;
     if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     if (o.url && !np.store) np.store = o.url;
+    if (o.promo) np.promo = true;
     syncEnrich();
   });
 }
@@ -534,6 +538,7 @@ function renderPicker() {
 function openProductForm(slotId, p, opts = {}) {
   const isNew = !p;
   p = p || blankProduct();
+  editingPid = p.id;
   const d = defOf(state.slots[slotId]);
   openModal(isNew ? (lang === 'en' ? 'New fiche — ' : 'Nouvelle fiche — ') + slotName(slotId) : (lang === 'en' ? 'Edit fiche' : 'Modifier la fiche'), `
     <div class="form-grid">
@@ -582,6 +587,7 @@ async function openMerchants(slotId) {
     return;
   }
   openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `<p class="hint">${t('picker.loading')}</p>`);
+  if (p.best || p.promo) { p.best = null; p.promo = false; persist(); refresh(); }
   const r = await Idealo.offers(p.idealo);
   if (r.error || !r.offers.length) {
     openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `
@@ -593,10 +599,15 @@ async function openMerchants(slotId) {
   }
   openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `
     ${r.cached ? `<p class="hint">· ${t('picker.cached')}</p>` : ''}
-    <div id="m_list">${r.offers.map((o, i) => `
-      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
+    <div id="m_list">${(() => {
+    const ship = o => Math.max(0, ((o.delivered > 0 ? o.delivered : o.price) - o.price));
+    const bestTotal = Math.min(...r.offers.map(o => o.price + ship(o)));
+    return r.offers.map((o, i) => {
+    const tot = o.price + ship(o);
+    return `
+      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${tot === bestTotal ? `<span class="better-badge" title="${lang === 'en' ? 'Best total price' : 'Meilleur prix total'}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo'}">%</span> ` : ''}${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
       <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}</small></span>
-      <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}</span></div>`).join('')}</div>
+      <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}</span></div>`; }).join('')})()}</div>
     <div class="btn-row"><button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
   $$('#modalBody .merchant-row').forEach(row => row.onclick = () => {
     const o = r.offers[Number(row.dataset.i)];
@@ -604,6 +615,7 @@ async function openMerchants(slotId) {
     p.price = o.price || p.price;
     if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     p.store = o.url || p.store;
+    p.promo = !!o.promo;
     persist(); closeModal(); refresh();
     toast(lang === 'en' ? 'Merchant selected' : 'Marchand sélectionné');
   });
@@ -879,7 +891,7 @@ function openLoad() {
     row.className = 'list-row';
     row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${arr.length} save(s) · v${esc(last.version)} · ${eur(last.total)}</small></span>`;
     const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${lang === 'en' ? 'Load' : 'Charger'}`;
-    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
     row.appendChild(b); host.appendChild(row);
   });
   $('#l_file').onclick = () => $('#l_fileIn').click();
@@ -902,7 +914,7 @@ function openHistory() {
     : `<p class="hint">${lang === 'en' ? 'No saves yet for this config.' : 'Aucune sauvegarde pour cette config.'}</p>`);
   $$('#modalBody [data-r]').forEach(b => b.onclick = () => {
     const v = cfgs[Number(b.dataset.r)];
-    state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
+    state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
   });
 }
 function encodeShare(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
@@ -915,6 +927,72 @@ function importConfig(obj) {
   if (!obj || !obj.slots) throw new Error('bad');
   state = obj; if (!state.order) state.order = Object.keys(state.slots);
   persist(); lastSavedJson = JSON.stringify(state); refresh();
+  schedulePriceRefresh();
+}
+/* ---------- Background price refresh (same vendor, else cheapest) ---------- */
+let priceRefreshRunning = false, priceRefreshTimer = null;
+function schedulePriceRefresh(delay = 1200) {
+  clearTimeout(priceRefreshTimer);
+  priceRefreshTimer = setTimeout(() => refreshPrices(), delay);
+}
+async function refreshPrices() {
+  if (priceRefreshRunning) return;
+  const jobs = [];
+  state.order.forEach(id => {
+    const s = state.slots[id]; if (!s) return;
+    const p = sel(s);
+    if (p && /idealo\.fr\/prix\//i.test(p.idealo || '')) jobs.push({ id, pid: p.id });
+  });
+  if (!jobs.length || typeof Idealo === 'undefined') return;
+  priceRefreshRunning = true;
+  let updated = 0, failed = 0;
+  for (let i = 0; i < jobs.length; i++) {
+    const { id, pid } = jobs[i];
+    const s = state.slots[id];
+    const cur = s && s.products.find(x => x.id === pid);
+    if (!cur) continue;
+    if (editingPid && editingPid === pid) continue; // fiche open in form: don't touch
+    toast(`${lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix'} (${i + 1}/${jobs.length})…`);
+    try {
+      const r = await Idealo.offers(cur.idealo, true);
+      if (r.error || !r.offers.length) { failed++; continue; }
+      let o = null;
+      if (cur.vendor) o = r.offers.find(x => x.merchant && x.merchant.toLowerCase() === cur.vendor.toLowerCase()) || null;
+      else o = r.offers[0];
+      let ch = false;
+      const qty = cur.qty || 1;
+      const shipOf = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
+      const curTotal = unitTotal(cur);
+      // best total on the listing (delivery included)
+      let best = null;
+      r.offers.forEach(x => {
+        if (!x.price) return;
+        const t = x.price * qty + shipOf(x);
+        if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, total: t };
+      });
+      if (best && best.total < curTotal - 0.005) {
+        if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
+      } else if (cur.best) { cur.best = null; ch = true; }
+      // promo flag follows the reference offer (matched vendor, else cheapest when no vendor)
+      const ref = o;
+      const promo = !!(ref && ref.promo);
+      if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
+      if (!o) continue; // chosen vendor gone from listing: keep coherent old data
+      if (o.price && o.price !== cur.price) { cur.price = o.price; ch = true; }
+      if (!cur.vendor && o.merchant) { cur.vendor = o.merchant; ch = true; }
+      if (o.delivered > 0 && o.price) {
+        const d = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+        if (d !== cur.delivery) { cur.delivery = d; ch = true; }
+      }
+      if (!cur.store && o.url) { cur.store = o.url; ch = true; }
+      if (ch) updated++;
+    } catch { failed++; }
+  }
+  persist(); refresh();
+  priceRefreshRunning = false;
+  toast(updated
+    ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
+    : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));
 }
 function openShare() {
   const code = encodeShare(state);
@@ -943,7 +1021,9 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.19', `
+  openModal('Changelog — v2.21', `
+    <div class="chlog"><h3>v2.21 — Pastilles bon prix & bon plan</h3><p class="hint">Refresh : pastille verte € si un meilleur prix existe (info-bulle), pastille orange % si le marchand est un bon plan Idealo (prix affiché en orange). Les deux s'effacent à l'ouverture des marchands, où la meilleure offre totale porte le € et les promos le %.</p></div>
+    <div class="chlog"><h3>v2.20 — Prix actualisés auto</h3><p class="hint">Au démarrage, chargement, import ou restauration : les prix des fiches liées sont re-fetchés en arrière-plan (offre du même vendeur, sinon moins cher ; fiches en cours d'édition épargnées).</p></div>
     <div class="chlog"><h3>v2.19 — Marchand auto fiabilisé</h3><p class="hint">Sélection auto du moins cher avec double reprise (rendu partiel rechargé sans cache, 429/timeout réessayé) et message visible avec repli vers le bouton boutique en cas d'échec.</p></div>
     <div class="chlog"><h3>v2.18 — Détails d'affichage</h3><p class="hint">Bouton de suppression plus grand, marges entre les sections, emplacements ajoutés nommés ssd_1, opt_2… au lieu d'identifiants aléatoires.</p></div>
     <div class="chlog"><h3>v2.17 — Ajout ciblé de composants</h3><p class="hint">Les boutons d'ajout (« composant PC », « élément setup », « autre élément ») ouvrent une popup de choix du type, inséré sous le même type. Les emplacements ajoutés ont un bouton de suppression (×).</p></div>
@@ -1102,4 +1182,5 @@ function bind() {
   } else baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => persist()); // belt & braces: draft always restorable
   applyTheme(); applyLang(); bind(); refresh(); showBench();
+  schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();
