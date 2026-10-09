@@ -182,7 +182,8 @@ function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
   const el = document.createElement('div');
   const isRefreshing = !!(p && refreshingPids.has(p.id));
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (isRefreshing ? ' refreshing' : '');
+  const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -198,7 +199,7 @@ function slotCard(id) {
   }
   el.innerHTML = `
     ${id.includes('_') ? `<button class="slot-remove" data-act="rmslot" title="${lang === 'en' ? 'Remove this component' : 'Supprimer ce composant'}"><i class="fa-solid fa-xmark"></i></button>` : ''}
-    <button class="slot-main${p ? '' : ' empty'}" data-act="pick">
+    <button class="slot-main${p ? '' : ' empty'}${isRefreshing ? ' refreshing-sel' : ''}" data-act="pick">
       <span class="slot-visual">${visual}</span>
       <span class="slot-info"><span class="slot-type">${esc(slotName(id))}</span><span class-right></span>
         <div class="slot-name">${title}</div><div class="slot-specs">${specs}</div></span>
@@ -215,7 +216,7 @@ function slotCard(id) {
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
     </div>
     ${p.tracking || p.tstatus ? `<div class="delivery-tag"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus))}</div>` : ''}
-    <div class="slot-alt-tab"><button class="alt-toggle" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    <div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
@@ -236,7 +237,8 @@ function renderAlts(host, s, slotId) {
     const cls = !cur || p.id === cur.id ? 'same' : diff > 0 ? 'up' : 'down';
     const lbl = !cur || p.id === cur.id ? (lang === 'en' ? 'current' : 'actuel') : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
-    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
+    const rowSpin = refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
+    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
     row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong> · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
     row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
