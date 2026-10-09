@@ -207,6 +207,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="idealo" title="Idealo"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
       <button class="mini-btn" data-act="pick" title="${lang === 'en' ? 'Change part' : 'Changer'}"><i class="fa-solid fa-arrows-rotate"></i></button>
       <button class="mini-btn" data-act="store" title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"><i class="fa-solid fa-store"></i></button>
+      <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Buy from this store' : 'Acheter dans cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
       ${d.id === 'mb' || slotName(id).toLowerCase().includes('carte') || slotName(id).toLowerCase().includes('motherboard') ? `<button class="mini-btn" data-act="pcie" title="PCIe Simulator"><i class="fa-solid fa-diagram-project"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
@@ -269,6 +270,11 @@ function slotAction(id, act) {
   else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); else openProductForm(id, p || null, { focus: 'manual' }); }
   else if (act === 'idealo') { if (p && p.idealo) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
+  else if (act === 'buy') {
+    const u = p && (p.store || p.idealo);
+    if (u) window.open(u, '_blank', 'noopener');
+    else toast(lang === 'en' ? 'No store link yet — pick a merchant first' : 'Pas encore de lien boutique — choisissez un marchand');
+  }
   else if (act === 'pcie') window.open('https://pcie-simulator.vercel.app/', '_blank', 'noopener');
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
@@ -428,23 +434,46 @@ function chooseIdealoItem(it) {
   np.name = it.name; np.image = it.img; np.idealo = it.url;
   np.price = it.price || 0; np.specs = it.specs; np.vendor = '';
   openProductForm(activeSlot, np);
-  // Enrich in background from the /prix/ page ("Aperçu du produit"), only filling untouched fields
+  // Enrich in background from the /prix/ page: "Aperçu du produit" + cheapest merchant.
+  // Only untouched fields are filled; user input always wins.
   if (!it.url) return;
-  const before = { name: np.name, image: np.image, price: String(np.price || ''), specs: np.specs };
+  const before = { name: np.name, image: np.image, price: String(np.price || ''), specs: np.specs, vendor: np.vendor, store: np.store, delivery: String(np.delivery || '') };
+  const syncEnrich = () => {
+    if ($('#modalOverlay').classList.contains('hidden')) { persist(); refresh(); return; }
+    const fn = $('#f_name');
+    if (!fn || fn.value !== before.name) return; // form closed or switched to another fiche
+    let changed = false;
+    const setIf = (id, key, val) => {
+      const f = $(id);
+      const v = val === undefined || val === null ? '' : String(val);
+      if (!f || !v || f.value !== before[key] || v === before[key]) return;
+      f.value = v; before[key] = v; changed = true;
+    };
+    setIf('#f_specs', 'specs', np.specs);
+    setIf('#f_price', 'price', np.price ? String(np.price) : '');
+    setIf('#f_image', 'image', np.image);
+    setIf('#f_vendor', 'vendor', np.vendor);
+    setIf('#f_store', 'store', np.store);
+    setIf('#f_del', 'delivery', np.delivery ? String(np.delivery) : '');
+    if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
+  };
   Idealo.product(it.url).then(d => {
     if (!d || d.error) return;
     if (d.specs) np.specs = d.specs;
     if (d.price && !np.price) np.price = d.price;
     if (d.img && !np.image) np.image = d.img;
     if (d.name && !before.name) np.name = d.name;
-    if ($('#modalOverlay').classList.contains('hidden')) { persist(); refresh(); return; }
-    const fn = $('#f_name'), fi = $('#f_image'), fp = $('#f_price'), fs = $('#f_specs');
-    if (!fn || fn.value !== before.name) return; // form closed or switched to another fiche
-    let changed = false;
-    if (fs && fs.value === before.specs && np.specs !== before.specs) { fs.value = np.specs; changed = true; }
-    if (fp && fp.value === before.price && np.price) { fp.value = np.price; changed = true; }
-    if (fi && !fi.value.trim() && np.image) { fi.value = np.image; changed = true; }
-    if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
+    syncEnrich();
+  });
+  Idealo.offers(it.url).then(r => {
+    if (!r || r.error || !r.offers.length) return;
+    const o = r.offers[0]; // parser sorts ascending: cheapest first
+    if (!o) return;
+    if (o.merchant && !np.vendor) np.vendor = o.merchant;
+    if (o.price) np.price = o.price;
+    if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+    if (o.url && !np.store) np.store = o.url;
+    syncEnrich();
   });
 }
 function openPicker(id) {
@@ -528,15 +557,15 @@ async function openMerchants(slotId) {
     $('#m_manual').onclick = () => openProductForm(slotId, p, { focus: 'store' });
     return;
   }
-  openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name + (r.cached ? ' <small style="color:var(--muted)">· ' + t('picker.cached') + '</small>' : ''), `
+  openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `
+    ${r.cached ? `<p class="hint">· ${t('picker.cached')}</p>` : ''}
     <div id="m_list">${r.offers.map((o, i) => `
-      <div class="list-row"><span class="grow"><strong>${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
+      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
       <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}</small></span>
-      <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}<br>
-      <button class="mini-btn" data-m="${i}"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Select' : 'Choisir'}</button></span></div>`).join('')}</div>
+      <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}</span></div>`).join('')}</div>
     <div class="btn-row"><button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
-  $$('#modalBody [data-m]').forEach(b => b.onclick = () => {
-    const o = r.offers[Number(b.dataset.m)];
+  $$('#modalBody .merchant-row').forEach(row => row.onclick = () => {
+    const o = r.offers[Number(row.dataset.i)];
     p.vendor = o.merchant || p.vendor;
     p.price = o.price || p.price;
     if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
@@ -880,7 +909,9 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.14', `
+  openModal('Changelog — v2.16', `
+    <div class="chlog"><h3>v2.16 — Achat + marchand le moins cher</h3><p class="hint">Bouton panier déplacé sur le bouton composant (ouvre la boutique de la fiche). À la sélection d'un composant, le marchand le moins cher est appliqué par défaut (vendeur, prix, port, lien), sans écraser vos saisies.</p></div>
+    <div class="chlog"><h3>v2.15 — Marchands au clic</h3><p class="hint">Sélection du marchand au clic sur sa ligne (sans bouton), bouton panier vers la page de l'offre, et titre de popup corrigé.</p></div>
     <div class="chlog"><h3>v2.14 — Choix du marchand</h3><p class="hint">Le bouton boutique ouvre la liste des marchands lue sur la page Idealo (prix croissants, note, livraison) : un clic applique vendeur, prix, frais de port et lien de l'offre. Repli manuel si la liste est inaccessible.</p></div>
     <div class="chlog"><h3>v2.13 — Bureau, chaise, alimentation</h3><p class="hint">Bureau : vrai bureau de travail (Tabler desk, vérifié visuellement) ; chaise : fauteuil de bureau (Tabler armchair) ; alimentation : bloc + éclair (Lucide battery-charging).</p></div>
     <div class="chlog"><h3>v2.12 — Icônes affinées</h3><p class="hint">Refroidissement : ventilateur ; boîtier : vraie tour PC (pc-case) ; alimentation : éclair (wattage) ; bureau : mallette/espace de travail ; chaise : dossier haut (rocking-chair).</p></div>
