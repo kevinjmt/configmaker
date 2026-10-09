@@ -7,7 +7,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
 const load = (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- Slot catalogue (from Excel) ---------- */
@@ -750,14 +750,17 @@ function renderSummary() {
   if (!any) host.innerHTML = `<p class="hint">${lang === 'en' ? 'Nothing selected yet — click a component on the left.' : 'Rien de sélectionné — cliquez sur un composant à gauche.'}</p>`;
   const div = document.createElement('div');
   div.className = 'sum-totals';
-  const over = T.diff < 0, absDiff = eur(Math.abs(T.diff));
-  const diffTxt = over ? (lang === 'en' ? `${absDiff} over` : `dépassé de ${absDiff}`) : (lang === 'en' ? `${absDiff} left` : `reste ${absDiff}`);
-  const diffSent = over
-    ? (lang === 'en' ? `You are ${absDiff} over your ${eur(state.budget)} budget` : `Vous dépassez de ${absDiff} votre budget de ${eur(state.budget)}`)
-    : (lang === 'en' ? `You are ${absDiff} under your ${eur(state.budget)} budget` : `Il vous reste ${absDiff} sur ${eur(state.budget)} de budget`);
-  div.innerHTML = `<div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="big">${eur(T.total - T.deliv)}</span></div>
-    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="big">${eur(T.total)}</span></div>
-    <div class="sum-line budget-line" title="${esc(diffSent)}"><span class="${over ? 'badge-ko' : 'badge-ok'}">${diffTxt}</span><span></span></div>`;
+  const mkDiff = (d, excl) => {
+    const over = d < 0, abs = eur(Math.abs(d));
+    const sign = over ? '-' : '+';
+    const sent = over
+      ? (lang === 'en' ? `You are ${abs} over your ${eur(state.budget)} budget${excl ? ' (excl. delivery)' : ''}` : `Vous dépassez de ${abs} votre budget de ${eur(state.budget)}${excl ? ' (hors livraison)' : ''}`)
+      : (lang === 'en' ? `You are ${abs} under your ${eur(state.budget)} budget${excl ? ' (excl. delivery)' : ''}` : `Il vous reste ${abs} sur ${eur(state.budget)} de budget${excl ? ' (hors livraison)' : ''}`);
+    return `<span class="diff-mini ${over ? 'ko' : 'ok'}" title="${esc(sent)}">(${sign}${abs})</span>`;
+  };
+  const d1 = state.budget - (T.total - T.deliv), d2 = T.diff;
+  div.innerHTML = `<div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${eur(T.total - T.deliv)}</span></span></div>
+    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${eur(T.total)}</span></span></div>`;
   host.appendChild(div);
   if (sumTab !== 'desc') renderSumExtra();
 }
@@ -1159,7 +1162,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.27', `
+  openModal('Changelog — v2.28', `
+    <div class="chlog"><h3>v2.28 — Prix à 2 décimales et écarts intégrés</h3><p class="hint">Tous les prix à 2 décimales façon Idealo, libellés des totaux à la même taille que les montants, et ligne budget remplacée par l'écart affiché à gauche de chaque total (infobulle explicative au survol).</p></div>
     <div class="chlog"><h3>v2.27 — Listes Idealo + clés USB & cartes mémoire</h3><p class="hint">Pâte thermique et câbles d'alim. sur leurs vraies pages listes Idealo (avec vendeur et port inclus), hub remplacé par clés USB + cartes mémoire, webcam avant l'écran. Correctif : rechargement qui rangeait les ajouts ailleurs (vieux cache JS).</p></div>
     <div class="chlog"><h3>v2.26 — Nouveaux types ajoutables</h3><p class="hint">Popup d'ajout enrichie : pâte thermique, HDD, ventilateurs, câbles d'alim., logiciels, onduleur, switch, routeur, tablette graphique, hub, dock, imprimante, stockage externe, enceintes, webcam, carte son, acquisition, support écran — chacun avec sa catégorie Idealo, sans encombrer le menu de gauche.</p></div>
     <div class="chlog"><h3>v2.25 — Couleurs meilleur prix & promo</h3><p class="hint">Prix en vert quand c'est le meilleur, orange + % quand une remise est disponible (bon plan Idealo ou remise saisie), € vert quand mieux existe ailleurs. Le % reste affiché tant qu'une remise existe.</p></div>

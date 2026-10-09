@@ -223,6 +223,11 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .sum-totals{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
 .sum-totals{font-size:1rem}
 .sum-totals .big{font-size:1.45rem;font-weight:900}
+.sum-totals .sum-line>span:first-child{font-size:1.45rem;font-weight:900}
+.tot-right{display:inline-flex;align-items:baseline;gap:8px}
+.diff-mini{font-size:.85rem;font-weight:800;cursor:help;white-space:nowrap}
+.diff-mini.ok{color:var(--success)}
+.diff-mini.ko{color:var(--danger)}
 .badge-ok{color:var(--success);font-weight:900;font-size:1.1rem}.badge-ko{color:var(--danger);font-weight:900;font-size:1.1rem}
 .budget-line{cursor:help}
 .sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
