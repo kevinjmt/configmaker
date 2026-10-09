@@ -184,6 +184,7 @@ function slotCard(id) {
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
   el.className = 'slot' + (activeSlot === id ? ' sel' : '');
+  el.dataset.slot = id;
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -654,14 +655,32 @@ function switchSum(which) {
 function renderSummary() {
   const T = totals();
   const host = $('#sumDescPane'); host.innerHTML = '';
-  state.order.forEach(id => {
-    const s = state.slots[id], p = sel(s); if (!p) return;
-    const row = document.createElement('div');
-    row.className = 'sum-line';
-    row.innerHTML = `<span class="n">${esc(slotName(id))} — ${esc(p.name)} <small style="color:var(--muted)">×${p.qty || 1}</small></span><span><strong>${eur(unitTotal(p))}</strong></span>`;
-    host.appendChild(row);
+  const secs = [['pc', T.pc], ['setup', T.setup], ['others', T.others]];
+  let any = false;
+  secs.forEach(([sec, sub], si) => {
+    const ids = state.order.filter(id => { const s = state.slots[id]; return s && defOf(s).sec === sec && sel(s); });
+    if (!ids.length) return;
+    any = true;
+    const secEl = document.createElement('div');
+    secEl.className = 'dsec';
+    const icons = { pc: 'fa-solid fa-computer', setup: 'fa-solid fa-display', others: 'fa-solid fa-box-open' };
+    secEl.innerHTML = `<div class="dsec-head"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(sub)}</span></div>`;
+    ids.forEach(id => {
+      const s = state.slots[id], p = sel(s);
+      const row = document.createElement('div');
+      row.className = 'ditem';
+      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${eur(unitTotal(p))}</strong></span>`;
+      row.style.cursor = 'pointer';
+      row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
+      row.onclick = () => focusComponent(id);
+      secEl.appendChild(row);
+    });
+    host.appendChild(secEl);
+    const sep = document.createElement('div');
+    sep.className = 'dsec-sep';
+    host.appendChild(sep);
   });
-  if (!host.children.length) host.innerHTML = `<p class="hint">${lang === 'en' ? 'Nothing selected yet — click a component on the left.' : 'Rien de sélectionné — cliquez sur un composant à gauche.'}</p>`;
+  if (!any) host.innerHTML = `<p class="hint">${lang === 'en' ? 'Nothing selected yet — click a component on the left.' : 'Rien de sélectionné — cliquez sur un composant à gauche.'}</p>`;
   const div = document.createElement('div');
   div.className = 'sum-totals';
   div.innerHTML = `<div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="big">${eur(T.total - T.deliv)}</span></div>
@@ -669,6 +688,13 @@ function renderSummary() {
     <div class="sum-line"><span>Budget (${eur(state.budget)})</span><span class="${T.diff >= 0 ? 'badge-ok' : 'badge-ko'}">${T.diff >= 0 ? (lang === 'en' ? 'left' : 'reste') : (lang === 'en' ? 'over' : 'dépassé de')} ${eur(Math.abs(T.diff))}</span></div>`;
   host.appendChild(div);
   if (sumTab !== 'desc') renderSumExtra();
+}
+function focusComponent(id) {
+  const card = document.querySelector(`[data-slot="${id}"]`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1400);
 }
 function pieSVG(items, size = 150) {
   const total = items.reduce((a, b) => a + b.v, 0) || 1;
@@ -1056,7 +1082,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.22', `
+  openModal('Changelog — v2.23', `
+    <div class="chlog"><h3>v2.23 — Résumé enrichi</h3><p class="hint">Petite icône par composant dans le résumé, lignes pointillées sous chaque section, et clic sur une ligne pour retrouver et surligner le composant à gauche.</p></div>
     <div class="chlog"><h3>v2.22 — Refresh visible et complet</h3><p class="hint">Popup « Actualisation des prix » persistante avec compteur, composants en cours grisés avec animation de chargement, et prix des alternatives aussi actualisés (requêtes dédupliquées par page).</p></div>
     <div class="chlog"><h3>v2.21 — Pastilles bon prix & bon plan</h3><p class="hint">Refresh : pastille verte € si un meilleur prix existe (info-bulle), pastille orange % si le marchand est un bon plan Idealo (prix affiché en orange). Les deux s'effacent à l'ouverture des marchands, où la meilleure offre totale porte le € et les promos le %.</p></div>
     <div class="chlog"><h3>v2.20 — Prix actualisés auto</h3><p class="hint">Au démarrage, chargement, import ou restauration : les prix des fiches liées sont re-fetchés en arrière-plan (offre du même vendeur, sinon moins cher ; fiches en cours d'édition épargnées).</p></div>
@@ -1129,6 +1156,8 @@ function refresh() {
   $('#configName').value = state.name;
   $('#budgetInput').value = state.budget;
   $('#versionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
+  $('#sumConfigName').textContent = state.name || '';
+  $('#sumVersionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
   renderSlots(); renderSummary(); updateBenchState();
   if (!$('#page-prices').classList.contains('hidden')) drawPrices();
 }
@@ -1138,6 +1167,7 @@ function bind() {
   $('#configName').addEventListener('input', e => { state.name = e.target.value; persist(); });
   $('#budgetInput').addEventListener('input', e => { state.budget = parseFloat(e.target.value) || 0; persist(); renderSummary(); if (!$('#page-prices').classList.contains('hidden')) drawPrices(); });
   $('#saveBtn').onclick = doSave;
+  $('#sumSaveBtn').onclick = doSave;
   $('#newBtn').onclick = newConfig;
   $('#loadBtn').onclick = openLoad;
   $('#historyBtn').onclick = openHistory;
