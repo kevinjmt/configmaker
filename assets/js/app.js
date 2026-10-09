@@ -181,7 +181,8 @@ function renderSlots() {
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
   const el = document.createElement('div');
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '');
+  const isRefreshing = !!(p && refreshingPids.has(p.id));
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (isRefreshing ? ' refreshing' : '');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -235,7 +236,7 @@ function renderAlts(host, s, slotId) {
     const cls = !cur || p.id === cur.id ? 'same' : diff > 0 ? 'up' : 'down';
     const lbl = !cur || p.id === cur.id ? (lang === 'en' ? 'current' : 'actuel') : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
-    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '');
+    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
     row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong> · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
     row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
@@ -931,64 +932,96 @@ function importConfig(obj) {
 }
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
+const refreshingPids = new Set();
 function schedulePriceRefresh(delay = 1200) {
   clearTimeout(priceRefreshTimer);
   priceRefreshTimer = setTimeout(() => refreshPrices(), delay);
 }
+function showProgress(txt) {
+  const pp = $('#progressPop'); if (!pp) return;
+  $('#progressTxt').textContent = txt;
+  pp.classList.remove('hidden');
+}
+function hideProgress() { const pp = $('#progressPop'); if (pp) pp.classList.add('hidden'); }
+/* Apply listing offers to one fiche. Returns true if anything changed.
+   Same vendor matched, else cheapest when no vendor. Flags only for the selected fiche. */
+function applyOfferRefresh(cur, offers, withFlags) {
+  let o = null;
+  if (cur.vendor) o = offers.find(x => x.merchant && x.merchant.toLowerCase() === cur.vendor.toLowerCase()) || null;
+  else o = offers[0] || null;
+  let ch = false;
+  const qty = cur.qty || 1;
+  const shipOf = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
+  if (withFlags) {
+    const curTotal = unitTotal(cur);
+    let best = null;
+    offers.forEach(x => {
+      if (!x.price) return;
+      const t = x.price * qty + shipOf(x);
+      if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, total: t };
+    });
+    if (best && best.total < curTotal - 0.005) {
+      if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
+    } else if (cur.best) { cur.best = null; ch = true; }
+    const ref = o;
+    const promo = !!(ref && ref.promo);
+    if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
+  }
+  if (!o) return ch; // chosen vendor gone from listing: keep coherent old data
+  if (o.price && o.price !== cur.price) { cur.price = o.price; ch = true; }
+  if (!cur.vendor && o.merchant) { cur.vendor = o.merchant; ch = true; }
+  if (o.delivered > 0 && o.price) {
+    const d = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+    if (d !== cur.delivery) { cur.delivery = d; ch = true; }
+  }
+  if (!cur.store && o.url) { cur.store = o.url; ch = true; }
+  return ch;
+}
 async function refreshPrices() {
   if (priceRefreshRunning) return;
-  const jobs = [];
+  // every fiche (selected + alternatives), fetches deduplicated by /prix/ URL
+  const byUrl = new Map();
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
-    const p = sel(s);
-    if (p && /idealo\.fr\/prix\//i.test(p.idealo || '')) jobs.push({ id, pid: p.id });
-  });
-  if (!jobs.length || typeof Idealo === 'undefined') return;
-  priceRefreshRunning = true;
-  let updated = 0, failed = 0;
-  for (let i = 0; i < jobs.length; i++) {
-    const { id, pid } = jobs[i];
-    const s = state.slots[id];
-    const cur = s && s.products.find(x => x.id === pid);
-    if (!cur) continue;
-    if (editingPid && editingPid === pid) continue; // fiche open in form: don't touch
-    toast(`${lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix'} (${i + 1}/${jobs.length})…`);
-    try {
-      const r = await Idealo.offers(cur.idealo, true);
-      if (r.error || !r.offers.length) { failed++; continue; }
-      let o = null;
-      if (cur.vendor) o = r.offers.find(x => x.merchant && x.merchant.toLowerCase() === cur.vendor.toLowerCase()) || null;
-      else o = r.offers[0];
-      let ch = false;
-      const qty = cur.qty || 1;
-      const shipOf = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
-      const curTotal = unitTotal(cur);
-      // best total on the listing (delivery included)
-      let best = null;
-      r.offers.forEach(x => {
-        if (!x.price) return;
-        const t = x.price * qty + shipOf(x);
-        if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, total: t };
-      });
-      if (best && best.total < curTotal - 0.005) {
-        if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
-      } else if (cur.best) { cur.best = null; ch = true; }
-      // promo flag follows the reference offer (matched vendor, else cheapest when no vendor)
-      const ref = o;
-      const promo = !!(ref && ref.promo);
-      if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
-      if (!o) continue; // chosen vendor gone from listing: keep coherent old data
-      if (o.price && o.price !== cur.price) { cur.price = o.price; ch = true; }
-      if (!cur.vendor && o.merchant) { cur.vendor = o.merchant; ch = true; }
-      if (o.delivered > 0 && o.price) {
-        const d = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
-        if (d !== cur.delivery) { cur.delivery = d; ch = true; }
+    (s.products || []).forEach(p => {
+      if (p && /idealo\.fr\/prix\//i.test(p.idealo || '')) {
+        if (!byUrl.has(p.idealo)) byUrl.set(p.idealo, []);
+        byUrl.get(p.idealo).push({ id, pid: p.id });
       }
-      if (!cur.store && o.url) { cur.store = o.url; ch = true; }
-      if (ch) updated++;
+    });
+  });
+  const urls = [...byUrl.keys()];
+  if (!urls.length || typeof Idealo === 'undefined') return;
+  priceRefreshRunning = true;
+  const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
+  showProgress(`${prog} (0/${urls.length})…`);
+  let updated = 0, failed = 0;
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    const entries = byUrl.get(url).filter(e => {
+      const s = state.slots[e.id];
+      return s && s.products.some(x => x.id === e.pid);
+    });
+    if (!entries.length) continue;
+    entries.forEach(e => refreshingPids.add(e.pid));
+    renderSlots();
+    showProgress(`${prog} (${i + 1}/${urls.length})…`);
+    try {
+      const r = await Idealo.offers(url, true);
+      if (r.error || !r.offers.length) { failed++; }
+      else {
+        entries.forEach(({ id, pid }) => {
+          const s = state.slots[id];
+          const cur = s && s.products.find(x => x.id === pid);
+          if (!cur || (editingPid && editingPid === pid)) return;
+          if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
+        });
+      }
     } catch { failed++; }
+    entries.forEach(e => refreshingPids.delete(e.pid));
   }
-  persist(); refresh();
+  refreshingPids.clear();
+  persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
   toast(updated
     ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
@@ -1021,7 +1054,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.21', `
+  openModal('Changelog — v2.22', `
+    <div class="chlog"><h3>v2.22 — Refresh visible et complet</h3><p class="hint">Popup « Actualisation des prix » persistante avec compteur, composants en cours grisés avec animation de chargement, et prix des alternatives aussi actualisés (requêtes dédupliquées par page).</p></div>
     <div class="chlog"><h3>v2.21 — Pastilles bon prix & bon plan</h3><p class="hint">Refresh : pastille verte € si un meilleur prix existe (info-bulle), pastille orange % si le marchand est un bon plan Idealo (prix affiché en orange). Les deux s'effacent à l'ouverture des marchands, où la meilleure offre totale porte le € et les promos le %.</p></div>
     <div class="chlog"><h3>v2.20 — Prix actualisés auto</h3><p class="hint">Au démarrage, chargement, import ou restauration : les prix des fiches liées sont re-fetchés en arrière-plan (offre du même vendeur, sinon moins cher ; fiches en cours d'édition épargnées).</p></div>
     <div class="chlog"><h3>v2.19 — Marchand auto fiabilisé</h3><p class="hint">Sélection auto du moins cher avec double reprise (rendu partiel rechargé sans cache, 429/timeout réessayé) et message visible avec repli vers le bouton boutique en cas d'échec.</p></div>
