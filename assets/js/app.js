@@ -21,11 +21,16 @@ const SLOT_DEFS = [
   { id: 'mb', sec: 'pc', icon: 'bi:bi-motherboard', q: 'carte mere', w: 70 },
   { id: 'ram', sec: 'pc', icon: 'lucide:memory-stick', q: 'memoire DDR5', w: 15 },
   { id: 'cooler', sec: 'pc', icon: 'lucide:fan', q: 'ventirad watercooling', w: 10 },
+  { id: 'thermal', sec: 'pc', icon: 'lucide:syringe', q: 'pâte thermique', w: 0, extra: true },
   { id: 'ssd1', sec: 'pc', icon: 'lucide:hard-drive', q: 'SSD NVMe', w: 8, addMore: 'ssd' },
+  { id: 'hdd', sec: 'pc', icon: 'lucide:disc-3', q: 'disque dur interne HDD', w: 8, extra: true },
   { id: 'gpu', sec: 'pc', icon: 'bi:bi-gpu-card', q: 'carte graphique', w: 250 },
   { id: 'case', sec: 'pc', icon: 'lucide:pc-case', q: 'boitier PC', w: 0 },
+  { id: 'fans', sec: 'pc', icon: 'lucide:loader-pinwheel', q: 'ventilateur boîtier PC', w: 3, extra: true },
   { id: 'psu', sec: 'pc', icon: 'fa-solid fa-plug', q: 'alimentation PC', w: 0 },
+  { id: 'psucables', sec: 'pc', icon: 'lucide:cable', q: "câble d'alimentation modulaire PC", w: 0, extra: true },
   { id: 'os', sec: 'pc', icon: 'fa-brands fa-windows', q: 'Windows 11 licence', w: 0, addMore: 'pcx' },
+  { id: 'soft', sec: 'pc', icon: 'lucide:package', q: 'logiciel', w: 0, extra: true },
   { id: 'desk', sec: 'setup', icon: 'ti:ti-desk', q: 'bureau gaming', w: 0 },
   { id: 'chair', sec: 'setup', icon: 'ti:ti-armchair', q: 'chaise gaming', w: 0 },
   { id: 'screen1', sec: 'setup', icon: 'lucide:monitor', q: 'ecran PC', w: 45, addMore: 'screen' },
@@ -33,6 +38,19 @@ const SLOT_DEFS = [
   { id: 'mouse', sec: 'setup', icon: 'lucide:mouse', q: 'souris', w: 2 },
   { id: 'pad', sec: 'setup', icon: 'lucide:square', q: 'tapis de souris XXL', w: 0 },
   { id: 'headset', sec: 'setup', icon: 'lucide:headset', q: 'casque gaming', w: 3 },
+  { id: 'ups', sec: 'setup', icon: 'lucide:battery-charging', q: 'onduleur', w: 0, extra: true },
+  { id: 'switch', sec: 'setup', icon: 'lucide:network', q: 'switch réseau', w: 10, extra: true },
+  { id: 'router', sec: 'setup', icon: 'lucide:router', q: 'routeur wifi', w: 12, extra: true },
+  { id: 'graphictab', sec: 'setup', icon: 'lucide:pen-tool', q: 'tablette graphique', w: 5, extra: true },
+  { id: 'hub', sec: 'setup', icon: 'lucide:usb', q: 'hub USB', w: 5, extra: true },
+  { id: 'dock', sec: 'setup', icon: 'lucide:monitor-smartphone', q: "station d'accueil", w: 45, extra: true },
+  { id: 'printer', sec: 'setup', icon: 'lucide:printer', q: 'imprimante', w: 30, extra: true },
+  { id: 'extstorage', sec: 'setup', icon: 'lucide:database', q: 'disque dur externe', w: 8, extra: true },
+  { id: 'speakers', sec: 'setup', icon: 'lucide:speaker', q: 'enceintes PC', w: 20, extra: true },
+  { id: 'webcam', sec: 'setup', icon: 'lucide:webcam', q: 'webcam', w: 3, extra: true },
+  { id: 'soundcard', sec: 'setup', icon: 'lucide:audio-lines', q: 'carte son externe USB', w: 3, extra: true },
+  { id: 'capture', sec: 'setup', icon: 'lucide:video', q: "boîtier d'acquisition vidéo", w: 5, extra: true },
+  { id: 'monitorarm', sec: 'setup', icon: 'lucide:move', q: 'support écran', w: 0, extra: true },
   { id: 'opt1', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0, addMore: 'opt' },
   { id: 'opt2', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
   { id: 'opt3', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
@@ -83,8 +101,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', ssd1: 'SSD', gpu: 'Carte graphique', case: 'Boîtier', psu: 'Alimentation', os: 'OS', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', ssd1: 'SSD', gpu: 'Graphics card', case: 'Case', psu: 'Power supply', os: 'OS', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', ups: 'Onduleur', switch: 'Switch', router: 'Routeur', graphictab: 'Tablette graphique', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', ups: 'UPS', switch: 'Switch', router: 'Router', graphictab: 'Drawing tablet', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -95,8 +113,8 @@ const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.f
 function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false }; }
 function defaultState() {
   const slots = {};
-  SLOT_DEFS.forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
-  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.map(d => d.id) };
+  SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
+  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id) };
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
@@ -288,10 +306,16 @@ function slotAction(id, act) {
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
 }
+const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'os', 'soft'];
+const SETUP_ORDER = ['desk', 'chair', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'ups', 'switch', 'router', 'graphictab', 'hub', 'dock', 'printer', 'extstorage', 'speakers', 'webcam', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
-  const types = sec === 'others'
-    ? [{ defId: 'opt1', icon: 'fa-solid fa-puzzle-piece', label: lang === 'en' ? 'Option' : 'Option' }]
-    : SLOT_DEFS.filter(d => d.sec === sec).map(d => ({ defId: d.id, icon: d.icon, label: (SLOT_NAMES[lang] && SLOT_NAMES[lang][d.id]) || SLOT_NAMES.fr[d.id] || d.id }));
+  const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
+  const byId = Object.fromEntries(SLOT_DEFS.map(d => [d.id, d]));
+  const types = order.filter(id => byId[id]).map(id => {
+    const d = byId[id];
+    const label = d.sec === 'others' ? (lang === 'en' ? 'Option' : 'Option') : ((SLOT_NAMES[lang] && SLOT_NAMES[lang][d.id]) || SLOT_NAMES.fr[d.id] || d.id);
+    return { defId: d.id, icon: d.icon, label };
+  });
   openModal(lang === 'en' ? 'Select component type' : 'Choisir le type de composant', `
     <div class="type-grid">${types.map(t => `<button class="type-btn" data-def="${t.defId}">${iconHtml(t.icon)}<span>${esc(t.label)}</span></button>`).join('')}</div>`);
   refreshIcons();
@@ -304,13 +328,22 @@ function addSlotByDef(defId) {
   while (state.slots[`${prefix}_${n}`]) n++;
   const id = `${prefix}_${n}`;
   state.slots[id] = { defId, customLabel: id, products: [], selectedId: null };
-  // insert below the concerned component type (after last slot of the same group)
-  const sameGroup = sid => {
-    const dd = state.slots[sid].defId;
-    return dd === defId || (defId.startsWith('opt') && dd.startsWith('opt'));
-  };
-  const group = state.order.filter(sameGroup);
-  if (group.length) state.order.splice(state.order.indexOf(group[group.length - 1]) + 1, 0, id);
+  // insert below the concerned component type
+  const ORDER = d.sec === 'pc' ? PC_ORDER : d.sec === 'setup' ? SETUP_ORDER : null;
+  let anchorPos = -1;
+  if (ORDER) {
+    const selfIdx = ORDER.indexOf(defId);
+    for (let i = selfIdx - 1; i >= 0; i--) {
+      const ids = state.order.filter(sid => state.slots[sid].defId === ORDER[i]);
+      if (ids.length) { anchorPos = state.order.indexOf(ids[ids.length - 1]); break; }
+    }
+    const same = state.order.filter(sid => state.slots[sid].defId === defId);
+    if (same.length) anchorPos = state.order.indexOf(same[same.length - 1]);
+  } else {
+    const group = state.order.filter(sid => { const dd = state.slots[sid].defId; return dd === defId || dd.startsWith('opt'); });
+    if (group.length) anchorPos = state.order.indexOf(group[group.length - 1]);
+  }
+  if (anchorPos >= 0) state.order.splice(anchorPos + 1, 0, id);
   else {
     const ids = state.order.filter(x => defOf(state.slots[x]).sec === d.sec);
     const last = ids[ids.length - 1];
@@ -349,8 +382,26 @@ const IDEALO_CATS = [
   { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
   { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
   { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172/casques-gamer.html' },
+  { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/prechcat.html?q=p%C3%A2te%20thermique' },
+  { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
+  { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
+  { key: 'psucables', label: "Câbles d'alimentation", url: 'https://www.idealo.fr/prechcat.html?q=c%C3%A2ble%20alimentation%20modulaire%20pc' },
+  { key: 'soft', label: 'Logiciels', url: 'https://www.idealo.fr/scat/3330/logiciels.html' },
+  { key: 'ups', label: 'Onduleurs', url: 'https://www.idealo.fr/cat/3107/onduleurs.html' },
+  { key: 'switch', label: 'Switches', url: 'https://www.idealo.fr/cat/3104/switches.html' },
+  { key: 'router', label: 'Routeurs', url: 'https://www.idealo.fr/cat/3099/routeurs.html' },
+  { key: 'graphictab', label: 'Tablettes graphiques', url: 'https://www.idealo.fr/prechcat.html?q=tablette%20graphique' },
+  { key: 'hub', label: 'Hubs USB', url: 'https://www.idealo.fr/prechcat.html?q=hub%20usb' },
+  { key: 'dock', label: "Stations d'accueil", url: 'https://www.idealo.fr/cat/10792/stations-d-accueil-pour-ordinateurs-portables.html' },
+  { key: 'printer', label: 'Imprimantes', url: 'https://www.idealo.fr/cat/3309/imprimantes-multifonctions.html' },
+  { key: 'extstorage', label: 'Stockage externe', url: 'https://www.idealo.fr/cat/7712/disques-durs-externes.html' },
+  { key: 'speakers', label: 'Enceintes PC', url: 'https://www.idealo.fr/cat/3287/haut-parleurs-pc.html' },
+  { key: 'webcam', label: 'Webcams', url: 'https://www.idealo.fr/cat/16313/webcams.html' },
+  { key: 'soundcard', label: 'Cartes son', url: 'https://www.idealo.fr/cat/3092/cartes-son.html' },
+  { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
+  { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', soft: 'soft', ups: 'ups', switch: 'switch', router: 'router', graphictab: 'graphictab', hub: 'hub', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0;
 function slotCatKey(slotId) {
@@ -524,8 +575,9 @@ function chooseIdealoItem(it) {
 }
 function openPicker(id) {
   activeSlot = id;
-  const s = state.slots[id], cur = sel(s);
-  $('#idealoQuery').value = (cur && cur.name) || slotName(id);
+  const s = state.slots[id], cur = sel(s), d = defOf(s);
+  const baseLabel = (SLOT_NAMES[lang] && SLOT_NAMES[lang][s.defId]) || SLOT_NAMES.fr[s.defId] || s.defId;
+  $('#idealoQuery').value = (cur && cur.name) || `${baseLabel} ${d.q || ''}`.trim();
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const url = (IDEALO_CATS.find(x => x.key === slotCatKey(id)) || IDEALO_CATS[0]).url;
   loadCategory(slotCatKey(id));
@@ -1104,7 +1156,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.25', `
+  openModal('Changelog — v2.26', `
+    <div class="chlog"><h3>v2.26 — Nouveaux types ajoutables</h3><p class="hint">Popup d'ajout enrichie : pâte thermique, HDD, ventilateurs, câbles d'alim., logiciels, onduleur, switch, routeur, tablette graphique, hub, dock, imprimante, stockage externe, enceintes, webcam, carte son, acquisition, support écran — chacun avec sa catégorie Idealo, sans encombrer le menu de gauche.</p></div>
     <div class="chlog"><h3>v2.25 — Couleurs meilleur prix & promo</h3><p class="hint">Prix en vert quand c'est le meilleur, orange + % quand une remise est disponible (bon plan Idealo ou remise saisie), € vert quand mieux existe ailleurs. Le % reste affiché tant qu'une remise existe.</p></div>
     <div class="chlog"><h3>v2.24 — Sections repliables</h3><p class="hint">PC / Setup / Autres repliables (titre + total conservés, pointillés repliés avec le contenu), textes agrandis, ligne budget réduite à l'écart avec phrase explicative au survol.</p></div>
     <div class="chlog"><h3>v2.23 — Résumé enrichi</h3><p class="hint">Petite icône par composant dans le résumé, lignes pointillées sous chaque section, et clic sur une ligne pour retrouver et surligner le composant à gauche.</p></div>
