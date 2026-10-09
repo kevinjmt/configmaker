@@ -264,6 +264,51 @@ const Idealo = (() => {
     }
   }
 
+  /* Merchant offers from a /prix/ page ("Comparer les prix" table).
+     Row: * [TITLE](relocator…) [PRIX€](relocator…) […livraison incl.](…)[Livraison: …]…/marchand/<sid>/<slug>.html… */
+  function absUrl(u) {
+    if (!u) return '';
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith('/')) return 'https://www.idealo.fr' + u;
+    return u;
+  }
+  function merchantName(slug) {
+    return String(slug || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+  }
+  function parseOffers(md) {
+    const offers = [];
+    const re = /\n\* +\[([^\]\n]{2,200})\]\(((?:https:\/\/www\.idealo\.fr)?\/relocator\/[^)\s]+)\)([\s\S]*?)(?=\n\* +\[|\n## |$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const title = m[1].trim(), relUrl = m[2], body = m[3] || '';
+      if (!/relocator/i.test(relUrl)) continue;
+      const pm = body.match(/\[([\d\s]+[.,]\d{2})\s*€\]/);
+      const price = pm ? parsePrice(pm[1]) : parsePrice((relUrl.match(/[?&]price=([\d.]+)/) || [])[1]);
+      if (!price) continue;
+      const dm = body.match(/\[([\d\s]+[.,]\d{2})\s*€ livraison incl\.\]/i);
+      const delivered = dm ? parsePrice(dm[1]) : 0;
+      const mm = body.match(/\/marchand\/(\d+)\/([^/.)\s]+)/);
+      const merchant = mm ? merchantName(mm[2]) : '';
+      const rm = body.match(/\[\*\*([\d,]+)\*\*\]\([^)]*marchand[^)]*\)/);
+      const lm = body.match(/\[\*?\s*Livraison:\s*([^\]]+)\]/i);
+      const sid = (relUrl.match(/[?&]sid=(\d+)/) || [])[1] || (mm ? mm[1] : '');
+      offers.push({
+        title, price, delivered, merchant,
+        rating: rm ? rm[1] : '',
+        delivery: lm ? lm[1].trim() : '',
+        sid, url: absUrl(relUrl),
+      });
+    }
+    const seen = new Set();
+    return offers.filter(o => {
+      const k = o.sid + '|' + o.price + '|' + o.title;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a, b) => a.price - b.price);
+  }
+
   async function product(url) {
     try {
       const { md } = await cachedMd(url);
@@ -275,5 +320,14 @@ const Idealo = (() => {
     }
   }
 
-  return { list, product, parseMarkdown, parseProduct, sortUrl };
+  async function offers(url) {
+    try {
+      const { md, cached } = await cachedMd(url);
+      return { offers: parseOffers(md), cached: !!cached };
+    } catch (e) {
+      return { offers: [], error: String((e && e.message) || e) };
+    }
+  }
+
+  return { list, product, offers, parseMarkdown, parseProduct, parseOffers, sortUrl };
 })();

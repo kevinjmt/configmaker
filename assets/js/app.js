@@ -268,7 +268,7 @@ function slotAction(id, act) {
   if (act === 'pick') openPicker(id);
   else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); else openProductForm(id, p || null, { focus: 'manual' }); }
   else if (act === 'idealo') { if (p && p.idealo) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
-  else if (act === 'store') openProductForm(id, p, { focus: 'store' });
+  else if (act === 'store') openMerchants(id);
   else if (act === 'pcie') window.open('https://pcie-simulator.vercel.app/', '_blank', 'noopener');
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
@@ -491,6 +491,7 @@ function openProductForm(slotId, p, opts = {}) {
     ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
+  if (opts.focus === 'idealo') setTimeout(() => $('#f_idealo').focus(), 50);
   $('#f_save').onclick = () => {
     const v = id => $(id).value.trim();
     p.name = v('#f_name'); if (!p.name) { toast(lang === 'en' ? 'Name required' : 'Nom requis'); return; }
@@ -507,6 +508,43 @@ function openProductForm(slotId, p, opts = {}) {
   };
   const dp = $('#f_delP');
   if (dp) dp.onclick = () => { const s = state.slots[slotId]; s.products = s.products.filter(x => x.id !== p.id); if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null; persist(); closeModal(); refresh(); renderPicker(); };
+}
+
+/* ---------- Merchants (from the Idealo /prix/ page, like picking the component) ---------- */
+async function openMerchants(slotId) {
+  const s = state.slots[slotId], p = sel(s); if (!p) return;
+  if (!p.idealo || !/idealo\.fr\/prix\//i.test(p.idealo)) {
+    toast(lang === 'en' ? 'Add an Idealo /prix/ link to the fiche first' : "Ajoutez d'abord un lien Idealo /prix/ à la fiche");
+    openProductForm(slotId, p, { focus: 'idealo' });
+    return;
+  }
+  openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `<p class="hint">${t('picker.loading')}</p>`);
+  const r = await Idealo.offers(p.idealo);
+  if (r.error || !r.offers.length) {
+    openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name, `
+      <p class="hint">${esc(lang === 'en' ? 'Could not load merchant offers (rate limit or block).' : 'Offres marchandes non chargeables (limite ou blocage).')}</p>
+      <div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(p.idealo)}"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>
+      <button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
+    $('#m_manual').onclick = () => openProductForm(slotId, p, { focus: 'store' });
+    return;
+  }
+  openModal((lang === 'en' ? 'Merchants — ' : 'Marchands — ') + p.name + (r.cached ? ' <small style="color:var(--muted)">· ' + t('picker.cached') + '</small>' : ''), `
+    <div id="m_list">${r.offers.map((o, i) => `
+      <div class="list-row"><span class="grow"><strong>${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
+      <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}</small></span>
+      <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}<br>
+      <button class="mini-btn" data-m="${i}"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Select' : 'Choisir'}</button></span></div>`).join('')}</div>
+    <div class="btn-row"><button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
+  $$('#modalBody [data-m]').forEach(b => b.onclick = () => {
+    const o = r.offers[Number(b.dataset.m)];
+    p.vendor = o.merchant || p.vendor;
+    p.price = o.price || p.price;
+    if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+    p.store = o.url || p.store;
+    persist(); closeModal(); refresh();
+    toast(lang === 'en' ? 'Merchant selected' : 'Marchand sélectionné');
+  });
+  $('#m_manual').onclick = () => openProductForm(slotId, p, { focus: 'store' });
 }
 
 /* ---------- Delivery ---------- */
@@ -842,7 +880,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.13', `
+  openModal('Changelog — v2.14', `
+    <div class="chlog"><h3>v2.14 — Choix du marchand</h3><p class="hint">Le bouton boutique ouvre la liste des marchands lue sur la page Idealo (prix croissants, note, livraison) : un clic applique vendeur, prix, frais de port et lien de l'offre. Repli manuel si la liste est inaccessible.</p></div>
     <div class="chlog"><h3>v2.13 — Bureau, chaise, alimentation</h3><p class="hint">Bureau : vrai bureau de travail (Tabler desk, vérifié visuellement) ; chaise : fauteuil de bureau (Tabler armchair) ; alimentation : bloc + éclair (Lucide battery-charging).</p></div>
     <div class="chlog"><h3>v2.12 — Icônes affinées</h3><p class="hint">Refroidissement : ventilateur ; boîtier : vraie tour PC (pc-case) ; alimentation : éclair (wattage) ; bureau : mallette/espace de travail ; chaise : dossier haut (rocking-chair).</p></div>
     <div class="chlog"><h3>v2.11 — Vraies icônes composants</h3><p class="hint">Font Awesome Free n'a ni carte mère ni GPU : les visuels composants passent sur Lucide + Bootstrap Icons (gratuits) — cpu, motherboard, memory-stick, snowflake, hard-drive, gpu-card, box, plug-zap, lamp-desk, armchair, monitor, keyboard, mouse, square, headset. Repli automatique si un CDN est injoignable.</p></div>
