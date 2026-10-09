@@ -101,7 +101,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .di-name{font-weight:800;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .di-price{flex:0 0 auto}
 .sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
-.sum-totals .sum-line:last-child{margin-bottom:0}
+.sum-totals .sum-line:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .slot.flash{border-color:var(--brand);box-shadow:var(--shadow-lg)}
 .fold-btn{display:none}
 /* split */
@@ -231,7 +231,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .badge-ok{color:var(--success);font-weight:900;font-size:1.1rem}.badge-ko{color:var(--danger);font-weight:900;font-size:1.1rem}
 .budget-line{cursor:help}
 .sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
-.sum-totals .sum-line:last-child{margin-bottom:0}
+.sum-totals .sum-line:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .charts-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
 .chart-card{flex:0 0 220px;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);text-align:center}
 .chart-card h3{margin:0 0 6px 0;font-size:.85rem}
