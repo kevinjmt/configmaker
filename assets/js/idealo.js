@@ -170,12 +170,63 @@ const Idealo = (() => {
     return items;
   }
 
+  /* /liste/ pages, product-link variant:
+     ![Image N: ALT](IMG) \n\n [NAME](/prix/…) \n\n specs… \n\n N offres \n\n à partir de X € */
+  function parseListeProducts(md) {
+    const items = [];
+    const re = /!\[Image \d+: ([^\]]*)\]\(([^)]+)\)\s*\n\n\[([^\]\n]{2,150})\]\((https:\/\/www\.idealo\.fr\/prix\/[^)\s]+)\)([\s\S]*?)(?=\n!\[Image |\n\[[^\]\n]+\]\(https:\/\/www\.idealo\.fr\/prix\/|$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const alt = m[1].trim(), img = m[2].trim(), name = m[3].trim(), url = m[4], body = m[5] || '';
+      if (items.some(x => x.url === url)) continue;
+      const idm = url.match(/\/prix\/(\d+)/);
+      const b = body.replace(/\s+/g, ' ').trim();
+      let offers = 0, price = 0;
+      const mp = b.match(/à partir de\s+([\d\s]+[.,]\d{2})\s*€/i);
+      if (mp) price = parsePrice(mp[1]);
+      const mo = b.match(/(\d+)\s+offres?\b/i);
+      if (mo) offers = parseInt(mo[1], 10) || 0;
+      const nm = name.includes(' ') ? name : (alt.includes(' ') ? alt : name);
+      items.push({ pid: idm ? idm[1] : '', name: nm, img, specs: cleanBody(b, nm), offers, price, url });
+    }
+    return items;
+  }
+
+  /* /liste/ pages, direct-offer variant (no product links):
+     ![Image N: TITLE](offer-img) \n\n Vendu par : SHOP \n\n … \n\n [Frais de port : X € | Livraison gratuite] \n\n PRICE €TVA … */
+  function cleanVendor(v) {
+    return String(v || '').replace(/^(www\.|fr\.)/i, '').trim();
+  }
+  function parseListeOffers(md) {
+    const items = [];
+    const re = /!\[Image \d+: ([^\]]{2,250})\]\(([^)]+)\)\s*\n\nVendu par\s*:\s*([^\n]+)\s*\n\n([\s\S]*?)(?=\n!\[Image |\s*$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const alt = m[1].trim(), img = m[2].trim(), vendor = cleanVendor(m[3]), body = m[4] || '';
+      if (items.some(x => x.img === img)) continue;
+      let delivery = 0;
+      if (/Livraison gratuite/i.test(body)) delivery = 0;
+      else {
+        const dm = body.match(/Frais de port\s*:\s*([\d\s]+[.,]\d{2})\s*€/i);
+        if (dm) delivery = parsePrice(dm[1]);
+      }
+      const all = [...body.matchAll(/([\d\s]+[.,]\d{2})\s*€/g)];
+      const price = all.length ? parsePrice(all[all.length - 1][1]) : 0;
+      if (!price) continue;
+      items.push({ pid: '', name: alt, img, specs: '', offers: 0, price, delivery, vendor, url: '' });
+    }
+    return items;
+  }
+
   function parseMarkdown(md, baseUrl) {
     md = String(md || '');
     const linked = parseLinked(md);
     const byPid = {};
     linked.forEach(l => { if (l.pid) byPid[l.pid] = l; });
+    const listeP = parseListeProducts(md).filter(x => ![...linked].some(y => y.url === x.url));
+    const listePids = new Set(listeP.map(x => x.pid).filter(Boolean));
     const blocks = parseBlocks(md).filter(b => {
+      if (b.pid && listePids.has(b.pid)) return false; // cleaner liste version wins
       const l = b.pid && byPid[b.pid];
       if (l && (!l.price || !l.specs)) { // enrich thin linked cards
         if (!l.price && b.price) l.price = b.price;
@@ -185,8 +236,9 @@ const Idealo = (() => {
       }
       return !l;
     });
-    const sugg = parseSuggestions(md).filter(s => ![...linked, ...blocks].some(x => x.url === s.url));
-    const items = [...linked, ...blocks, ...sugg];
+    const listeO = parseListeOffers(md).filter(x => ![...linked, ...blocks, ...listeP].some(y => (y.img && y.img === x.img) || (y.url && x.url && y.url === x.url)));
+    const sugg = parseSuggestions(md).filter(s => ![...linked, ...blocks, ...listeP].some(x => x.url === s.url));
+    const items = [...linked, ...blocks, ...listeP, ...listeO, ...sugg];
     let next = null;
     const isList = u => /\/cat\/|prechcat|liste\//i.test(u);
     const seen = [];
