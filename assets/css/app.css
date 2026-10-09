@@ -83,9 +83,13 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .sum-head .btn{flex:0 0 auto}
 /* description sections */
 .dsec{margin:0}
-.dsec-head{display:flex;align-items:center;gap:8px;font-weight:900;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 6px 0;border-bottom:2px dotted var(--line-strong);padding-bottom:6px}
-.dsec-head i{font-size:.85rem}
-.dsec-total{margin-left:auto;color:var(--ink);font-size:.9rem}
+.dsec-head{display:flex;align-items:center;gap:8px;font-weight:900;font-size:1.02rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 6px 0;cursor:pointer}
+.dsec-head i{font-size:.9rem}
+.dsec-total{margin-left:auto;color:var(--ink);font-size:1.02rem}
+.dsec-head .foldchev{font-size:.8rem;transition:transform .2s}
+.dsec-dots{border-top:2px dotted var(--line-strong);margin:0 0 8px 0}
+.dsec.collapsed .ditem,.dsec.collapsed .dsec-dots{display:none}
+.dsec.collapsed .foldchev{transform:rotate(-90deg)}
 .dsec-sep{border-top:2px solid var(--line-strong);margin:10px 0 12px 0}
 .ditem{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:12px}
 .ditem:hover{background:rgba(26,135,68,.07)}
@@ -216,8 +220,12 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .sum-line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:.85rem}
 .sum-line .n{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%}
 .sum-totals{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
-.sum-totals .big{font-size:1.25rem;font-weight:900}
-.badge-ok{color:var(--success);font-weight:900}.badge-ko{color:var(--danger);font-weight:900}
+.sum-totals{font-size:1rem}
+.sum-totals .big{font-size:1.45rem;font-weight:900}
+.badge-ok{color:var(--success);font-weight:900;font-size:1.1rem}.badge-ko{color:var(--danger);font-weight:900;font-size:1.1rem}
+.budget-line{cursor:help}
+.sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
+.sum-totals .sum-line:last-child{margin-bottom:0}
 .charts-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
 .chart-card{flex:0 0 220px;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);text-align:center}
 .chart-card h3{margin:0 0 6px 0;font-size:.85rem}

@@ -102,6 +102,7 @@ let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
 const openAlts = new Set();
+const foldedSecs = new Set();
 let prefs = load(LS.prefs, {});
 function persist() { save(LS.state, state); }
 
@@ -664,7 +665,8 @@ function renderSummary() {
     const secEl = document.createElement('div');
     secEl.className = 'dsec';
     const icons = { pc: 'fa-solid fa-computer', setup: 'fa-solid fa-display', others: 'fa-solid fa-box-open' };
-    secEl.innerHTML = `<div class="dsec-head"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(sub)}</span></div>`;
+    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(sub)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
+    if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
@@ -676,6 +678,10 @@ function renderSummary() {
       secEl.appendChild(row);
     });
     host.appendChild(secEl);
+    secEl.querySelector('.dsec-head').onclick = () => {
+      foldedSecs.has(sec) ? foldedSecs.delete(sec) : foldedSecs.add(sec);
+      renderSummary();
+    };
     const sep = document.createElement('div');
     sep.className = 'dsec-sep';
     host.appendChild(sep);
@@ -683,9 +689,14 @@ function renderSummary() {
   if (!any) host.innerHTML = `<p class="hint">${lang === 'en' ? 'Nothing selected yet — click a component on the left.' : 'Rien de sélectionné — cliquez sur un composant à gauche.'}</p>`;
   const div = document.createElement('div');
   div.className = 'sum-totals';
+  const over = T.diff < 0, absDiff = eur(Math.abs(T.diff));
+  const diffTxt = over ? (lang === 'en' ? `${absDiff} over` : `dépassé de ${absDiff}`) : (lang === 'en' ? `${absDiff} left` : `reste ${absDiff}`);
+  const diffSent = over
+    ? (lang === 'en' ? `You are ${absDiff} over your ${eur(state.budget)} budget` : `Vous dépassez de ${absDiff} votre budget de ${eur(state.budget)}`)
+    : (lang === 'en' ? `You are ${absDiff} under your ${eur(state.budget)} budget` : `Il vous reste ${absDiff} sur ${eur(state.budget)} de budget`);
   div.innerHTML = `<div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="big">${eur(T.total - T.deliv)}</span></div>
     <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="big">${eur(T.total)}</span></div>
-    <div class="sum-line"><span>Budget (${eur(state.budget)})</span><span class="${T.diff >= 0 ? 'badge-ok' : 'badge-ko'}">${T.diff >= 0 ? (lang === 'en' ? 'left' : 'reste') : (lang === 'en' ? 'over' : 'dépassé de')} ${eur(Math.abs(T.diff))}</span></div>`;
+    <div class="sum-line budget-line" title="${esc(diffSent)}"><span class="${over ? 'badge-ko' : 'badge-ok'}">${diffTxt}</span><span></span></div>`;
   host.appendChild(div);
   if (sumTab !== 'desc') renderSumExtra();
 }
@@ -1082,7 +1093,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.23', `
+  openModal('Changelog — v2.24', `
+    <div class="chlog"><h3>v2.24 — Sections repliables</h3><p class="hint">PC / Setup / Autres repliables (titre + total conservés, pointillés repliés avec le contenu), textes agrandis, ligne budget réduite à l'écart avec phrase explicative au survol.</p></div>
     <div class="chlog"><h3>v2.23 — Résumé enrichi</h3><p class="hint">Petite icône par composant dans le résumé, lignes pointillées sous chaque section, et clic sur une ligne pour retrouver et surligner le composant à gauche.</p></div>
     <div class="chlog"><h3>v2.22 — Refresh visible et complet</h3><p class="hint">Popup « Actualisation des prix » persistante avec compteur, composants en cours grisés avec animation de chargement, et prix des alternatives aussi actualisés (requêtes dédupliquées par page).</p></div>
     <div class="chlog"><h3>v2.21 — Pastilles bon prix & bon plan</h3><p class="hint">Refresh : pastille verte € si un meilleur prix existe (info-bulle), pastille orange % si le marchand est un bon plan Idealo (prix affiché en orange). Les deux s'effacent à l'ouverture des marchands, où la meilleure offre totale porte le € et les promos le %.</p></div>
