@@ -494,7 +494,13 @@ function chooseIdealoItem(it) {
     syncEnrich();
   });
   Idealo.offers(it.url).then(r => {
-    if (!r || r.error || !r.offers.length) return;
+    if (!r || r.error || !r.offers.length) {
+      if (!$('#modalOverlay').classList.contains('hidden')) {
+        const fn = $('#f_name');
+        if (fn && fn.value === before.name) toast(lang === 'en' ? 'Auto merchant unavailable — use the store button' : 'Marchand auto indisponible — utilisez le bouton boutique');
+      }
+      return;
+    }
     const o = r.offers[0]; // parser sorts ascending: cheapest first
     if (!o) return;
     if (o.merchant && !np.vendor) np.vendor = o.merchant;
@@ -937,7 +943,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.18', `
+  openModal('Changelog — v2.19', `
+    <div class="chlog"><h3>v2.19 — Marchand auto fiabilisé</h3><p class="hint">Sélection auto du moins cher avec double reprise (rendu partiel rechargé sans cache, 429/timeout réessayé) et message visible avec repli vers le bouton boutique en cas d'échec.</p></div>
     <div class="chlog"><h3>v2.18 — Détails d'affichage</h3><p class="hint">Bouton de suppression plus grand, marges entre les sections, emplacements ajoutés nommés ssd_1, opt_2… au lieu d'identifiants aléatoires.</p></div>
     <div class="chlog"><h3>v2.17 — Ajout ciblé de composants</h3><p class="hint">Les boutons d'ajout (« composant PC », « élément setup », « autre élément ») ouvrent une popup de choix du type, inséré sous le même type. Les emplacements ajoutés ont un bouton de suppression (×).</p></div>
     <div class="chlog"><h3>v2.16 — Achat + marchand le moins cher</h3><p class="hint">Bouton panier déplacé sur le bouton composant (ouvre la boutique de la fiche). À la sélection d'un composant, le marchand le moins cher est appliqué par défaut (vendeur, prix, port, lien), sans écraser vos saisies.</p></div>

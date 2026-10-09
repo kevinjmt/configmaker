@@ -244,9 +244,11 @@ const Idealo = (() => {
     return out;
   }
 
-  async function cachedMd(url) {
-    const c = cache[url];
-    if (c && (Date.now() - c.t) < TTL && c.md) return { md: c.md, cached: true };
+  async function cachedMd(url, force) {
+    if (!force) {
+      const c = cache[url];
+      if (c && (Date.now() - c.t) < TTL && c.md) return { md: c.md, cached: true };
+    }
     const md = await queued(() => fetchMd(url));
     if (!md || md.length < 500) throw new Error('empty');
     cache[url] = { t: Date.now(), md: md.slice(0, 400000) };
@@ -311,8 +313,12 @@ const Idealo = (() => {
 
   async function product(url) {
     try {
-      const { md } = await cachedMd(url);
-      const d = parseProduct(md, url);
+      let { md } = await cachedMd(url);
+      let d = parseProduct(md, url);
+      if (!d.specs && !d.price) { // stale/partial render: refetch once, bypassing cache
+        md = (await cachedMd(url, true)).md;
+        d = parseProduct(md, url);
+      }
       if (!d.specs && !d.price) throw new Error('empty');
       return d;
     } catch (e) {
@@ -322,10 +328,22 @@ const Idealo = (() => {
 
   async function offers(url) {
     try {
-      const { md, cached } = await cachedMd(url);
-      return { offers: parseOffers(md), cached: !!cached };
+      let { md, cached } = await cachedMd(url);
+      let items = parseOffers(md);
+      if (!items.length) { // stale/partial render: refetch once, bypassing cache
+        md = (await cachedMd(url, true)).md;
+        items = parseOffers(md);
+        cached = false;
+      }
+      return { offers: items, cached: !!cached };
     } catch (e) {
-      return { offers: [], error: String((e && e.message) || e) };
+      // last chance: one retry (transient 429 / timeout)
+      try {
+        const { md } = await cachedMd(url, true);
+        return { offers: parseOffers(md), cached: false };
+      } catch (e2) {
+        return { offers: [], error: String((e2 && e2.message) || e2) };
+      }
     }
   }
 
