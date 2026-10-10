@@ -238,7 +238,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></button>
       <button class="mini-btn" data-act="store" title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"><i class="fa-solid fa-store"></i></button>
       <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
-      ${d.id === 'mb' || slotName(id).toLowerCase().includes('carte') || slotName(id).toLowerCase().includes('motherboard') ? `<button class="mini-btn" data-act="pcie" title="PCIe Simulator"><i class="fa-solid fa-diagram-project"></i></button>` : ''}
+      ${d.id === 'mb' || d.id === 'ssd1' ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
     </div>
@@ -308,7 +308,7 @@ function slotAction(id, act) {
     if (u) window.open(u, '_blank', 'noopener');
     else toast(lang === 'en' ? 'No store link yet — pick a merchant first' : 'Pas encore de lien boutique — choisissez un marchand');
   }
-  else if (act === 'pcie') window.open('https://pcie-simulator.vercel.app/', '_blank', 'noopener');
+  else if (act === 'pcie') openPcieSim();
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'refetch') refreshOnePrice(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
@@ -730,6 +730,29 @@ async function openMerchants(slotId) {
     toast(lang === 'en' ? 'Merchant selected' : 'Marchand sélectionné');
   });
   $('#m_manual').onclick = () => openProductForm(slotId, p, { focus: 'store' });
+}
+
+/* ---------- PCIe Simulator (prefilled share URL) ---------- */
+function openPcieSim() {
+  let r = null;
+  try { r = (typeof PCIe !== 'undefined') ? PCIe.open() : null; } catch { r = null; }
+  if (!r) { window.open('https://pcie-simulator.vercel.app/', '_blank', 'noopener'); return; }
+  const m = [];
+  if (r.matched && r.matched.mb) m.push('CM ✓');
+  if (r.matched && r.matched.cpu) m.push('CPU ✓');
+  if (r.matched && r.matched.gpu) m.push('GPU ✓');
+  if (r.matched && r.matched.ssds) m.push(`SSD ×${r.matched.ssds}`);
+  if (r.fallback) {
+    try {
+      const txt = ['ConfigMaker', state.name, 'MB: ' + ((state.slots.mb && sel(state.slots.mb) || {}).name || '—'), 'CPU: ' + ((state.slots.cpu && sel(state.slots.cpu) || {}).name || '—')].join(' · ');
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+    } catch { /* ignore */ }
+    toast(lang === 'en' ? 'Board not found — pick it in the simulator (config copied)' : 'Carte non trouvée — choisissez-la dans le simulateur (config copiée)');
+  } else if (r.missing && r.missing.length) {
+    toast((lang === 'en' ? 'Sent to simulator' : 'Envoyé au simulateur') + ` (${m.join(' ')}) — ${lang === 'en' ? 'missing' : 'manquant'} : ${r.missing.join(', ')}`);
+  } else {
+    toast((lang === 'en' ? 'Sent to simulator' : 'Envoyé au simulateur') + ` (${m.join(' ')})`);
+  }
 }
 
 /* ---------- Delivery ---------- */
@@ -1209,7 +1232,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.34', `
+  openModal('Changelog — v2.35', `
+    <div class="chlog"><h3>v2.35 — Simulateur PCIe pré-rempli</h3><p class="hint">Icône histogramme, bouton aussi sur le SSD : ouvre le simulateur avec carte mère, CPU, GPU et SSD reconnus et branchés aux bons slots (recherche floue sur catalogue local, repli propre si introuvable).</p></div>
     <div class="chlog"><h3>v2.34 — Correctif remplacement réel</h3><p class="hint">Le remplacement supprimait seulement dans un cas de test : la condition se basait sur un mauvais drapeau et ne se déclenchait jamais depuis le sélecteur. Maintenant la fiche précédente est bien supprimée à la sauvegarde (testé sur le vrai chemin).</p></div>
     <div class="chlog"><h3>v2.33 — Remplacement net</h3><p class="hint">En mode remplacement (clic direct), l'ancienne fiche est supprimée et remplacée par la nouvelle ; les autres alternatives sont conservées. Le mode ajout n'écrase toujours rien.</p></div>
     <div class="chlog"><h3>v2.32 — Picker ajout vs remplacement</h3><p class="hint">Bouton flèches supprimé (le clic direct remplace déjà). Bouton + en calques : ouvre le choix Idealo et ajoute la fiche aux alternatives sans toucher à la sélection. Pastille de mode dans le panneau.</p></div>
