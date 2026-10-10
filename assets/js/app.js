@@ -454,6 +454,7 @@ function loadCategory(key) {
   const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(c.url, '_blank', 'noopener');
 }
 const IDEAL_PAGE = 12;
+function idealKey(it) { return (it.url || it.img || ((it.name || '') + '|' + (it.price || 0))) + ''; }
 async function loadIdealoList(url, mode = 'fresh') {
   // mode: 'fresh' (new base url) | 'more' (show more / fetch next sort variant)
   const my = ++idealToken;
@@ -469,7 +470,7 @@ async function loadIdealoList(url, mode = 'fresh') {
     idealBusy = false;
     if (r2.error) { idealErr = r2.error; }
     else {
-      r2.items.forEach(it => { if (it.url && !idealPool.some(x => x.url === it.url)) idealPool.push(it); });
+      r2.items.forEach(it => { const k = idealKey(it); if (k && !idealPool.some(x => idealKey(x) === k)) idealPool.push(it); });
       idealFetched['next:' + idealNextUrl] = true;
       idealNextUrl = r2.next || null;
       if (r2.cached) idealCached = true;
@@ -483,7 +484,7 @@ async function loadIdealoList(url, mode = 'fresh') {
     if (my !== idealToken) return; // stale
     if (r.error) { idealErr = r.error; }
     else {
-      r.items.forEach(it => { if (it.url && !idealPool.some(x => x.url === it.url)) idealPool.push(it); });
+      r.items.forEach(it => { const k = idealKey(it); if (k && !idealPool.some(x => idealKey(x) === k)) idealPool.push(it); });
       idealFetched[v] = true;
       if (r.cached) idealCached = true;
       if (r.next && !idealNextUrl) idealNextUrl = r.next;
@@ -535,11 +536,14 @@ function renderIdealo() {
     const choose = document.createElement('button');
     choose.className = 'mini-btn'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
     choose.onclick = () => chooseIdealoItem(it);
-    const link = document.createElement('a');
-    link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo`;
-    link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
     const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
-    wrap.append(choose, link);
+    wrap.append(choose);
+    if (it.url) {
+      const link = document.createElement('a');
+      link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo`;
+      link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
+      wrap.append(link);
+    }
     card.appendChild(wrap);
     host.appendChild(card);
   });
@@ -1234,7 +1238,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.39', `
+  openModal('Changelog — v2.40', `
+    <div class="chlog"><h3>v2.40 — Correctif offres sans lien</h3><p class="hint">Les offres sans lien fiche (ex. pâte thermique : vendeur + port directs) étaient jetées par le dédoublonnage et la liste restait vide. Clé de repli sur image/nom+prix, bouton Idealo masqué quand il n'y a pas d'URL.</p></div>
     <div class="chlog"><h3>v2.39 — Correctif listes Idealo</h3><p class="hint">Pages listes : offres directes reconnues (nom + vendeur + port), carrousels « nouveautés » exclus, pagination préservée. La pâte thermique affiche ses vraies offres.</p></div>
     <div class="chlog"><h3>v2.38 — Bouton Idealo repositionné</h3><p class="hint">Le bouton Idealo du panneau passe en en-tête à droite du type de composant, et chaque carte résultat affiche son lien « Idealo » en toutes lettres.</p></div>
     <div class="chlog"><h3>v2.37 — Bouton PCIe sur son & capture</h3><p class="hint">Le bouton simulateur PCIe (histogramme) apparaît aussi sur les cartes son et d'acquisition PCIe, avec envoi de la config complète comme depuis la carte mère et le SSD.</p></div>
