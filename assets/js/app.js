@@ -642,6 +642,7 @@ function openProductForm(slotId, p, opts = {}) {
   p = p || blankProduct();
   editingPid = p.id;
   const prevSelected = state.slots[slotId].selectedId;
+  const alreadyListed = !!state.slots[slotId].products.some(x => x.id === p.id);
   const d = defOf(state.slots[slotId]);
   openModal(isNew ? (lang === 'en' ? 'New fiche — ' : 'Nouvelle fiche — ') + slotName(slotId) : (lang === 'en' ? 'Edit fiche' : 'Modifier la fiche'), `
     <div class="form-grid">
@@ -674,7 +675,7 @@ function openProductForm(slotId, p, opts = {}) {
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
     if (!opts.addOnly || !s.selectedId) s.selectedId = p.id;
-    if (isNew && !opts.addOnly && prevSelected && prevSelected !== p.id) {
+    if (!alreadyListed && !opts.addOnly && prevSelected && prevSelected !== p.id) {
       s.products = s.products.filter(x => x.id !== prevSelected); // replace mode: drop the previous fiche
     }
     persist(); closeModal(); refresh(); renderPicker();
@@ -1208,7 +1209,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.33', `
+  openModal('Changelog — v2.34', `
+    <div class="chlog"><h3>v2.34 — Correctif remplacement réel</h3><p class="hint">Le remplacement supprimait seulement dans un cas de test : la condition se basait sur un mauvais drapeau et ne se déclenchait jamais depuis le sélecteur. Maintenant la fiche précédente est bien supprimée à la sauvegarde (testé sur le vrai chemin).</p></div>
     <div class="chlog"><h3>v2.33 — Remplacement net</h3><p class="hint">En mode remplacement (clic direct), l'ancienne fiche est supprimée et remplacée par la nouvelle ; les autres alternatives sont conservées. Le mode ajout n'écrase toujours rien.</p></div>
     <div class="chlog"><h3>v2.32 — Picker ajout vs remplacement</h3><p class="hint">Bouton flèches supprimé (le clic direct remplace déjà). Bouton + en calques : ouvre le choix Idealo et ajoute la fiche aux alternatives sans toucher à la sélection. Pastille de mode dans le panneau.</p></div>
     <div class="chlog"><h3>v2.31 — Barre d'actions pleine largeur</h3><p class="hint">Mini-boutons en pleine largeur aux coins arrondis assortis, animation de refresh aussi dessus. Crayon = modifier la fiche, libellés précisés (page Idealo, changer de X, ajouter une alternative qui n'écrase plus la sélection).</p></div>
