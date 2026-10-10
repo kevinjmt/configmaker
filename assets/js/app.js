@@ -418,7 +418,7 @@ const IDEALO_CATS = [
   { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/liste/122968612/pate-thermique-cpu.html' },
   { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
   { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
-  { key: 'psucables', label: "Câbles d'alimentation", url: 'https://www.idealo.fr/liste/122008082/cable-pour-alimentation-pc.html' },
+  { key: 'psucables', label: "Câbles d'alimentation", url: 'https://www.idealo.fr/cat/5694F3384068/cables-adaptateurs-pc.html' },
   { key: 'soft', label: 'Logiciels', url: 'https://www.idealo.fr/scat/3330/logiciels.html' },
   { key: 'ups', label: 'Onduleurs', url: 'https://www.idealo.fr/cat/3107/onduleurs.html' },
   { key: 'switch', label: 'Switches', url: 'https://www.idealo.fr/cat/3104/switches.html' },
