@@ -65,7 +65,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
-    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir cette page', 'picker.chooseBtn': 'Choisir',
+    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir cette page', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative",
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
     'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
     'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
@@ -86,7 +86,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
-    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this page', 'picker.chooseBtn': 'Select',
+    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this page', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative',
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
     'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
     'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
@@ -235,8 +235,7 @@ function slotCard(id) {
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="idealo" title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-      <button class="mini-btn" data-act="pick" title="${lang === 'en' ? `Change ${esc(slotName(id))} (replaces current)` : `Changer de ${esc(slotName(id))} (remplace l'actuel)`}"><i class="fa-solid fa-arrows-rotate"></i></button>
-      <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><i class="fa-solid fa-plus"></i></button>
+      <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></button>
       <button class="mini-btn" data-act="store" title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"><i class="fa-solid fa-store"></i></button>
       <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
       ${d.id === 'mb' || slotName(id).toLowerCase().includes('carte') || slotName(id).toLowerCase().includes('motherboard') ? `<button class="mini-btn" data-act="pcie" title="PCIe Simulator"><i class="fa-solid fa-diagram-project"></i></button>` : ''}
@@ -299,9 +298,9 @@ function altRemove(slotId, pid) {
 }
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
-  if (act === 'pick') openPicker(id);
+  if (act === 'pick') openPicker(id, 'replace');
   else if (act === 'edit') openProductForm(id, p);
-  else if (act === 'addalt') openProductForm(id, null, { addOnly: true });
+  else if (act === 'addalt') openPicker(id, 'add');
   else if (act === 'idealo') { if (p && p.idealo) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
@@ -558,7 +557,7 @@ function chooseIdealoItem(it) {
   np.name = it.name; np.image = it.img; np.idealo = it.url;
   np.price = it.price || 0; np.specs = it.specs; np.vendor = it.vendor || '';
   np.delivery = it.delivery || 0;
-  openProductForm(activeSlot, np);
+  openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
   // Enrich in background from the /prix/ page: "Aperçu du produit" + cheapest merchant.
   // Only untouched fields are filled; user input always wins.
   if (!it.url) return;
@@ -609,7 +608,9 @@ function chooseIdealoItem(it) {
     syncEnrich();
   });
 }
-function openPicker(id) {
+let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
+function openPicker(id, mode = 'replace') {
+  pickerMode = mode;
   activeSlot = id;
   const s = state.slots[id], cur = sel(s), d = defOf(s);
   const baseLabel = (SLOT_NAMES[lang] && SLOT_NAMES[lang][s.defId]) || SLOT_NAMES.fr[s.defId] || s.defId;
@@ -620,6 +621,11 @@ function openPicker(id) {
   $('#pickerPanel').classList.remove('hidden');
   $('#summaryPanel').classList.add('hidden');
   renderSlots(); renderPicker();
+  const chip = $('#pickerModeChip');
+  if (chip) {
+    chip.classList.toggle('hidden', pickerMode !== 'add');
+    if (pickerMode === 'add') $('#pickerModeTxt').textContent = t('picker.addMode');
+  }
   loadIdealoList(url);
   if (window.innerWidth < 960) $('#pickerPanel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1198,7 +1204,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.31', `
+  openModal('Changelog — v2.32', `
+    <div class="chlog"><h3>v2.32 — Picker ajout vs remplacement</h3><p class="hint">Bouton flèches supprimé (le clic direct remplace déjà). Bouton + en calques : ouvre le choix Idealo et ajoute la fiche aux alternatives sans toucher à la sélection. Pastille de mode dans le panneau.</p></div>
     <div class="chlog"><h3>v2.31 — Barre d'actions pleine largeur</h3><p class="hint">Mini-boutons en pleine largeur aux coins arrondis assortis, animation de refresh aussi dessus. Crayon = modifier la fiche, libellés précisés (page Idealo, changer de X, ajouter une alternative qui n'écrase plus la sélection).</p></div>
     <div class="chlog"><h3>v2.30 — Échec refresh visible</h3><p class="hint">Prix non actualisé : composant surligné jaune pâle, bouton re-actualiser à gauche du prix, icône d'avertissement à droite. Le drapeau s'efface au succès ou à la modification manuelle.</p></div>
     <div class="chlog"><h3>v2.29 — Correctif icônes résumé</h3><p class="hint">Les icônes du résumé ne clignotent plus : conversion Lucide appliquée à chaque rendu du panneau.</p></div>
@@ -1310,7 +1317,7 @@ function bind() {
   $('#sumPower').onclick = () => switchSum('power');
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
   $('#pickerClose').onclick = closePicker;
-  $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null);
+  $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
     const url = idealoSearchUrl(q);
@@ -1340,7 +1347,7 @@ function bind() {
       const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
       np.name = slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
     } catch { np.name = ''; }
-    openProductForm(activeSlot, np);
+    openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
   };
   $('#phTotal').onclick = () => { phMode = 'total'; $('#phTotal').classList.add('active'); $('#phPer').classList.remove('active'); drawPrices(); };
   $('#phPer').onclick = () => { phMode = 'per'; $('#phPer').classList.add('active'); $('#phTotal').classList.remove('active'); drawPrices(); };
