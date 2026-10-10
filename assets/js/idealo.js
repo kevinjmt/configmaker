@@ -192,17 +192,25 @@ const Idealo = (() => {
     return items;
   }
 
-  /* /liste/ pages, direct-offer variant (no product links):
-     ![Image N: TITLE](offer-img) \n\n Vendu par : SHOP \n\n … \n\n [Frais de port : X € | Livraison gratuite] \n\n PRICE €TVA … */
+  /* /liste/ pages, direct-offer variant (no product links).
+     Image + optional title line(s), then "Vendu par : SHOP", delivery info,
+     shipping ("Frais de port : X €" | "Livraison gratuite"), then "PRICE €TVA…".
+     NOTE: the trailing "Nouveau / populaires / Plus de résultats" carousels
+     (unrelated products) are cut off by parseMarkdown before calling parsers. */
   function cleanVendor(v) {
     return String(v || '').replace(/^(www\.|fr\.)/i, '').trim();
   }
   function parseListeOffers(md) {
     const items = [];
-    const re = /!\[Image \d+: ([^\]]{2,250})\]\(([^)]+)\)\s*\n\nVendu par\s*:\s*([^\n]+)\s*\n\n([\s\S]*?)(?=\n!\[Image |\s*$)/g;
+    const re = /!\[Image \d+: ([^\]]{2,250})\]\(([^)]+)\)([\s\S]{0,600}?)\nVendu par\s*:\s*([^\n]+)\s*\n\n([\s\S]*?)(?=\n!\[Image |\s*$)/g;
     let m;
     while ((m = re.exec(md)) !== null) {
-      const alt = m[1].trim(), img = m[2].trim(), vendor = cleanVendor(m[3]), body = m[4] || '';
+      const alt = m[1].trim(), img = m[2].trim(), gap = m[3] || '';
+      if (gap.includes('![Image')) continue;
+      const vendor = cleanVendor(m[4]);
+      const body = m[5] || '';
+      const titleLn = gap.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('!['))[0] || '';
+      const name = titleLn.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim() || alt;
       if (items.some(x => x.img === img)) continue;
       let delivery = 0;
       if (/Livraison gratuite/i.test(body)) delivery = 0;
@@ -213,19 +221,28 @@ const Idealo = (() => {
       const all = [...body.matchAll(/([\d\s]+[.,]\d{2})\s*€/g)];
       const price = all.length ? parsePrice(all[all.length - 1][1]) : 0;
       if (!price) continue;
-      items.push({ pid: '', name: alt, img, specs: '', offers: 0, price, delivery, vendor, url: '' });
+      items.push({ pid: '', name, img, specs: '', offers: 0, price, delivery, vendor, url: '' });
     }
     return items;
   }
 
   function parseMarkdown(md, baseUrl) {
     md = String(md || '');
-    const linked = parseLinked(md);
+    // cut off trailing "new / popular / more results" carousels (unrelated products);
+    // pagination discovery below still uses the full document.
+    const cutAt = [
+      md.search(/^## Ces résultats de recherche.*$/m),
+      md.search(/^### Nouveau dans.*$/m),
+      md.search(/^### Produits les plus populaires.*$/m),
+      md.search(/^### Plus de résultats.*$/m),
+    ].filter(i => i > 0);
+    const mainMd = cutAt.length ? md.slice(0, Math.min(...cutAt)) : md;
+    const linked = parseLinked(mainMd);
     const byPid = {};
     linked.forEach(l => { if (l.pid) byPid[l.pid] = l; });
-    const listeP = parseListeProducts(md).filter(x => ![...linked].some(y => y.url === x.url));
+    const listeP = parseListeProducts(mainMd).filter(x => ![...linked].some(y => y.url === x.url));
     const listePids = new Set(listeP.map(x => x.pid).filter(Boolean));
-    const blocks = parseBlocks(md).filter(b => {
+    const blocks = parseBlocks(mainMd).filter(b => {
       if (b.pid && listePids.has(b.pid)) return false; // cleaner liste version wins
       const l = b.pid && byPid[b.pid];
       if (l && (!l.price || !l.specs)) { // enrich thin linked cards
@@ -236,8 +253,8 @@ const Idealo = (() => {
       }
       return !l;
     });
-    const listeO = parseListeOffers(md).filter(x => ![...linked, ...blocks, ...listeP].some(y => (y.img && y.img === x.img) || (y.url && x.url && y.url === x.url)));
-    const sugg = parseSuggestions(md).filter(s => ![...linked, ...blocks, ...listeP].some(x => x.url === s.url));
+    const listeO = parseListeOffers(mainMd).filter(x => ![...linked, ...blocks, ...listeP].some(y => (y.img && y.img === x.img) || (y.url && x.url && y.url === x.url)));
+    const sugg = parseSuggestions(mainMd).filter(s => ![...linked, ...blocks, ...listeP].some(x => x.url === s.url));
     const items = [...linked, ...blocks, ...listeP, ...listeO, ...sugg];
     let next = null;
     const isList = u => /\/cat\/|prechcat|liste\//i.test(u);

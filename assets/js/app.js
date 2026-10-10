@@ -1234,7 +1234,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.38', `
+  openModal('Changelog — v2.39', `
+    <div class="chlog"><h3>v2.39 — Correctif listes Idealo</h3><p class="hint">Pages listes : offres directes reconnues (nom + vendeur + port), carrousels « nouveautés » exclus, pagination préservée. La pâte thermique affiche ses vraies offres.</p></div>
     <div class="chlog"><h3>v2.38 — Bouton Idealo repositionné</h3><p class="hint">Le bouton Idealo du panneau passe en en-tête à droite du type de composant, et chaque carte résultat affiche son lien « Idealo » en toutes lettres.</p></div>
     <div class="chlog"><h3>v2.37 — Bouton PCIe sur son & capture</h3><p class="hint">Le bouton simulateur PCIe (histogramme) apparaît aussi sur les cartes son et d'acquisition PCIe, avec envoi de la config complète comme depuis la carte mère et le SSD.</p></div>
     <div class="chlog"><h3>v2.36 — SSD et cartes PCIe envoyés aussi</h3><p class="hint">SSD classés par débit (>6000 Gen5, ≥3500 Gen4, sinon Gen3, SATA ignorés), cartes de capture et son PCIe ajoutées (USB ignorées), placement sans collision de slots.</p></div>
