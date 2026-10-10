@@ -68,6 +68,60 @@ const PCIe = (() => {
   function normDev(s) {
     return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
+  /* Max sequential read speed in MB/s from name+specs ("7 450 Mo/s", "7450 MB/s", "7,45 Go/s"). */
+  function readSpeedMBs(name, specs) {
+    const txt = `${name || ''}\n${specs || ''}`;
+    let best = 0;
+    const re = /(\d+(?:\s?\d{3})*(?:[.,]\d+)?)\s*(Mo\/s|MB\/s|MBs|Go\/s|GB\/s)\b/gi;
+    let m;
+    while ((m = re.exec(txt)) !== null) {
+      let v = parseFloat(m[1].replace(/\s/g, '').replace(',', '.'));
+      if (isNaN(v)) continue;
+      if (/^(Go|GB)/i.test(m[2])) v *= 1000;
+      if (v > best) best = v;
+    }
+    return best;
+  }
+  /* SSD → sim device: exact catalog match first, else generic by speed.
+     User rule: >6000 MB/s = Gen5, >=3500 = Gen4, else Gen3. */
+  function matchSsd(name, specs) {
+    const text = `${name || ''} ${specs || ''}`;
+    if (/sata/i.test(text) && !/nvme|m\.2|pci[\s-]?e/i.test(text)) return null; // SATA: not PCIe
+    const exact = matchNvme(name);
+    if (exact) return { id: exact, generic: false };
+    const speed = readSpeedMBs(name, specs);
+    const gen = speed <= 0 ? 4 : speed >= 6000 ? 5 : speed >= 3500 ? 4 : 3;
+    return { id: gen === 5 ? 'nvme_x4_gen5' : gen === 4 ? 'nvme_x4' : 'nvme_x4_gen3', generic: true, speed };
+  }
+  function isUsbOnly(name, specs) {
+    const text = `${name || ''} ${specs || ''}`;
+    return /\busb\b/i.test(text) && !/pci[\s-]?e(xpress)?|\bpcie\b/i.test(text);
+  }
+  /* Capture card: exact catalog match, else generic PCIe capture (USB ones skipped). */
+  function matchCapture(name, specs) {
+    if (!name) return null;
+    if (isUsbOnly(name, specs)) return null;
+    const devs = ((typeof PCIECAT !== 'undefined' && PCIECAT.d) || []).filter(d => d.t === 'capture');
+    const tw = normDev(name).split(' ').filter(w => w.length > 1);
+    let best = null;
+    for (const d of devs) {
+      const dn = new Set(normDev(d.n).split(' ').filter(w => w.length > 1));
+      const hit = tw.filter(w => [...dn].some(x => x === w || ((x.includes(w) || w.includes(x)) && Math.min(x.length, w.length) >= 4)));
+      if (hit.length < 2) continue;
+      const score = hit.length * 2;
+      if (!best || score > best.score) best = { id: d.i, score };
+    }
+    if (best) return { id: best.id, generic: false };
+    if (/pci[\s-]?e(xpress)?|\bpcie\b/i.test(`${name} ${specs}`)) return { id: 'capture_x4', generic: true };
+    return null;
+  }
+  /* Sound card: PCIe only (USB externals skipped) → generic PCIe x1 sound. */
+  function matchSound(name, specs) {
+    if (!name) return null;
+    if (isUsbOnly(name, specs)) return null;
+    if (/pci[\s-]?e(xpress)?|\bpcie\b|\bpci\b/i.test(`${name} ${specs}`)) return { id: 'sound_x1', generic: false };
+    return null;
+  }
   function matchGpu(gpuName) {
     const devs = ((typeof PCIECAT !== 'undefined' && PCIECAT.d) || []).filter(d => d.t === 'gpu');
     if (!gpuName || !devs.length) return null;
@@ -110,23 +164,24 @@ const PCIe = (() => {
       return (s && s.products.find(p => p.id === s.selectedId)) || null;
     } catch { return null; }
   }
-  function extraSsds() {
+  function productsOf(...defIds) {
     try {
       const out = [];
       for (const id of state.order) {
         const s = state.slots[id];
-        if (!s || (id !== 'ssd1' && !id.startsWith('ssd_'))) continue;
+        if (!s || !defIds.includes(s.defId)) continue;
         const p = s.products.find(x => x.id === s.selectedId);
-        if (p && p.name) out.push(p.name);
+        if (p && p.name) out.push(p);
       }
       return out;
     } catch { return []; }
   }
-
   function buildUrl() {
     const missing = [];
     const mb = selectedProduct('mb'), cpu = selectedProduct('cpu'), gpu = selectedProduct('gpu');
-    const ssds = extraSsds();
+    const ssds = productsOf('ssd1');
+    const captures = productsOf('capture');
+    const sounds = productsOf('soundcard');
     const board = mb && mb.name ? matchBoard(mb.name) : null;
     if (!board) return { url: BASE, matched: {}, missing: ['motherboard'], fallback: true };
     const cpuId = cpu && cpu.name ? matchCpu(cpu.name, board.o) : null;
@@ -134,18 +189,32 @@ const PCIe = (() => {
     const gpuId = gpu && gpu.name ? matchGpu(gpu.name) : null;
     if (gpu && gpu.name && !gpuId) missing.push('GPU');
     const comps = {};
-    if (gpuId && board.g) comps[board.g] = gpuId;
+    const used = new Set();
+    if (gpuId && board.g) { comps[board.g] = gpuId; used.add(board.g); }
     const m2 = board.m || [];
-    let mi = 0;
-    for (const name of ssds) {
-      const dev = matchNvme(name);
-      if (dev && mi < m2.length) { comps[m2[mi]] = dev; mi++; }
-      else if (name) missing.push('SSD');
+    let mi = 0, ssdCount = 0;
+    const ssdTotal = ssds.length;
+    for (const p of ssds) {
+      const dev = matchSsd(p.name, p.specs);
+      if (dev && mi < m2.length) { comps[m2[mi]] = dev.id; mi++; ssdCount++; }
     }
+    if (ssdTotal && ssdCount < ssdTotal) missing.push('SSD');
+    const xslots = (board.x || []).filter(s => !used.has(s));
+    let xi = 0, capCount = 0, sndCount = 0, capTotal = captures.length, sndTotal = sounds.length;
+    for (const p of captures) {
+      const dev = matchCapture(p.name, p.specs);
+      if (dev && xi < xslots.length) { comps[xslots[xi]] = dev.id; xi++; capCount++; }
+    }
+    for (const p of sounds) {
+      const dev = matchSound(p.name, p.specs);
+      if (dev && xi < xslots.length) { comps[xslots[xi]] = dev.id; xi++; sndCount++; }
+    }
+    if (capTotal && !capCount) missing.push('capture');
+    if (sndTotal && !sndCount) missing.push('sound');
     const payload = { m: board.k };
     if (cpuId) payload.c = cpuId;
     if (Object.keys(comps).length) payload.s = comps;
-    return { url: BASE + '#cfg=' + b64url(payload), matched: { mb: board.n, cpu: cpuId, gpu: gpuId, ssds: mi }, missing, fallback: false };
+    return { url: BASE + '#cfg=' + b64url(payload), matched: { mb: board.n, cpu: cpuId, gpu: gpuId, ssds: ssdCount, captures: capCount, sounds: sndCount }, missing, fallback: false };
   }
 
   function open() {
@@ -154,5 +223,5 @@ const PCIe = (() => {
     return r;
   }
 
-  return { buildUrl, open, matchBoard, matchCpu, matchGpu, matchNvme };
+  return { buildUrl, open, matchBoard, matchCpu, matchGpu, matchNvme, matchSsd, matchCapture, matchSound };
 })();
