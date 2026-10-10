@@ -232,12 +232,13 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-actions">
-      <button class="mini-btn" data-act="manual" title="${p.manual ? esc(p.manual) : (lang === 'en' ? 'Add manual link' : 'Ajouter le lien du manuel')}"><i class="fa-solid fa-circle-info"></i></button>
-      <button class="mini-btn" data-act="idealo" title="Idealo"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-      <button class="mini-btn" data-act="pick" title="${lang === 'en' ? 'Change part' : 'Changer'}"><i class="fa-solid fa-arrows-rotate"></i></button>
+    ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
+      <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
+      <button class="mini-btn" data-act="idealo" title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+      <button class="mini-btn" data-act="pick" title="${lang === 'en' ? `Change ${esc(slotName(id))} (replaces current)` : `Changer de ${esc(slotName(id))} (remplace l'actuel)`}"><i class="fa-solid fa-arrows-rotate"></i></button>
+      <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><i class="fa-solid fa-plus"></i></button>
       <button class="mini-btn" data-act="store" title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"><i class="fa-solid fa-store"></i></button>
-      <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Buy from this store' : 'Acheter dans cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
+      <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
       ${d.id === 'mb' || slotName(id).toLowerCase().includes('carte') || slotName(id).toLowerCase().includes('motherboard') ? `<button class="mini-btn" data-act="pcie" title="PCIe Simulator"><i class="fa-solid fa-diagram-project"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
@@ -299,7 +300,8 @@ function altRemove(slotId, pid) {
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
   if (act === 'pick') openPicker(id);
-  else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); else openProductForm(id, p || null, { focus: 'manual' }); }
+  else if (act === 'edit') openProductForm(id, p);
+  else if (act === 'addalt') openProductForm(id, null, { addOnly: true });
   else if (act === 'idealo') { if (p && p.idealo) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
@@ -664,10 +666,9 @@ function openProductForm(slotId, p, opts = {}) {
     p.idealo = v('#f_idealo'); p.manual = v('#f_manual'); p.store = v('#f_store');
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
-    s.selectedId = p.id;
-    refreshFailed.delete(p.id);
+    if (!opts.addOnly || !s.selectedId) s.selectedId = p.id;
     persist(); closeModal(); refresh(); renderPicker();
-    toast(lang === 'en' ? 'Fiche saved' : 'Fiche enregistrée');
+    toast(lang === 'en' ? (opts.addOnly ? 'Alternative added' : 'Fiche saved') : (opts.addOnly ? 'Alternative ajoutée' : 'Fiche enregistrée'));
   };
   const dp = $('#f_delP');
   if (dp) dp.onclick = () => { const s = state.slots[slotId]; s.products = s.products.filter(x => x.id !== p.id); if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null; persist(); closeModal(); refresh(); renderPicker(); };
@@ -1197,7 +1198,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.30', `
+  openModal('Changelog — v2.31', `
+    <div class="chlog"><h3>v2.31 — Barre d'actions pleine largeur</h3><p class="hint">Mini-boutons en pleine largeur aux coins arrondis assortis, animation de refresh aussi dessus. Crayon = modifier la fiche, libellés précisés (page Idealo, changer de X, ajouter une alternative qui n'écrase plus la sélection).</p></div>
     <div class="chlog"><h3>v2.30 — Échec refresh visible</h3><p class="hint">Prix non actualisé : composant surligné jaune pâle, bouton re-actualiser à gauche du prix, icône d'avertissement à droite. Le drapeau s'efface au succès ou à la modification manuelle.</p></div>
     <div class="chlog"><h3>v2.29 — Correctif icônes résumé</h3><p class="hint">Les icônes du résumé ne clignotent plus : conversion Lucide appliquée à chaque rendu du panneau.</p></div>
     <div class="chlog"><h3>v2.28 — Prix à 2 décimales et écarts intégrés</h3><p class="hint">Tous les prix à 2 décimales façon Idealo, libellés des totaux à la même taille que les montants, et ligne budget remplacée par l'écart affiché à gauche de chaque total (infobulle explicative au survol).</p></div>

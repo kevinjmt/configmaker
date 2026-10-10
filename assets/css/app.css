@@ -144,7 +144,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot.sel{border-color:var(--brand);box-shadow:var(--shadow-md)}
 .slot-main{display:flex;gap:12px;padding:14px;cursor:pointer;align-items:center;text-align:left;width:100%;background:none;border:none;color:inherit;font:inherit;position:relative;overflow:hidden}
 .slot-main.refreshing-sel{opacity:.72}
-.slot-main.refreshing-sel::after,.alt-toggle.refreshing-alt::after,.alt-item.refreshing::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgba(128,128,128,.22) 50%,transparent 80%);background-size:200% 100%;animation:sk 1.2s infinite}
+.slot-main.refreshing-sel::after,.slot-actions.refreshing-sel::after,.alt-toggle.refreshing-alt::after,.alt-item.refreshing::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgba(128,128,128,.22) 50%,transparent 80%);background-size:200% 100%;animation:sk 1.2s infinite}
 .alt-item{position:relative;overflow:hidden}
 .alt-item.refreshing{opacity:.72}
 .slot-main.empty .slot-specs,.slot-main.empty .slot-side{display:none}
@@ -171,7 +171,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot-price.best{color:var(--success)}
 .disc-badge{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--warning),#d9480f);padding:3px 8px;border-radius:var(--radius-pill);margin-left:6px}
 .slot-deliv{font-size:.72rem;color:var(--muted)}
-.slot-actions{display:flex;gap:4px;flex-wrap:wrap;padding:0 14px 10px 84px}
+.slot-actions{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 12px;position:relative;overflow:hidden}
+.slot-actions .mini-btn{flex:1 1 0;justify-content:center;border-radius:14px;padding:10px 6px;white-space:nowrap}
 .mini-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 10px;font-size:.76rem;font-weight:800;cursor:pointer}
 .mini-btn:hover{border-color:var(--brand);color:var(--brand-ink)}
 .mini-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
