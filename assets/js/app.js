@@ -209,7 +209,7 @@ function slotCard(id) {
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
-  let priceHtml = `<div class="slot-price">—</div><div class="slot-vendor">${esc(slotName(id))}</div>`;
+  let priceDiv = `<div class="slot-price">—</div>`, vendorDiv = `<div class="slot-vendor">${esc(slotName(id))}</div>`, delivDiv = '';
   if (p) {
     const old = hasDiscount(p) ? `<span class="old">${eur(p.oldPrice)}</span>` : '';
     const badge = hasDiscount(p) ? `<span class="disc-badge"><i class="fa-solid fa-tag"></i> −${discPct(p)}%</span>` : '';
@@ -217,17 +217,20 @@ function slotCard(id) {
     const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
     const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
-    priceHtml = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${eur(p.price)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>
-      <div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>
-      <div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
+    priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${eur(p.price)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
+    vendorDiv = `<div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>`;
+    delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
+  const priceHtml = priceDiv + vendorDiv + delivDiv;
   el.innerHTML = `
     ${id.includes('_') ? `<button class="slot-remove" data-act="rmslot" title="${lang === 'en' ? 'Remove this component' : 'Supprimer ce composant'}"><i class="fa-solid fa-xmark"></i></button>` : ''}
     <button class="slot-main${p ? '' : ' empty'}${isRefreshing ? ' refreshing-sel' : ''}" data-act="pick">
       <span class="slot-visual">${visual}</span>
       <span class="slot-info"><span class="slot-type">${esc(slotName(id))}</span><span class-right></span>
         <div class="slot-name">${title}</div><div class="slot-specs">${specs}</div></span>
-      <span class="slot-side${stale ? ' stale-side' : ''}">${stale ? `<span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>` : ''}${priceHtml}</span>${stale ? `<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span>` : ''}
+      <span class="slot-side${stale ? ' stale-side' : ''}">${stale
+        ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
+        : priceHtml}</span>
     </button>
     ${p ? `<div class="slot-actions">
       <button class="mini-btn" data-act="manual" title="${p.manual ? esc(p.manual) : (lang === 'en' ? 'Add manual link' : 'Ajouter le lien du manuel')}"><i class="fa-solid fa-circle-info"></i></button>
