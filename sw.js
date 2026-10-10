@@ -1,5 +1,5 @@
 /* ConfigMaker v2.22 — offline cache */
-const CACHE = 'configmaker-v59';
+const CACHE = 'configmaker-v60';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './assets/css/app.css', './assets/js/app.js', './assets/js/idealo.js', './assets/js/tube.js', './assets/js/pcie.js', './assets/js/pcie-catalog.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
