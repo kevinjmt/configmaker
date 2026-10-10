@@ -203,7 +203,8 @@ function slotCard(id) {
   const el = document.createElement('div');
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '');
+  const stale = !!(p && refreshFailed.has(p.id));
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
@@ -226,7 +227,7 @@ function slotCard(id) {
       <span class="slot-visual">${visual}</span>
       <span class="slot-info"><span class="slot-type">${esc(slotName(id))}</span><span class-right></span>
         <div class="slot-name">${title}</div><div class="slot-specs">${specs}</div></span>
-      <span class="slot-side">${priceHtml}</span>
+      <span class="slot-side${stale ? ' stale-side' : ''}">${stale ? `<span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>` : ''}${priceHtml}</span>${stale ? `<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span>` : ''}
     </button>
     ${p ? `<div class="slot-actions">
       <button class="mini-btn" data-act="manual" title="${p.manual ? esc(p.manual) : (lang === 'en' ? 'Add manual link' : 'Ajouter le lien du manuel')}"><i class="fa-solid fa-circle-info"></i></button>
@@ -305,7 +306,34 @@ function slotAction(id, act) {
   }
   else if (act === 'pcie') window.open('https://pcie-simulator.vercel.app/', '_blank', 'noopener');
   else if (act === 'delivery') openDelivery(id);
+  else if (act === 'refetch') refreshOnePrice(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
+}
+async function refreshOnePrice(slotId) {
+  const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
+  if (!/idealo\.fr\/prix\//i.test(p.idealo || '') || typeof Idealo === 'undefined') return;
+  if (editingPid && editingPid === p.id) return;
+  refreshingPids.add(p.id); renderSlots();
+  showProgress(lang === 'en' ? 'Refreshing price…' : 'Actualisation du prix…');
+  try {
+    const r = await Idealo.offers(p.idealo, true);
+    const cur = s.products.find(x => x.id === p.id);
+    if (cur && !r.error && r.offers.length) {
+      const changed = applyOfferRefresh(cur, r.offers, true);
+      refreshFailed.delete(cur.id);
+      toast(changed
+        ? (lang === 'en' ? 'Price updated' : 'Prix actualisé')
+        : (lang === 'en' ? 'Price already up to date' : 'Prix déjà à jour'));
+    } else {
+      refreshFailed.add(p.id);
+      toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
+    }
+  } catch {
+    refreshFailed.add(p.id);
+    toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
+  }
+  refreshingPids.delete(p.id);
+  persist(); refresh(); hideProgress();
 }
 const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'os', 'soft'];
 const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'ups', 'switch', 'router', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
@@ -634,6 +662,7 @@ function openProductForm(slotId, p, opts = {}) {
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
     s.selectedId = p.id;
+    refreshFailed.delete(p.id);
     persist(); closeModal(); refresh(); renderPicker();
     toast(lang === 'en' ? 'Fiche saved' : 'Fiche enregistrée');
   };
@@ -1037,6 +1066,7 @@ function importConfig(obj) {
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
 const refreshingPids = new Set();
+const refreshFailed = new Set();
 function schedulePriceRefresh(delay = 1200) {
   clearTimeout(priceRefreshTimer);
   priceRefreshTimer = setTimeout(() => refreshPrices(), delay);
@@ -1117,16 +1147,17 @@ async function refreshPrices() {
     showProgress(`${prog} (${i + 1}/${urls.length})…`);
     try {
       const r = await Idealo.offers(url, true);
-      if (r.error || !r.offers.length) { failed++; }
+      if (r.error || !r.offers.length) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
       else {
         entries.forEach(({ id, pid }) => {
           const s = state.slots[id];
           const cur = s && s.products.find(x => x.id === pid);
           if (!cur || (editingPid && editingPid === pid)) return;
+          refreshFailed.delete(pid);
           if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
         });
       }
-    } catch { failed++; }
+    } catch { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
     entries.forEach(e => refreshingPids.delete(e.pid));
   }
   refreshingPids.clear();
@@ -1163,7 +1194,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.29', `
+  openModal('Changelog — v2.30', `
+    <div class="chlog"><h3>v2.30 — Échec refresh visible</h3><p class="hint">Prix non actualisé : composant surligné jaune pâle, bouton re-actualiser à gauche du prix, icône d'avertissement à droite. Le drapeau s'efface au succès ou à la modification manuelle.</p></div>
     <div class="chlog"><h3>v2.29 — Correctif icônes résumé</h3><p class="hint">Les icônes du résumé ne clignotent plus : conversion Lucide appliquée à chaque rendu du panneau.</p></div>
     <div class="chlog"><h3>v2.28 — Prix à 2 décimales et écarts intégrés</h3><p class="hint">Tous les prix à 2 décimales façon Idealo, libellés des totaux à la même taille que les montants, et ligne budget remplacée par l'écart affiché à gauche de chaque total (infobulle explicative au survol).</p></div>
     <div class="chlog"><h3>v2.27 — Listes Idealo + clés USB & cartes mémoire</h3><p class="hint">Pâte thermique et câbles d'alim. sur leurs vraies pages listes Idealo (avec vendeur et port inclus), hub remplacé par clés USB + cartes mémoire, webcam avant l'écran. Correctif : rechargement qui rangeait les ajouts ailleurs (vieux cache JS).</p></div>
