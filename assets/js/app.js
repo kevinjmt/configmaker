@@ -222,6 +222,10 @@ function slotCard(id) {
     delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
   }
   const priceHtml = priceDiv + vendorDiv + delivDiv;
+  const hasIdealo = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
+  const hasStore = !!(p && (p.store || (p.idealo && /idealo\.fr/i.test(p.idealo))));
+  const noIdealoTip = lang === 'en' ? 'No Idealo page for this part (offer without listing)' : 'Pas de page Idealo pour ce composant (offre sans fiche)';
+  const noStoreTip = lang === 'en' ? 'No store page available — pick a merchant first' : 'Pas de page boutique disponible — choisissez un marchand';
   el.innerHTML = `
     ${id.includes('_') ? `<button class="slot-remove" data-act="rmslot" title="${lang === 'en' ? 'Remove this component' : 'Supprimer ce composant'}"><i class="fa-solid fa-xmark"></i></button>` : ''}
     <button class="slot-main${p ? '' : ' empty'}${isRefreshing ? ' refreshing-sel' : ''}" data-act="pick">
@@ -234,10 +238,10 @@ function slotCard(id) {
     </button>
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
-      <button class="mini-btn" data-act="idealo" title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+      <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></button>
       <button class="mini-btn" data-act="store" title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"><i class="fa-solid fa-store"></i></button>
-      <button class="mini-btn" data-act="buy" title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"><i class="fa-solid fa-cart-shopping"></i></button>
+      <button class="mini-btn" data-act="buy" ${hasStore ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
       ${['mb', 'ssd1', 'soundcard', 'capture'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
@@ -301,7 +305,7 @@ function slotAction(id, act) {
   if (act === 'pick') openPicker(id, 'replace');
   else if (act === 'edit') openProductForm(id, p);
   else if (act === 'addalt') openPicker(id, 'add');
-  else if (act === 'idealo') { if (p && p.idealo) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
+  else if (act === 'idealo') { if (p && p.idealo && /idealo\.fr/i.test(p.idealo)) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
     const u = p && (p.store || p.idealo);
@@ -1238,7 +1242,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.40', `
+  openModal('Changelog — v2.41', `
+    <div class="chlog"><h3>v2.41 — Boutons grisés sans page</h3><p class="hint">Sans page Idealo dédiée, les boutons Idealo et boutique sont grisés avec infobulle explicative au lieu d'être inopérants.</p></div>
     <div class="chlog"><h3>v2.40 — Correctif offres sans lien</h3><p class="hint">Les offres sans lien fiche (ex. pâte thermique : vendeur + port directs) étaient jetées par le dédoublonnage et la liste restait vide. Clé de repli sur image/nom+prix, bouton Idealo masqué quand il n'y a pas d'URL.</p></div>
     <div class="chlog"><h3>v2.39 — Correctif listes Idealo</h3><p class="hint">Pages listes : offres directes reconnues (nom + vendeur + port), carrousels « nouveautés » exclus, pagination préservée. La pâte thermique affiche ses vraies offres.</p></div>
     <div class="chlog"><h3>v2.38 — Bouton Idealo repositionné</h3><p class="hint">Le bouton Idealo du panneau passe en en-tête à droite du type de composant, et chaque carte résultat affiche son lien « Idealo » en toutes lettres.</p></div>

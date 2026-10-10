@@ -175,6 +175,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot-actions .mini-btn{flex:1 1 0;justify-content:center;border-radius:14px;padding:10px 6px;white-space:nowrap}
 .mini-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);border-radius:var(--radius-pill);padding:7px 10px;font-size:.76rem;font-weight:800;cursor:pointer}
 .mini-btn:hover{border-color:var(--brand);color:var(--brand-ink)}
+.mini-btn:disabled{opacity:.38;cursor:not-allowed;box-shadow:none}
+.mini-btn:disabled:hover{border-color:var(--line);color:var(--muted);transform:none;box-shadow:none}
 .mini-btn.danger:hover{border-color:var(--danger);color:var(--danger)}
 .mini-btn i{font-size:.8rem}
 .slot-alt-tab{border-top:1px dashed var(--line);padding:0}
