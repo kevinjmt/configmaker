@@ -192,7 +192,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .hidden{display:none!important}
 /* picker */
 #pickerPanel{margin-bottom:18px}
-.picker-head{display:flex;align-items:center;justify-content:space-between}
+.picker-head{display:flex;align-items:center;gap:10px}
+#pickerTitle{flex:1;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.picker-idealo-btn{flex:0 0 auto}
 .mode-chip{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:900;color:var(--brand-ink);background:rgba(26,135,68,.10);border:1px solid rgba(26,135,68,.2);padding:6px 12px;border-radius:var(--radius-pill);white-space:nowrap}
 .fa-layers-plus{position:relative;display:inline-block}
 .fa-layers-plus .fa-plus{position:absolute;right:-7px;bottom:-5px;font-size:.55em;background:var(--ink);color:#fff;border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center}

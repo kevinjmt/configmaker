@@ -536,7 +536,7 @@ function renderIdealo() {
     choose.className = 'mini-btn'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
     choose.onclick = () => chooseIdealoItem(it);
     const link = document.createElement('a');
-    link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
+    link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo`;
     link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
     const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
     wrap.append(choose, link);
@@ -1234,7 +1234,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.37', `
+  openModal('Changelog — v2.38', `
+    <div class="chlog"><h3>v2.38 — Bouton Idealo repositionné</h3><p class="hint">Le bouton Idealo du panneau passe en en-tête à droite du type de composant, et chaque carte résultat affiche son lien « Idealo » en toutes lettres.</p></div>
     <div class="chlog"><h3>v2.37 — Bouton PCIe sur son & capture</h3><p class="hint">Le bouton simulateur PCIe (histogramme) apparaît aussi sur les cartes son et d'acquisition PCIe, avec envoi de la config complète comme depuis la carte mère et le SSD.</p></div>
     <div class="chlog"><h3>v2.36 — SSD et cartes PCIe envoyés aussi</h3><p class="hint">SSD classés par débit (>6000 Gen5, ≥3500 Gen4, sinon Gen3, SATA ignorés), cartes de capture et son PCIe ajoutées (USB ignorées), placement sans collision de slots.</p></div>
     <div class="chlog"><h3>v2.35 — Simulateur PCIe pré-rempli</h3><p class="hint">Icône histogramme, bouton aussi sur le SSD : ouvre le simulateur avec carte mère, CPU, GPU et SSD reconnus et branchés aux bons slots (recherche floue sur catalogue local, repli propre si introuvable).</p></div>

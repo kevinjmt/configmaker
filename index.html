@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ConfigMaker by KJ — v2.37</title>
+<title>ConfigMaker by KJ — v2.38</title>
 <meta name="description" content="ConfigMaker by KJ — configurateur PC & setup style TopAchat configomatic, prix Idealo, consommation, manuels, historique.">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0a0f1e" media="(prefers-color-scheme: dark)">
@@ -14,11 +14,11 @@
 <meta name="apple-mobile-web-app-title" content="ConfigMaker">
 <link rel="apple-touch-icon" href="./assets/icons/configmakericon.png">
 <link rel="shortcut icon" type="image/png" href="./assets/icons/configmakericon.png">
-<meta property="og:title" content="ConfigMaker by KJ — v2.37">
+<meta property="og:title" content="ConfigMaker by KJ — v2.38">
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=60">
+<link rel="stylesheet" href="./assets/css/app.css?v=61">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -36,7 +36,7 @@
   <div class="kjbrand">
     <a href="./" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.37</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.38</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -97,6 +97,7 @@
       <div id="pickerPanel" class="glass panel hidden">
         <div class="picker-head">
           <h2 id="pickerTitle">—</h2>
+          <a id="pickerIdealoSearch" href="#" target="_blank" rel="noopener" class="btn btn-sm picker-idealo-btn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>
           <span id="pickerModeChip" class="mode-chip hidden"><i class="fa-solid fa-layer-group"></i> <span id="pickerModeTxt"></span></span>
           <button class="icon-btn" id="pickerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -125,7 +126,6 @@
             <div id="idealoList" class="picker-list"></div>
             <button id="idealoMore" class="add-row-btn hidden"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.more">Charger plus</span></button>
           <div class="picker-links">
-            <a id="pickerIdealoSearch" href="#" target="_blank" rel="noopener" class="btn btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>
             <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
           </div>
           <div class="idealo-under">
@@ -195,7 +195,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.37 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.38 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -214,11 +214,11 @@
 <div id="toast" class="toast hidden"></div>
 <div id="progressPop" class="progress-pop hidden"><i class="fa-solid fa-circle-notch fa-spin"></i><span id="progressTxt"></span></div>
 
-<script src="./assets/js/idealo.js?v=60"></script>
+<script src="./assets/js/idealo.js?v=61"></script>
 <script src="./assets/js/pcie-catalog.js?v=3"></script>
 <script src="./assets/js/pcie.js?v=3"></script>
-<script src="./assets/js/tube.js?v=60"></script>
-<script src="./assets/js/app.js?v=60"></script>
+<script src="./assets/js/tube.js?v=61"></script>
+<script src="./assets/js/app.js?v=61"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
