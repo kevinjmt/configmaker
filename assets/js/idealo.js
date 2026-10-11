@@ -456,6 +456,11 @@ const Idealo = (() => {
     if (!f && t) f = tokens.find(x => normT(x.title).startsWith(t.slice(0, 40)) || (normT(x.title) && t.startsWith(normT(x.title).slice(0, 40))));
     return f || null;
   }
+  function peekTokens(listUrl) {
+    const c = ptokCache[listUrl];
+    if (c && (Date.now() - c.t) < PTOK_TTL && c.map) return c.map;
+    return null;
+  }
   async function offerTokens(listUrl, force) {
     const c = !force && ptokCache[listUrl];
     if (c && (Date.now() - c.t) < PTOK_TTL && c.map) return { tokens: c.map, cached: true };
@@ -475,5 +480,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseOffers, sortUrl };
+  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseOffers, sortUrl };
 })();

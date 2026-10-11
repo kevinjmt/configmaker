@@ -207,9 +207,9 @@ function merchantHomepage(vendor) {
 }
 /* Submits an Idealo offer token (POST form like the site does): the new tab
    lands straight on the merchant offer. Standard form navigation, no CORS issue. */
-function submitOfferToken(token) {
+function submitOfferToken(token, target) {
   const f = document.createElement('form');
-  f.method = 'POST'; f.action = 'https://www.idealo.fr/ipc/prg'; f.target = '_blank';
+  f.method = 'POST'; f.action = 'https://www.idealo.fr/ipc/prg'; f.target = target || '_blank';
   const inp = document.createElement('input');
   inp.type = 'hidden'; inp.name = 'value'; inp.value = token;
   f.appendChild(inp); document.body.appendChild(f); f.submit();
@@ -217,14 +217,14 @@ function submitOfferToken(token) {
 }
 /* Opens a direct merchant offer (no /prix/ page): resolves the offer token
    from the source list page, submits it, optionally persists it via saveToken.
-   Falls back to the merchant homepage, never to a search. */
+   Falls back to the merchant homepage, never to a search.
+   NOTE: the tab is opened synchronously (click gesture alive) because popup
+   blockers kill _blank navigations issued after async work. */
 async function buyDirectOffer({ src, title, vendor, saveToken }) {
-  const loading = lang === 'en' ? 'Opening merchant offer…' : 'Ouverture de l’offre marchand…';
-  toast(loading);
+  const matchNow = map => (map && typeof Idealo !== 'undefined' && Idealo.matchToken ? Idealo.matchToken(map, title, vendor) : null);
   try {
-    if (src && typeof Idealo !== 'undefined' && Idealo.offerTokens) {
-      const r = await Idealo.offerTokens(src);
-      const hit = (r.tokens && Idealo.matchToken(r.tokens, title, vendor)) || null;
+    if (src && typeof Idealo !== 'undefined' && Idealo.peekTokens) {
+      const hit = matchNow(Idealo.peekTokens(src));
       if (hit && hit.token) {
         if (saveToken) { try { saveToken(hit.token); } catch { /* ignore */ } }
         submitOfferToken(hit.token);
@@ -232,12 +232,33 @@ async function buyDirectOffer({ src, title, vendor, saveToken }) {
       }
     }
   } catch { /* fall through */ }
+  const tabName = 'cm_offer_' + Date.now().toString(36);
+  let tab = null;
+  try { tab = window.open('about:blank', tabName); } catch { tab = null; }
+  if (tab) { try { tab.document.write('<p style="font-family:sans-serif">Ouverture de l’offre marchand…</p>'); } catch { /* ignore */ } }
+  toast(lang === 'en' ? 'Opening merchant offer…' : 'Ouverture de l’offre marchand…');
+  let hit = null;
+  try {
+    if (src && typeof Idealo !== 'undefined' && Idealo.offerTokens) {
+      const r = await Idealo.offerTokens(src);
+      hit = (r.tokens && Idealo.matchToken(r.tokens, title, vendor)) || null;
+    }
+  } catch { hit = null; }
+  if (hit && hit.token) {
+    if (saveToken) { try { saveToken(hit.token); } catch { /* ignore */ } }
+    submitOfferToken(hit.token, tab ? tabName : '_blank');
+    return true;
+  }
   const home = merchantHomepage(vendor);
   if (home) {
-    window.open(home, '_blank', 'noopener');
+    try {
+      if (tab && !tab.closed) tab.location.href = home;
+      else window.open(home, '_blank', 'noopener');
+    } catch { try { window.open(home, '_blank', 'noopener'); } catch { /* ignore */ } }
     toast(lang === 'en' ? 'Offer unreachable — opening shop homepage' : 'Offre injoignable — page d’accueil du marchand');
     return true;
   }
+  try { if (tab && !tab.closed) tab.close(); } catch { /* ignore */ }
   toast(lang === 'en' ? 'No merchant link available' : 'Aucun lien marchand disponible');
   return false;
 }
@@ -1309,7 +1330,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.44', `
+  openModal('Changelog — v2.45', `
+    <div class="chlog"><h3>v2.45 — Correctif bloqueur de popups</h3><p class="hint">L'onglet s'ouvrait après la requête réseau, donc bloqué en silence : token en cache soumis aussitôt, sinon onglet réservé au clic puis réutilisé pour l'offre.</p></div>
     <div class="chlog"><h3>v2.44 — Offres directes via Idealo</h3><p class="hint">Fini la recherche marchand : le bouton boutique/« Voir l'offre » soumet le formulaire d'offre Idealo qui redirige directement chez le marchand. Badge « sans page Idealo » sur les cartes concernées.</p></div>
     <div class="chlog"><h3>v2.43 — Offres directes marchand</h3><p class="hint">Sans page Idealo, le panier ouvre la recherche de l'offre sur le site marchand (Amazon, AliExpress, Cdiscount) et les cartes du sélecteur affichent un badge avec bouton « Voir l'offre » au lieu d'« Idealo ».</p></div>
     <div class="chlog"><h3>v2.42 — Boutons boutique corrigés</h3><p class="hint">Sans page Idealo : seul le choix du marchand est grisé (popup impossible) ; le panier reste actif et ouvre directement le site du marchand connu. Avec page : tout actif comme avant.</p></div>
