@@ -72,7 +72,7 @@ const I18N = {
     'picker.err': 'Chargement impossible (limite de requêtes ou blocage). Réessayez dans une minute ou ouvrez sur idealo.fr.',
     'alts.see': 'Voir les alternatives',
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
-    'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
+    'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.compat': 'Compat', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks YouTube', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
     'bench.loading': 'Chargement des vidéos…', 'bench.play': 'Lire',
     'bench.err': 'Vidéos non chargeables pour le moment (limite de requêtes). Utilisez les liens ci-dessous.',
@@ -93,7 +93,7 @@ const I18N = {
     'picker.err': 'Could not load the list (rate limit or block). Retry in a minute or open on idealo.fr.',
     'alts.see': 'See alternatives',
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
-    'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
+    'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.compat': 'Compat', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'YouTube benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
     'bench.loading': 'Loading videos…', 'bench.play': 'Play',
     'bench.err': 'Videos unavailable right now (rate limit). Use the links below.',
@@ -111,7 +111,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -165,6 +165,54 @@ function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList
 function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalOverlay').classList.remove('hidden'); }
 function closeModal() { $('#modalOverlay').classList.add('hidden'); editingPid = null; }
 let editingPid = null;
+
+/* ---------- Compatibility (Compat module) ---------- */
+let compatCache = null;
+function getCompat() {
+  if (!compatCache && typeof Compat !== 'undefined') {
+    try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang }); }
+    catch { compatCache = { checks: {}, issues: { err: [], warn: [] }, statusOf: {} }; }
+  }
+  return compatCache || { checks: {}, issues: { err: [], warn: [] }, statusOf: {} };
+}
+function updateCompatBadge() {
+  const cc = getCompat(), n = cc.issues.err.length + cc.issues.warn.length;
+  const b = $('#compatCount'); if (b) b.textContent = n ? ` (${n})` : '';
+}
+function renderCompat() {
+  const cc = getCompat();
+  const host = $('#sumCompatPane'); if (!host) return;
+  host.innerHTML = '';
+  updateCompatBadge();
+  const sec = (title, list, cls) => {
+    const d = document.createElement('div');
+    d.className = 'dsec';
+    d.innerHTML = `<div class="dsec-head"><i class="fa-solid fa-${cls === 'err' ? 'xmark' : 'triangle-exclamation'}"></i><span>${esc(title)}</span><span class="dsec-total">${list.length}</span></div>`;
+    list.forEach(it => {
+      const row = document.createElement('div');
+      row.className = 'ditem';
+      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(it.msg)}</span></span><span class="di-btns"></span>`;
+      const btns = row.querySelector('.di-btns');
+      (it.slots || []).forEach(sid => {
+        const b = document.createElement('button');
+        b.className = 'mini-btn'; b.textContent = slotName(sid);
+        b.onclick = () => focusComponent(sid);
+        btns.appendChild(b);
+      });
+      d.appendChild(row);
+    });
+    host.appendChild(d);
+  };
+  if (!cc.issues.err.length && !cc.issues.warn.length) {
+    host.innerHTML = `<p class="hint">${lang === 'en' ? 'No compatibility issue detected.' : 'Aucun problème de compatibilité détecté.'}</p>`;
+    return;
+  }
+  if (cc.issues.err.length) sec(lang === 'en' ? 'Issues' : 'Problèmes', cc.issues.err, 'err');
+  if (cc.issues.warn.length) {
+    if (cc.issues.err.length) { const s = document.createElement('div'); s.className = 'dsec-sep'; host.appendChild(s); }
+    sec(lang === 'en' ? 'Warnings' : 'Avertissements', cc.issues.warn, 'warn');
+  }
+}
 
 /* ---------- Slot rendering ---------- */
 function productQuickSpecs(p) {
@@ -289,6 +337,8 @@ function slotCard(id) {
   const stale = !!(p && refreshFailed.has(p.id));
   el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
+  const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
+  if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -323,6 +373,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
+    ${cks.length ? `<div class="slot-compat">${cks.map(c => `<span class="compat-badge ${c.status}" title="${esc(c.tip)}"><i class="fa-solid fa-${c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`).join('')}</div>` : ''}
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
@@ -758,6 +809,7 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld"><label>${lang === 'en' ? 'Delivery (€)' : 'Livraison (€)'}</label><input id="f_del" type="number" min="0" step="0.01" value="${p.delivery || ''}"></div>
       <div class="fld"><label>${lang === 'en' ? 'Qty' : 'Quantité'}</label><input id="f_qty" type="number" min="1" step="1" value="${p.qty || 1}"></div>
       <div class="fld"><label>${lang === 'en' ? 'Power (W, PC parts)' : 'Puissance (W, pièces PC)'}</label><input id="f_w" type="number" min="0" step="1" value="${p.watts ?? d.w ?? 0}"></div>
+      <div class="fld"><label>${lang === 'en' ? 'PSU/UPS capacity (W, 0=auto)' : 'Puissance alim/onduleur (W, 0=auto)'}</label><input id="f_capW" type="number" min="0" step="1" value="${p.capW || ''}" placeholder="750"><div class="hint" id="f_capHint"></div></div>
       <div class="fld full"><label>${lang === 'en' ? 'Quick specs (one per line — paste from Idealo top)' : 'Specs rapides (une par ligne — copiées du haut de la fiche Idealo)'}</label><textarea id="f_specs" rows="3" placeholder="8 cœurs / 16 threads&#10;5,0 GHz boost, AM5">${esc(p.specs)}</textarea></div>
       <div class="fld full"><label>URL Idealo</label><input id="f_idealo" value="${esc(p.idealo)}" placeholder="https://www.idealo.fr/…"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Manual URL' : 'URL du manuel'}</label><input id="f_manual" value="${esc(p.manual)}" placeholder="https://…pdf"></div>
@@ -768,6 +820,13 @@ function openProductForm(slotId, p, opts = {}) {
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
   if (opts.focus === 'idealo') setTimeout(() => $('#f_idealo').focus(), 50);
+  try {
+    const hint = $('#f_capHint');
+    if (hint && typeof Compat !== 'undefined') {
+      const parsed = Compat.parse(state.slots[slotId].defId, p.name, p.specs || '');
+      if (parsed.capW) hint.textContent = (lang === 'en' ? 'Detected: ' : 'Détecté : ') + parsed.capW + ' W';
+    }
+  } catch { /* ignore */ }
   $('#f_save').onclick = () => {
     const v = id => $(id).value.trim();
     p.name = v('#f_name'); if (!p.name) { toast(lang === 'en' ? 'Name required' : 'Nom requis'); return; }
@@ -775,6 +834,7 @@ function openProductForm(slotId, p, opts = {}) {
     p.price = parseFloat(v('#f_price')) || 0; p.oldPrice = parseFloat(v('#f_old')) || 0;
     p.delivery = parseFloat(v('#f_del')) || 0; p.qty = parseInt(v('#f_qty')) || 1;
     p.watts = parseFloat(v('#f_w')) || 0; p.specs = $('#f_specs').value.trim();
+    p.capW = parseFloat(v('#f_capW')) || 0;
     p.idealo = v('#f_idealo'); p.manual = v('#f_manual'); p.store = v('#f_store');
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
@@ -881,11 +941,13 @@ function openDelivery(slotId) {
 /* ---------- Summary ---------- */
 function switchSum(which) {
   sumTab = which;
-  ['Desc', 'Charts', 'Power'].forEach(x => $('#sum' + x).classList.toggle('active', x.toLowerCase() === which));
+  ['Desc', 'Charts', 'Power', 'Compat'].forEach(x => $('#sum' + x).classList.toggle('active', x.toLowerCase() === which));
   $('#sumDescPane').classList.toggle('hidden', which !== 'desc');
   $('#sumChartsPane').classList.toggle('hidden', which !== 'charts');
   $('#sumPowerPane').classList.toggle('hidden', which !== 'power');
+  $('#sumCompatPane').classList.toggle('hidden', which !== 'compat');
   if (which !== 'desc') renderSumExtra();
+  if (which === 'compat') renderCompat();
 }
 function renderSummary() {
   const T = totals();
@@ -904,7 +966,8 @@ function renderSummary() {
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
-      row.className = 'ditem';
+      const cst = getCompat().statusOf[id];
+      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '');
       row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${eur(unitTotal(p))}</strong></span>`;
       row.style.cursor = 'pointer';
       row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
@@ -1338,7 +1401,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.47', `
+  openModal('Changelog — v2.48', `
+    <div class="chlog"><h3>v2.48 — Vérification de compatibilité</h3><p class="hint">Pastilles vertes/jaunes/rouges par composant (socket, chipset, format, RAM, PCIe…), boutons et résumé surlignés en cas de souci, onglet Compat avec problèmes et avertissements cliquables, champ puissance alim/onduleur.</p></div>
     <div class="chlog"><h3>v2.47 — Offres directes en pause</h3><p class="hint">Le flux d'offre directe est grisé partout avec mention du problème connu pendant la correction.</p></div>
     <div class="chlog"><h3>v2.46 — Tokens toujours frais</h3><p class="hint">Le token d'offre est re-récupéré à chaque clic (fini les tokens périmés en cache) et les échecs réseau affichent un message précis au lieu d'une page d'accueil silencieuse.</p></div>
     <div class="chlog"><h3>v2.45 — Correctif bloqueur de popups</h3><p class="hint">L'onglet s'ouvrait après la requête réseau, donc bloqué en silence : token en cache soumis aussitôt, sinon onglet réservé au clic puis réutilisé pour l'offre.</p></div>
@@ -1433,12 +1497,15 @@ function openInstall() {
 
 /* ---------- Refresh ---------- */
 function refresh() {
+  compatCache = null;
   $('#configName').value = state.name;
   $('#budgetInput').value = state.budget;
   $('#versionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
   $('#sumConfigName').textContent = state.name || '';
   $('#sumVersionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
   renderSlots(); renderSummary(); updateBenchState();
+  updateCompatBadge();
+  if (sumTab === 'compat') renderCompat();
   if (!$('#page-prices').classList.contains('hidden')) drawPrices();
 }
 
@@ -1464,6 +1531,7 @@ function bind() {
   $('#sumDesc').onclick = () => switchSum('desc');
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');
+  $('#sumCompat').onclick = () => switchSum('compat');
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
   $('#pickerClose').onclick = closePicker;
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
