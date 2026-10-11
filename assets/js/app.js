@@ -205,6 +205,24 @@ function merchantHomepage(vendor) {
   const m = v.match(/([a-z0-9-]+\.)+[a-z]{2,}/);
   return m ? 'https://' + m[0] : '';
 }
+/* Direct merchant offer link (no Idealo page): merchant site search for the product. */
+function merchantOfferUrl(vendor, query) {
+  const q = encodeURIComponent(String(query || '').trim());
+  if (!q) return '';
+  const v = String(vendor || '').toLowerCase();
+  if (v.includes('aliexpress')) return `https://fr.aliexpress.com/wholesale?SearchText=${q}`;
+  if (v.includes('amazon')) return `https://www.amazon.fr/s?k=${q}`;
+  if (v.includes('cdiscount') || v.includes('c discount')) return `https://www.cdiscount.com/search/10/${q}.html`;
+  return '';
+}
+/* Resolves where the buy button leads: stored offer link, Idealo page,
+   direct merchant offer search, else merchant homepage. */
+function buyUrlFor(p) {
+  if (!p) return '';
+  if (p.store) return p.store;
+  if (p.idealo && /idealo\.fr/i.test(p.idealo)) return p.idealo;
+  return merchantOfferUrl(p.vendor, p.name) || merchantHomepage(p.vendor);
+}
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
   const el = document.createElement('div');
@@ -230,7 +248,7 @@ function slotCard(id) {
   }
   const priceHtml = priceDiv + vendorDiv + delivDiv;
   const hasIdealo = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
-  const buyUrl = p ? (p.store || (hasIdealo ? p.idealo : merchantHomepage(p.vendor))) : '';
+  const buyUrl = buyUrlFor(p);
   const hasBuy = !!buyUrl;
   const noIdealoTip = lang === 'en' ? 'No Idealo page for this part (offer without listing)' : 'Pas de page Idealo pour ce composant (offre sans fiche)';
   const noStoreTip = lang === 'en' ? 'Merchant choice needs an Idealo /prix/ page' : 'Choix du marchand impossible sans page Idealo /prix/';
@@ -317,7 +335,7 @@ function slotAction(id, act) {
   else if (act === 'idealo') { if (p && p.idealo && /idealo\.fr/i.test(p.idealo)) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
-    const u = p && (p.store || ((p.idealo && /idealo\.fr/i.test(p.idealo)) ? p.idealo : merchantHomepage(p.vendor)));
+    const u = buyUrlFor(p);
     if (u) window.open(u, '_blank', 'noopener');
     else toast(lang === 'en' ? 'No store link yet — pick a merchant first' : 'Pas encore de lien boutique — choisissez un marchand');
   }
@@ -542,8 +560,10 @@ function renderIdealo() {
   shown.forEach(it => {
     const card = document.createElement('div');
     card.className = 'pick-card';
+    const directTip = lang === 'en' ? 'Links directly to the merchant offer (no Idealo page)' : "Redirige directement vers l'offre marchand (sans page Idealo)";
+    const directUrl = !it.url ? merchantOfferUrl(it.vendor, it.name) : '';
     card.innerHTML = `${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}
-      <div class="pi"><div class="pn">${esc(it.name)}</div><div class="ps">${esc(it.specs)}</div>
+      <div class="pi"><div class="pn">${esc(it.name)}${directUrl ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</div><div class="ps">${esc(it.specs)}</div>
       <div class="ps">${it.offers ? `${it.offers} ${t('picker.offers')} · ` : ''}${it.price ? `${t('picker.from')} ${eur(it.price)}` : ''}</div></div>
       <div><div class="pp">${it.price ? eur(it.price) : '—'}</div></div>`;
     const choose = document.createElement('button');
@@ -551,7 +571,12 @@ function renderIdealo() {
     choose.onclick = () => chooseIdealoItem(it);
     const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
     wrap.append(choose);
-    if (it.url) {
+    if (directUrl) {
+      const show = document.createElement('a');
+      show.className = 'mini-btn'; show.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${lang === 'en' ? "Show offer" : "Voir l'offre"}`;
+      show.title = directTip; show.target = '_blank'; show.rel = 'noopener'; show.href = directUrl;
+      wrap.append(show);
+    } else if (it.url) {
       const link = document.createElement('a');
       link.className = 'mini-btn'; link.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo`;
       link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
@@ -574,6 +599,10 @@ function chooseIdealoItem(it) {
   np.name = it.name; np.image = it.img; np.idealo = it.url;
   np.price = it.price || 0; np.specs = it.specs; np.vendor = it.vendor || '';
   np.delivery = it.delivery || 0;
+  if (!np.store && !it.url) {
+    const direct = merchantOfferUrl(np.vendor, np.name);
+    if (direct) np.store = direct;
+  }
   openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
   // Enrich in background from the /prix/ page: "Aperçu du produit" + cheapest merchant.
   // Only untouched fields are filled; user input always wins.
@@ -1251,7 +1280,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.42', `
+  openModal('Changelog — v2.43', `
+    <div class="chlog"><h3>v2.43 — Offres directes marchand</h3><p class="hint">Sans page Idealo, le panier ouvre la recherche de l'offre sur le site marchand (Amazon, AliExpress, Cdiscount) et les cartes du sélecteur affichent un badge avec bouton « Voir l'offre » au lieu d'« Idealo ».</p></div>
     <div class="chlog"><h3>v2.42 — Boutons boutique corrigés</h3><p class="hint">Sans page Idealo : seul le choix du marchand est grisé (popup impossible) ; le panier reste actif et ouvre directement le site du marchand connu. Avec page : tout actif comme avant.</p></div>
     <div class="chlog"><h3>v2.41 — Boutons grisés sans page</h3><p class="hint">Sans page Idealo dédiée, les boutons Idealo et boutique sont grisés avec infobulle explicative au lieu d'être inopérants.</p></div>
     <div class="chlog"><h3>v2.40 — Correctif offres sans lien</h3><p class="hint">Les offres sans lien fiche (ex. pâte thermique : vendeur + port directs) étaient jetées par le dédoublonnage et la liste restait vide. Clé de repli sur image/nom+prix, bouton Idealo masqué quand il n'y a pas d'URL.</p></div>

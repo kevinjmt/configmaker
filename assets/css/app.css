@@ -212,6 +212,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .pick-card img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg-soft)}
 .pick-card .pi{flex:1;min-width:0}
 .pick-card .pn{font-weight:900;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.direct-badge{color:var(--brand-ink);font-size:.8rem;cursor:help}
 .pick-card .ps{font-size:.76rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pick-card .pp{font-weight:900;white-space:nowrap}
 .pick-card .pdiff{font-size:.75rem;font-weight:800}
