@@ -426,7 +426,7 @@ const Idealo = (() => {
      <form action=".../ipc/prg" method="POST"> carrying an opaque token that
      redirects straight to the merchant offer. Cached 24h (small map). */
   const PTOK_KEY = 'cmv2.ptokens';
-  const PTOK_TTL = 24 * 3600 * 1000;
+  const PTOK_TTL = 10 * 60 * 1000; // offer tokens may be short-lived: always refetch, cache only dedupes quick repeats
   const ptokCache = (() => { try { return JSON.parse(localStorage.getItem(PTOK_KEY)) || {}; } catch { return {}; } })();
   function ptokPersist() {
     try { localStorage.setItem(PTOK_KEY, JSON.stringify(ptokCache)); }

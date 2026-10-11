@@ -237,13 +237,24 @@ async function buyDirectOffer({ src, title, vendor, saveToken }) {
   try { tab = window.open('about:blank', tabName); } catch { tab = null; }
   if (tab) { try { tab.document.write('<p style="font-family:sans-serif">Ouverture de l’offre marchand…</p>'); } catch { /* ignore */ } }
   toast(lang === 'en' ? 'Opening merchant offer…' : 'Ouverture de l’offre marchand…');
-  let hit = null;
+  let hit = null, fetchFailed = false;
   try {
     if (src && typeof Idealo !== 'undefined' && Idealo.offerTokens) {
-      const r = await Idealo.offerTokens(src);
+      const r = await Idealo.offerTokens(src, true); // always fresh: tokens may expire
       hit = (r.tokens && Idealo.matchToken(r.tokens, title, vendor)) || null;
-    }
-  } catch { hit = null; }
+      if (!hit && r.error) fetchFailed = true;
+    } else fetchFailed = true;
+  } catch { hit = null; fetchFailed = true; }
+  if (hit && hit.token) {
+    if (saveToken) { try { saveToken(hit.token); } catch { /* ignore */ } }
+    submitOfferToken(hit.token, tab ? tabName : '_blank');
+    return true;
+  }
+  if (fetchFailed) {
+    try { if (tab && !tab.closed) tab.close(); } catch { /* ignore */ }
+    toast(lang === 'en' ? 'Idealo unreachable (limit/network) — retry later' : 'Idealo injoignable (limite/réseau) — réessayez plus tard');
+    return false;
+  }
   if (hit && hit.token) {
     if (saveToken) { try { saveToken(hit.token); } catch { /* ignore */ } }
     submitOfferToken(hit.token, tab ? tabName : '_blank');
@@ -1330,7 +1341,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.45', `
+  openModal('Changelog — v2.46', `
+    <div class="chlog"><h3>v2.46 — Tokens toujours frais</h3><p class="hint">Le token d'offre est re-récupéré à chaque clic (fini les tokens périmés en cache) et les échecs réseau affichent un message précis au lieu d'une page d'accueil silencieuse.</p></div>
     <div class="chlog"><h3>v2.45 — Correctif bloqueur de popups</h3><p class="hint">L'onglet s'ouvrait après la requête réseau, donc bloqué en silence : token en cache soumis aussitôt, sinon onglet réservé au clic puis réutilisé pour l'offre.</p></div>
     <div class="chlog"><h3>v2.44 — Offres directes via Idealo</h3><p class="hint">Fini la recherche marchand : le bouton boutique/« Voir l'offre » soumet le formulaire d'offre Idealo qui redirige directement chez le marchand. Badge « sans page Idealo » sur les cartes concernées.</p></div>
     <div class="chlog"><h3>v2.43 — Offres directes marchand</h3><p class="hint">Sans page Idealo, le panier ouvre la recherche de l'offre sur le site marchand (Amazon, AliExpress, Cdiscount) et les cartes du sélecteur affichent un badge avec bouton « Voir l'offre » au lieu d'« Idealo ».</p></div>
