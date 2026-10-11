@@ -307,10 +307,12 @@ function slotCard(id) {
   const priceHtml = priceDiv + vendorDiv + delivDiv;
   const hasIdealo = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
   const buyUrl = buyUrlFor(p);
-  const hasBuy = !!buyUrl || !!(p && p.src);
+  const hasBuy = !!buyUrl;
   const noIdealoTip = lang === 'en' ? 'No Idealo page for this part (offer without listing)' : 'Pas de page Idealo pour ce composant (offre sans fiche)';
   const noStoreTip = lang === 'en' ? 'Merchant choice needs an Idealo /prix/ page' : 'Choix du marchand impossible sans page Idealo /prix/';
   const noBuyTip = lang === 'en' ? 'No store page available' : 'Pas de page boutique disponible';
+  const knownIssueTip = 'issue is known, i am trying to fix it :)';
+  const buyTip = !hasBuy && p && p.src ? knownIssueTip : noBuyTip;
   el.innerHTML = `
     ${id.includes('_') ? `<button class="slot-remove" data-act="rmslot" title="${lang === 'en' ? 'Remove this component' : 'Supprimer ce composant'}"><i class="fa-solid fa-xmark"></i></button>` : ''}
     <button class="slot-main${p ? '' : ' empty'}${isRefreshing ? ' refreshing-sel' : ''}" data-act="pick">
@@ -326,7 +328,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></button>
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i></button>
-      <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${noBuyTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
+      <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
       ${['mb', 'ssd1', 'soundcard', 'capture'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
@@ -395,12 +397,7 @@ function slotAction(id, act) {
   else if (act === 'buy') {
     const u = buyUrlFor(p);
     if (u) { window.open(u, '_blank', 'noopener'); return; }
-    if (p && p.offerToken) { submitOfferToken(p.offerToken); return; }
-    if (p && p.src) {
-      buyDirectOffer({ src: p.src, title: p.name, vendor: p.vendor, saveToken: t => { p.offerToken = t; persist(); } });
-      return;
-    }
-    toast(lang === 'en' ? 'No store link yet — pick a merchant first' : 'Pas encore de lien boutique — choisissez un marchand');
+    toast('issue is known, i am trying to fix it :)');
   }
   else if (act === 'pcie') openPcieSim();
   else if (act === 'delivery') openDelivery(id);
@@ -637,8 +634,8 @@ function renderIdealo() {
     if (noPage && it.src) {
       const show = document.createElement('button');
       show.className = 'mini-btn'; show.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${lang === 'en' ? "Show offer" : "Voir l'offre"}`;
-      show.title = directTip;
-      show.onclick = () => buyDirectOffer({ src: it.src, title: it.name, vendor: it.vendor });
+      show.title = 'issue is known, i am trying to fix it :)';
+      show.disabled = true;
       wrap.append(show);
     } else if (it.url) {
       const link = document.createElement('a');
@@ -1341,7 +1338,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.46', `
+  openModal('Changelog — v2.47', `
+    <div class="chlog"><h3>v2.47 — Offres directes en pause</h3><p class="hint">Le flux d'offre directe est grisé partout avec mention du problème connu pendant la correction.</p></div>
     <div class="chlog"><h3>v2.46 — Tokens toujours frais</h3><p class="hint">Le token d'offre est re-récupéré à chaque clic (fini les tokens périmés en cache) et les échecs réseau affichent un message précis au lieu d'une page d'accueil silencieuse.</p></div>
     <div class="chlog"><h3>v2.45 — Correctif bloqueur de popups</h3><p class="hint">L'onglet s'ouvrait après la requête réseau, donc bloqué en silence : token en cache soumis aussitôt, sinon onglet réservé au clic puis réutilisé pour l'offre.</p></div>
     <div class="chlog"><h3>v2.44 — Offres directes via Idealo</h3><p class="hint">Fini la recherche marchand : le bouton boutique/« Voir l'offre » soumet le formulaire d'offre Idealo qui redirige directement chez le marchand. Badge « sans page Idealo » sur les cartes concernées.</p></div>
