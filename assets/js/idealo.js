@@ -254,6 +254,7 @@ const Idealo = (() => {
       return !l;
     });
     const listeO = parseListeOffers(mainMd).filter(x => ![...linked, ...blocks, ...listeP].some(y => (y.img && y.img === x.img) || (y.url && x.url && y.url === x.url)));
+    listeO.forEach(x => { x.src = baseUrl; });
     const sugg = parseSuggestions(mainMd).filter(s => ![...linked, ...blocks, ...listeP].some(x => x.url === s.url));
     const items = [...linked, ...blocks, ...listeP, ...listeO, ...sugg];
     let next = null;
@@ -421,5 +422,58 @@ const Idealo = (() => {
     }
   }
 
-  return { list, product, offers, parseMarkdown, parseProduct, parseOffers, sortUrl };
+  /* Offer POST tokens from a /liste/ page (raw HTML): each direct offer is a
+     <form action=".../ipc/prg" method="POST"> carrying an opaque token that
+     redirects straight to the merchant offer. Cached 24h (small map). */
+  const PTOK_KEY = 'cmv2.ptokens';
+  const PTOK_TTL = 24 * 3600 * 1000;
+  const ptokCache = (() => { try { return JSON.parse(localStorage.getItem(PTOK_KEY)) || {}; } catch { return {}; } })();
+  function ptokPersist() {
+    try { localStorage.setItem(PTOK_KEY, JSON.stringify(ptokCache)); }
+    catch {
+      try { const ks = Object.keys(ptokCache); if (ks.length) { delete ptokCache[ks[0]]; localStorage.setItem(PTOK_KEY, JSON.stringify(ptokCache)); } } catch { /* ignore */ }
+    }
+  }
+  function parseOfferTokens(html) {
+    const out = [];
+    const re = /<form action="([^"]+)" method="POST"[^>]*><input[^>]*name="value" value="([0-9a-f]+)"[^>]*>/gi;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const action = m[1], token = m[2];
+      const seg = html.slice(m.index, m.index + 4000);
+      const mt = seg.match(/<div class="sr-productSummary__title[^"]*">([^<]+)<\/div>/)
+        || seg.match(/<div class="[^"]*productSummary__title[^"]*">([^<]+)<\/div>/);
+      const ms = seg.match(/Vendu par\s*:\s*(?:<[^>]+>)?\s*([^<]+?)\s*</);
+      out.push({ title: mt ? mt[1].trim() : '', shop: ms ? ms[1].trim() : '', token, action });
+    }
+    return out;
+  }
+  function normT(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function matchToken(tokens, title, vendor) {
+    const t = normT(title), v = normT(vendor);
+    let f = tokens.find(x => normT(x.title) === t && (!v || normT(x.shop) === v));
+    if (!f && v) f = tokens.find(x => normT(x.shop) === v && t && normT(x.title).startsWith(t.slice(0, 40)));
+    if (!f && t) f = tokens.find(x => normT(x.title).startsWith(t.slice(0, 40)) || (normT(x.title) && t.startsWith(normT(x.title).slice(0, 40))));
+    return f || null;
+  }
+  async function offerTokens(listUrl, force) {
+    const c = !force && ptokCache[listUrl];
+    if (c && (Date.now() - c.t) < PTOK_TTL && c.map) return { tokens: c.map, cached: true };
+    const wait = Math.max(0, GAP_MS - (Date.now() - lastT));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastT = Date.now();
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), TIMEOUT_MS * 2);
+    try {
+      const res = await fetch(READER + listUrl, { signal: ctl.signal, headers: { 'X-Respond-With': 'html' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      const map = parseOfferTokens(html);
+      ptokCache[listUrl] = { t: Date.now(), map };
+      ptokPersist();
+      return { tokens: map, cached: false };
+    } finally { clearTimeout(to); }
+  }
+
+  return { list, product, offers, offerTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseOffers, sortUrl };
 })();
