@@ -167,7 +167,7 @@ function closeModal() { $('#modalOverlay').classList.add('hidden'); editingPid =
 let editingPid = null;
 
 /* ---------- Compatibility (Compat module) ---------- */
-let compatCache = null;
+let compatCache = null, compatFold = {};
 function getCompat() {
   if (!compatCache && typeof Compat !== 'undefined') {
     try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang }); }
@@ -193,15 +193,16 @@ function renderCompat() {
     if (it.level !== 'warn' || !it.slot || !it.key) return null;
     const b = document.createElement('button');
     b.className = 'mini-btn verify-btn';
-    b.innerHTML = `<i class="fa-solid fa-check-double"></i> ${lang === 'en' ? 'Verified' : 'Vérifié'}`;
+    b.innerHTML = `<i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Verified' : 'Vérifié'}`;
     b.title = lang === 'en' ? 'Mark as verified (I checked this myself)' : 'Marquer comme vérifié (je l’ai contrôlé moi-même)';
     b.onclick = () => toggleVerified(it.slot, it.key);
     return b;
   };
   const sec = (title, list, cls) => {
     const d = document.createElement('div');
-    d.className = 'dsec';
-    d.innerHTML = `<div class="dsec-head"><i class="fa-solid fa-${cls === 'err' ? 'xmark' : 'triangle-exclamation'}"></i><span>${esc(title)}</span><span class="dsec-total">${list.length}</span></div>`;
+    d.className = 'dsec dsec-' + cls + (compatFold[cls] ? ' collapsed' : '');
+    d.innerHTML = `<div class="dsec-head" role="button" tabindex="0"><i class="fa-solid fa-${cls === 'err' ? 'xmark' : 'triangle-exclamation'}"></i><span>${esc(title)}</span><span class="dsec-total">${list.length}</span><i class="fa-solid fa-chevron-down foldchev"></i></div>`;
+    d.querySelector('.dsec-head').onclick = () => { compatFold[cls] = !compatFold[cls]; d.classList.toggle('collapsed', compatFold[cls]); };
     list.forEach(it => {
       const row = document.createElement('div');
       row.className = 'ditem';
@@ -237,8 +238,9 @@ function renderCompat() {
   if (verifiedList.length) {
     if (cc.issues.err.length || cc.issues.warn.length) { const s = document.createElement('div'); s.className = 'dsec-sep'; host.appendChild(s); }
     const d = document.createElement('div');
-    d.className = 'dsec dsec-checked';
-    d.innerHTML = `<div class="dsec-head"><i class="fa-solid fa-check-double"></i><span>${lang === 'en' ? 'Verified by you' : 'Vérifié par vous'}</span><span class="dsec-total">${verifiedList.length}</span></div>`;
+    d.className = 'dsec dsec-checked' + (compatFold.checked ? ' collapsed' : '');
+    d.innerHTML = `<div class="dsec-head" role="button" tabindex="0"><i class="fa-solid fa-check"></i><span>${lang === 'en' ? 'Verified by you' : 'Vérifié par vous'}</span><span class="dsec-total">${verifiedList.length}</span><i class="fa-solid fa-chevron-down foldchev"></i></div>`;
+    d.querySelector('.dsec-head').onclick = () => { compatFold.checked = !compatFold.checked; d.classList.toggle('collapsed', compatFold.checked); };
     verifiedList.forEach(v => {
       const row = document.createElement('div');
       row.className = 'ditem checked-item';
@@ -282,8 +284,8 @@ function openCompatDetail(slotId, keepOpen) {
     return `<div class="cd-row ${c.status}${isV ? ' is-verified' : ''}">
       <span class="compat-badge ${isV ? 'checked' : c.status}"><i class="fa-solid fa-${icon}"></i>${esc(c.label)}</span>
       <div class="cd-tip">${esc(c.tip)}</div>
-      ${(c.a || c.b) ? `<div class="cd-ab">${c.a ? `<span class="di-a"><b>${esc(c.a.label)}</b> ${esc(c.a.value)}</span>` : ''}${(c.a && c.b) ? '<span class="di-vs">↔</span>' : ''}${c.b ? `<span class="di-b"><b>${esc(c.b.label)}</b> ${esc(c.b.value)}</span>` : ''}</div>` : ''}
-      ${c.status === 'warn' ? `<button class="mini-btn verify-btn" data-vkey="${esc(c.key)}"><i class="fa-solid fa-check-double"></i> ${isV ? (lang === 'en' ? 'Unverify' : 'Annuler') : (lang === 'en' ? 'Verified' : 'Vérifié')}</button>` : ''}
+      ${(c.a || c.b) ? `<div class="cd-vs">${c.a ? `<div class="cd-side"><span class="cd-side-lbl">${esc(c.a.label)}</span><span class="cd-side-val">${esc(c.a.value)}</span></div>` : ''}<span class="cd-vs-badge">VS</span>${c.b ? `<div class="cd-side"><span class="cd-side-lbl">${esc(c.b.label)}</span><span class="cd-side-val">${esc(c.b.value)}</span></div>` : ''}</div>` : ''}
+      ${c.status === 'warn' ? `<button class="mini-btn verify-btn" data-vkey="${esc(c.key)}"><i class="fa-solid fa-check"></i> ${isV ? (lang === 'en' ? 'Unverify' : 'Annuler') : (lang === 'en' ? 'Verified' : 'Vérifié')}</button>` : ''}
     </div>`;
   }).join('') : `<p class="hint">${lang === 'en' ? 'No checks for this component.' : 'Aucune vérification pour ce composant.'}</p>`;
   openModal((lang === 'en' ? 'Compatibility — ' : 'Compatibilité — ') + slotName(slotId), `<div class="compat-detail">${rows}</div>`);
@@ -414,7 +416,7 @@ function slotCard(id) {
   el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
-  if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn'); else if (cst === 'checked') el.classList.add('has-checked');
+  if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -449,7 +451,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${cks.length ? `<div class="slot-compat">${cks.map(c => `<span class="compat-badge ${c.status}" title="${esc(c.tip)}"><i class="fa-solid fa-${c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : c.status === 'checked' ? 'check-double' : 'minus'}"></i>${esc(c.label)}</span>`).join('')}<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button></div>` : ''}
+    ${cks.length ? `<div class="slot-compat">${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button></div>` : ''}
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
@@ -1480,7 +1482,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v2.49', `
-    <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et specs comparées a/b, bouton Vérifié (pastilles vert clair), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110.</p></div>
+    <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et comparaisons de specs façon VS, bouton Vérifié (pastille vert clair,une seule coche), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110, connectique écrans/clavier/souris/casque/dock (HDMI/DP/USB-C/USB-A/Bluetooth/Jack).</p></div>
     <div class="chlog"><h3>v2.48 — Vérification de compatibilité</h3><p class="hint">Pastilles vertes/jaunes/rouges par composant (socket, chipset, format, RAM, PCIe…), boutons et résumé surlignés en cas de souci, onglet Compat avec problèmes et avertissements cliquables, champ puissance alim/onduleur.</p></div>
     <div class="chlog"><h3>v2.47 — Offres directes en pause</h3><p class="hint">Le flux d'offre directe est grisé partout avec mention du problème connu pendant la correction.</p></div>
     <div class="chlog"><h3>v2.46 — Tokens toujours frais</h3><p class="hint">Le token d'offre est re-récupéré à chaque clic (fini les tokens périmés en cache) et les échecs réseau affichent un message précis au lieu d'une page d'accueil silencieuse.</p></div>

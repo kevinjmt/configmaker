@@ -108,7 +108,7 @@ const Compat = (() => {
     /* Join "label" + "value" pairs split across two lines. */
     const lines = [];
     for (let i = 0; i < rawLines.length; i++) {
-      const l = low(rawLines[i]);
+      const l = low(rawLines[i]).replace(/[\s.:]+$/, '');
       const isLab = SORTED.some(([lab]) => l === lab);
       if (isLab && i + 1 < rawLines.length) { lines.push(rawLines[i] + ' ' + rawLines[i + 1]); i++; }
       else lines.push(rawLines[i]);
