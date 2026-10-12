@@ -93,6 +93,12 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .dsec-sep{border-top:2px solid var(--line-strong);margin:10px 0 12px 0}
 .ditem{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:12px}
 .ditem:hover{background:rgba(26,135,68,.07)}
+.ditem.pill-item{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:8px 12px;margin-bottom:8px;cursor:pointer;box-shadow:var(--shadow-sm)}
+.ditem.pill-item:hover{border-color:var(--brand);transform:translateY(-1px);box-shadow:var(--shadow-md);background:var(--surface)}
+.ditem.pill-item .di-btns{flex:0 0 auto}
+.dsec-err .ditem.pill-item{border-color:rgba(224,49,49,.35)}
+.dsec-warn .ditem.pill-item{border-color:rgba(245,159,0,.40)}
+.dsec-checked .ditem.pill-item{border-color:rgba(60,180,110,.45)}
 .di-ico{flex:0 0 auto;color:var(--muted);display:flex;align-items:center}
 .di-ico svg{width:16px;height:16px}
 .di-ico i,.di-ico .bi,.di-ico .ti{font-size:.85rem}
@@ -128,8 +134,14 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 @media (prefers-reduced-motion:reduce){.slot-compat .compat-badge{animation:none}}
 .compat-detail{display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow:auto}
 .cd-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg-soft)}
+.cd-row.warn{background:rgba(245,159,0,.10);border-color:rgba(245,159,0,.42)}
+.cd-row.err{background:rgba(224,49,49,.08);border-color:rgba(224,49,49,.42)}
 .cd-row.is-verified{border-color:rgba(60,180,110,.5);background:rgba(215,245,225,.4)}
-.cd-tip{font-size:.82rem;color:var(--muted)}
+.cd-title{font-weight:900;font-size:1.02rem;color:var(--danger)}
+.cd-tip{font-size:.85rem;font-weight:700;color:var(--ink-2)}
+.cd-ico{display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.cd-ico svg{width:26px;height:26px}
+.cd-ico i{font-size:1.3rem}
 .cd-vs{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;margin-top:2px}
 .cd-side{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-size:.8rem;text-align:center}
 .cd-side-lbl{font-weight:800;opacity:.75;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}

@@ -29,6 +29,7 @@ const SLOT_DEFS = [
   { id: 'fans', sec: 'pc', icon: 'lucide:loader-pinwheel', q: 'ventilateur boîtier PC', w: 3, extra: true },
   { id: 'psu', sec: 'pc', icon: 'fa-solid fa-plug', q: 'alimentation PC', w: 0 },
   { id: 'psucables', sec: 'pc', icon: 'lucide:cable', q: "câble d'alimentation modulaire PC", w: 0, extra: true },
+  { id: 'netcard', sec: 'pc', icon: 'bi:bi-hdd-network', q: 'carte réseau', w: 5, extra: true },
   { id: 'os', sec: 'pc', icon: 'fa-brands fa-windows', q: 'Windows 11 licence', w: 0, addMore: 'pcx' },
   { id: 'soft', sec: 'pc', icon: 'lucide:package', q: 'logiciel', w: 0, extra: true },
   { id: 'desk', sec: 'setup', icon: 'ti:ti-desk', q: 'bureau gaming', w: 0 },
@@ -102,8 +103,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', ups: 'Onduleur', switch: 'Switch', router: 'Routeur', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', ups: 'UPS', switch: 'Switch', router: 'Router', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', ups: 'Onduleur', switch: 'Switch', router: 'Routeur', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', ups: 'UPS', switch: 'Switch', router: 'Router', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -205,17 +206,16 @@ function renderCompat() {
     d.querySelector('.dsec-head').onclick = () => { compatFold[cls] = !compatFold[cls]; d.classList.toggle('collapsed', compatFold[cls]); };
     list.forEach(it => {
       const row = document.createElement('div');
-      row.className = 'ditem';
-      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(it.msg)}</span>${abHtml(it.slot, it.key)}</span><span class="di-btns"></span>`;
+      row.className = 'ditem pill-item';
+      row.setAttribute('role', 'button'); row.tabIndex = 0;
+      const target = it.slot || (it.slots || [])[0];
+      const go = () => { if (target) focusComponent(target); };
+      row.onclick = e => { if (e.target.closest('button')) return; go(); };
+      row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+      row.innerHTML = `<span class="di-btns"></span><span class="di-txt"><span class="di-name">${esc(it.msg)}</span>${abHtml(it.slot, it.key)}</span>`;
       const btns = row.querySelector('.di-btns');
       const vb = verifyBtn(it);
       if (vb) btns.appendChild(vb);
-      (it.slots || []).forEach(sid => {
-        const b = document.createElement('button');
-        b.className = 'mini-btn'; b.textContent = slotName(sid);
-        b.onclick = () => focusComponent(sid);
-        btns.appendChild(b);
-      });
       d.appendChild(row);
     });
     host.appendChild(d);
@@ -243,17 +243,17 @@ function renderCompat() {
     d.querySelector('.dsec-head').onclick = () => { compatFold.checked = !compatFold.checked; d.classList.toggle('collapsed', compatFold.checked); };
     verifiedList.forEach(v => {
       const row = document.createElement('div');
-      row.className = 'ditem checked-item';
-      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(v.label)} — ${esc(v.tip)}</span>${(v.a || v.b) ? `<span class="di-ab">${v.a ? `<span class="di-a"><b>${esc(v.a.label)}</b> ${esc(v.a.value)}</span>` : ''}${(v.a && v.b) ? '<span class="di-vs">↔</span>' : ''}${v.b ? `<span class="di-b"><b>${esc(v.b.label)}</b> ${esc(v.b.value)}</span>` : ''}</span>` : ''}</span><span class="di-btns"></span>`;
+      row.className = 'ditem checked-item pill-item';
+      row.setAttribute('role', 'button'); row.tabIndex = 0;
+      const go = () => focusComponent(v.slot);
+      row.onclick = e => { if (e.target.closest('button')) return; go(); };
+      row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+      row.innerHTML = `<span class="di-btns"></span><span class="di-txt"><span class="di-name">${esc(v.label)} — ${esc(v.tip)}</span>${(v.a || v.b) ? `<span class="di-ab">${v.a ? `<span class="di-a"><b>${esc(v.a.label)}</b> ${esc(v.a.value)}</span>` : ''}${(v.a && v.b) ? '<span class="di-vs">↔</span>' : ''}${v.b ? `<span class="di-b"><b>${esc(v.b.label)}</b> ${esc(v.b.value)}</span>` : ''}</span>` : ''}</span>`;
       const btns = row.querySelector('.di-btns');
       const ub = document.createElement('button');
       ub.className = 'mini-btn'; ub.textContent = lang === 'en' ? 'Unverify' : 'Annuler';
       ub.onclick = () => toggleVerified(v.slot, v.key);
       btns.appendChild(ub);
-      const fb = document.createElement('button');
-      fb.className = 'mini-btn'; fb.textContent = slotName(v.slot);
-      fb.onclick = () => focusComponent(v.slot);
-      btns.appendChild(fb);
       d.appendChild(row);
     });
     host.appendChild(d);
@@ -278,13 +278,17 @@ function openCompatDetail(slotId, keepOpen) {
   if (!p) return;
   openCompatDetail._slot = slotId;
   const cc = getCompat(), cks = cc.checks[slotId] || [];
+  const sic = iconHtml(defOf(s).icon || 'lucide:cpu');
   const rows = cks.length ? cks.map(c => {
     const isV = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key);
     const icon = c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : 'minus';
+    const head = c.status === 'err'
+      ? `<span class="cd-title">${esc(c.label)}</span>`
+      : `<span class="compat-badge ${isV ? 'checked' : c.status}"><i class="fa-solid fa-${icon}"></i>${esc(c.label)}</span>`;
     return `<div class="cd-row ${c.status}${isV ? ' is-verified' : ''}">
-      <span class="compat-badge ${isV ? 'checked' : c.status}"><i class="fa-solid fa-${icon}"></i>${esc(c.label)}</span>
+      ${head}
       <div class="cd-tip">${esc(c.tip)}</div>
-      ${(c.a || c.b) ? `<div class="cd-vs">${c.a ? `<div class="cd-side"><span class="cd-side-lbl">${esc(c.a.label)}</span><span class="cd-side-val">${esc(c.a.value)}</span></div>` : ''}<span class="cd-vs-badge">VS</span>${c.b ? `<div class="cd-side"><span class="cd-side-lbl">${esc(c.b.label)}</span><span class="cd-side-val">${esc(c.b.value)}</span></div>` : ''}</div>` : ''}
+      ${(c.a || c.b) ? `<div class="cd-vs">${c.a ? `<div class="cd-side"><span class="cd-ico">${sic}</span><span class="cd-side-lbl">${esc(c.a.label)}</span><span class="cd-side-val">${esc(c.a.value)}</span></div>` : ''}<span class="cd-vs-badge">VS</span>${c.b ? `<div class="cd-side"><span class="cd-ico">${sic}</span><span class="cd-side-lbl">${esc(c.b.label)}</span><span class="cd-side-val">${esc(c.b.value)}</span></div>` : ''}</div>` : ''}
       ${c.status === 'warn' ? `<button class="mini-btn verify-btn" data-vkey="${esc(c.key)}"><i class="fa-solid fa-check"></i> ${isV ? (lang === 'en' ? 'Unverify' : 'Annuler') : (lang === 'en' ? 'Verified' : 'Vérifié')}</button>` : ''}
     </div>`;
   }).join('') : `<p class="hint">${lang === 'en' ? 'No checks for this component.' : 'Aucune vérification pour ce composant.'}</p>`;
@@ -560,7 +564,7 @@ async function refreshOnePrice(slotId) {
   refreshingPids.delete(p.id);
   persist(); refresh(); hideProgress();
 }
-const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'os', 'soft'];
+const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'netcard', 'os', 'soft'];
 const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'ups', 'switch', 'router', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
   const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
@@ -653,10 +657,11 @@ const IDEALO_CATS = [
   { key: 'speakers', label: 'Enceintes PC', url: 'https://www.idealo.fr/cat/3287/haut-parleurs-pc.html' },
   { key: 'webcam', label: 'Webcams', url: 'https://www.idealo.fr/cat/16313/webcams.html' },
   { key: 'soundcard', label: 'Cartes son', url: 'https://www.idealo.fr/cat/3092/cartes-son.html' },
+  { key: 'netcard', label: 'Cartes réseau', url: 'https://www.idealo.fr/cat/3089/cartes-reseau.html' },
   { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
   { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', soft: 'soft', ups: 'ups', switch: 'switch', router: 'router', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', switch: 'switch', router: 'router', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0;
 function slotCatKey(slotId) {

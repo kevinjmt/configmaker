@@ -48,7 +48,12 @@ const Compat = (() => {
     ['nombre d\u2019emplacements ram', 'ramSlots', 'num'], ["nombre d'emplacements ram", 'ramSlots', 'num'],
     ['number of ram slots', 'ramSlots', 'num'], ['memory slots', 'ramSlots', 'num'],
     ['architecture de la ram', null, null],
-    ['type de ram', 'ddr', 'ddr'], ['memory type', 'ddr', 'ddr'],
+    ['type de ram', 'ddr', 'ddr'], ['memory type', 'ddr', 'ddr'], ['type de mémoire', 'ddr', 'ddr'],
+    ['taux de transfert', 'ramSpeed', 'num'], ['transfer rate', 'ramSpeed', 'num'],
+    ['vitesse de transfert', 'ramSpeed', 'num'], ['data rate', 'ramSpeed', 'num'],
+    ['nombre de modules', 'ramSticks', 'num'], ['number of modules', 'ramSticks', 'num'],
+    ['capacité par module', 'ramPerMod', 'num'], ['capacity per module', 'ramPerMod', 'num'],
+    ['type dimm', 'dimmType', 'raw'], ['memory form factor', 'dimmType', 'raw'],
     ['fréquence mémoire (oc)', 'ramSpeedMax', 'num'], ['memory frequency (oc)', 'ramSpeedMax', 'num'],
     ['fréquence mémoire', 'ramSpeedMax', 'num'],
     ['memory frequency', 'ramSpeedMax', 'num'], ['bus frequency', 'ramSpeedMax', 'num'], ['fréquence de bus', 'ramSpeedMax', 'num'],
@@ -62,7 +67,10 @@ const Compat = (() => {
     ['nombre de ports m.2', 'm2count', 'num'], ['nombre de ports m2', 'm2count', 'num'], ['m.2 ports', 'm2count', 'num'],
     ['raccordements périphériques', 'usbBack', 'usbports'], ['rear usb', 'usbBack', 'usbports'],
     ['nombre de ports usb', null, null],
-    ['ports internes', null, null], ['internal usb', null, null],
+    ['ports internes', 'fans', 'fanports'], ['internal io', 'fans', 'fanports'], ['internal i/o', 'fans', 'fanports'],
+    ['fan headers', 'fans', 'fanports'], ['fan connectors', 'fans', 'fanports'],
+    ['prises ventilateur', 'fans', 'fanports'],
+    ['internal usb', null, null],
     ['format', 'form', 'form'], ['form factor', 'form', 'form'],
     ['formats de cartes mères supportés', 'caseForms', 'forms'], ['supported motherboard formats', 'caseForms', 'forms'],
     ['standards ethernet', 'lan', 'lan'], ['ethernet', 'lan', 'lan'], ['network', 'lan', 'lan'],
@@ -71,7 +79,21 @@ const Compat = (() => {
     ['connecteur vidéo', 'vid', 'vidports'], ['ports vidéo', 'vid', 'vidports'],
     ['video inputs', 'vid', 'vidports'], ['video outputs', 'vid', 'vidports'],
     ['inputs', 'vid', 'vidports'], ['outputs', 'vid', 'vidports'],
+    ['nombre de hdmi', 'hdmiN', 'num'], ['number of hdmi', 'hdmiN', 'num'], ['hdmi ports', 'hdmiN', 'num'],
+    ['nombre de displayport', 'dpN', 'num'], ['number of displayports', 'dpN', 'num'], ['displayport ports', 'dpN', 'num'],
+    ['spécification hdmi', 'hdmiVer', 'ver'], ['specification hdmi', 'hdmiVer', 'ver'], ['version hdmi', 'hdmiVer', 'ver'], ['hdmi version', 'hdmiVer', 'ver'],
+    ['version displayport', 'dpVer', 'ver'], ['displayport version', 'dpVer', 'ver'],
+    ['nombre maximal de moniteurs', 'maxMon', 'num'], ['max monitors', 'maxMon', 'num'],
+    ['résolution max', 'maxRes', 'raw'], ['max resolution', 'maxRes', 'raw'],
+    ['résolution', 'res', 'raw'], ['resolution', 'res', 'raw'],
+    ['taux de rafraîchissement', 'refresh', 'num'], ['taux de rafraichissement', 'refresh', 'num'],
+    ['refresh rate', 'refresh', 'num'], ['taux de rafraîssement', 'refresh', 'num'],
+    ['total board power', 'gpuW', 'num'], ['puissance totale', 'gpuW', 'num'], ['consommation (jeu)', 'gpuW', 'num'],
+    ['profondeur', 'depth', 'num'], ['épaisseur', 'depth', 'num'], ['thickness', 'depth', 'num'], ['depth', 'depth', 'num'],
+    ['nombre de slots', 'gpuSlots', 'num'], ['slot d’extension', 'gpuSlots', 'raw'], ["slot d'extension", 'gpuSlots', 'raw'],
     ['connecteurs', 'vid', 'vidports'], ['connectique', 'vid', 'vidports'],
+    ['lecteur de carte', 'cardReader', 'flag'], ['lecteur de cartes', 'cardReader', 'flag'],
+    ['card reader', 'cardReader', 'flag'], ['lecteur sd', 'cardReader', 'flag'],
     ['carte son intégrée', 'audio', 'flag'], ['integrated sound', 'audio', 'flag'], ['carte son', 'audio', 'flag'],
     ['version bluetooth', 'bt', 'raw'], ['bluetooth', 'bt', 'raw'],
     ['connectivité', 'wireless', 'wireless'], ['connectivity', 'wireless', 'wireless'],
@@ -79,6 +101,8 @@ const Compat = (() => {
     ['prise casque', 'jack', 'flag'], ['connecteur casque', 'jack', 'flag'],
     ['versions pcie', 'pcieVers', 'numlist'],
     ['nombre de slots pcie x16', 'slotX16', 'num'], ['nombre de slots pcie x1', 'slotX1', 'num'],
+    ['slots pcie x16', 'slotX16', 'num'], ['slots pcie x1', 'slotX1', 'num'],
+    ['pcie x16 slots', 'slotX16', 'num'], ['pcie x1 slots', 'slotX1', 'num'],
     ['tdp (thermal design power)', 'tdp', 'num'], ['thermal design power', 'tdp', 'num'], ['tdp', 'tdp', 'num'],
     ['types de mémoire', 'ddr', 'ddr'], ['memory types', 'ddr', 'ddr'],
     ['vitesse de transfert (lecture)', 'readSpeed', 'num'], ['read speed', 'readSpeed', 'num'],
@@ -98,19 +122,27 @@ const Compat = (() => {
     ['connecteurs pci-e (8 broches)', 'pcie8', 'num'], ['pci-e 8-pin connectors', 'pcie8', 'num'],
     ['autres connecteurs', 'otherConn', 'raw'],
     ['puissance continue', 'capW', 'num'],
-    ['type de produit', null, null], ['product type', null, null],
+    ['type de produit', 'ddr', 'ddr'], ['product type', 'ddr', 'ddr'],
   ];
   const SORTED = [...LABELS].sort((a, b) => b[0].length - a[0].length);
 
   function parseDatasheet(dsText) {
     const P = { sockets: [], caseForms: [], pcieVers: [], usbBack: { c: 0, a: 0 } };
     const rawLines = dsLines(dsText);
-    /* Join "label" + "value" pairs split across two lines. */
+    /* Join "label" + "value" pairs split across two lines:
+       exact label line, or label + short digit-less remainder ("Ports internes I/O"). */
     const lines = [];
     for (let i = 0; i < rawLines.length; i++) {
       const l = low(rawLines[i]).replace(/[\s.:]+$/, '');
-      const isLab = SORTED.some(([lab]) => l === lab);
-      if (isLab && i + 1 < rawLines.length) { lines.push(rawLines[i] + ' ' + rawLines[i + 1]); i++; }
+      const isLab = SORTED.some(([lab, field]) => field && l === lab);
+      const partial = !isLab && SORTED.some(([lab, field]) => {
+        if (!field || !l.startsWith(lab)) return false;
+        const rest = l.slice(lab.length).trim();
+        return rest.length > 0 && rest.length <= 8 && !/\d/.test(rest);
+      });
+      const nxt = i + 1 < rawLines.length ? low(rawLines[i + 1]).replace(/[\s.:]+$/, '') : '';
+      const nxtIsLab = nxt && SORTED.some(([lab, field]) => field && (nxt === lab || nxt.startsWith(lab + ' ')));
+      if ((isLab || partial) && nxt && !nxtIsLab) { lines.push(rawLines[i] + ' ' + rawLines[i + 1]); i++; }
       else lines.push(rawLines[i]);
     }
     for (const ln of lines) {
@@ -173,9 +205,23 @@ const Compat = (() => {
         if (ns.length) P.lan = Math.max(...ns);
         continue;
       }
+      if (kind === 'fanports') {
+        const v = String(val);
+        let m = v.match(/(\d+)\s*(?:x\s*)?ventilateurs?\s*processeur|(\d+)\s*(?:x\s*)?cpu\s*fans?/i);
+        if (m) P.fanCpu = Math.max(P.fanCpu || 0, parseInt(m[1] || m[2], 10));
+        m = v.match(/(\d+)\s*(?:x\s*)?(?:bo[iî]tiers?\s*de\s*ventilation|ventilateurs?\s*(?:bo[iî]tier|ch[aâ]ssis)|system\s*fans?|chassis\s*fans?|case\s*fans?)/i);
+        if (m) P.fanSys = Math.max(P.fanSys || 0, parseInt(m[1], 10));
+        continue;
+      }
       if (kind === 'vidports') {
         P.vid = P.vid || { hdmi: 0, dp: 0, usbc: 0 };
-        String(val).split(/[,;+]/).forEach(part => {
+        const v = String(val);
+        /* versions may hide in the same line (header joined with "Version DisplayPort …") */
+        const mh = v.match(/hdmi\s*(\d+(?:[.,]\d+)?)/i);
+        if (mh) P.hdmiVer = Math.max(P.hdmiVer || 0, parseFloat(mh[1].replace(',', '.')));
+        const md = v.match(/display\s?port\s*(\d+(?:[.,]\d+)?)/i);
+        if (md) P.dpVer = Math.max(P.dpVer || 0, parseFloat(md[1].replace(',', '.')));
+        v.split(/[,;+]/).forEach(part => {
           let n = 1;
           const m = part.match(/(\d+)\s*x\b/i);
           if (m) n = parseInt(m[1], 10);
@@ -183,6 +229,11 @@ const Compat = (() => {
           else if (/display\s?port|\bdp\b|mini\s?dp/i.test(part)) P.vid.dp += n;
           else if (/usb[-\s]?c|type.?c|thunderbolt|usb4/i.test(part)) P.vid.usbc += n;
         });
+        continue;
+      }
+      if (kind === 'ver') {
+        const m = String(val).match(/(\d+(?:[.,]\d+)?)/);
+        if (m) P[field] = parseFloat(m[1].replace(',', '.'));
         continue;
       }
       if (kind === 'wireless') {
@@ -199,7 +250,8 @@ const Compat = (() => {
         continue;
       }
     }
-    /* "Configuration: 2 x 16 Go" → sticks + capacity (datasheet text, not summary). */    if (P.ramConfig && (!P.ramSticks || !P.ramCap)) {
+    /* "Configuration: 2 x 16 Go" → sticks + capacity (datasheet text, not summary). */
+    if (P.ramConfig && (!P.ramSticks || !P.ramCap)) {
       const m = String(P.ramConfig).match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)/i);
       if (m) {
         if (!P.ramSticks) P.ramSticks = parseInt(m[1], 10) || 0;
@@ -209,15 +261,67 @@ const Compat = (() => {
         if (g) P.ramCap = Math.round(parseFloat(g[1].replace(',', '.')));
       }
     }
+    if (P.ramPerMod && P.ramCap && !P.ramSticks) {
+      const st = Math.round(P.ramCap / P.ramPerMod);
+      if (st >= 1 && st <= 8) P.ramSticks = st;
+    }
+    /* "Nombre de HDMI / DisplayPort" → merge into vid counts. */
+    if (P.hdmiN || P.dpN) {
+      P.vid = P.vid || { hdmi: 0, dp: 0, usbc: 0 };
+      P.vid.hdmi += P.hdmiN || 0;
+      P.vid.dp += P.dpN || 0;
+    }
+    /* "2.560 x 1.440 pixels" → {w, h} (FR thousands separators). */
+    const parseWH = t => {
+      const m = String(t || '').replace(/(\d)[. ](?=\d{3}\b)/g, '$1').match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
+      return m ? { w: parseInt(m[1], 10), h: parseInt(m[2], 10) } : null;
+    };
+    if (P.res && !P.resWH) P.resWH = parseWH(P.res);
+    if (P.maxRes && !P.maxResWH) P.maxResWH = parseWH(P.maxRes);
+    /* Rear USB top speed (Gbps) from USB/Thunderbolt lines — for docks, webcams, screens. */
+    let usbTop = 0;
+    for (const ln of lines) {
+      const l = low(ln);
+      if (!/usb|thunderbolt/.test(l)) continue;
+      if (/thunderbolt\s*5|\busb\s*4\b.*80|80\s*gbps/.test(l)) usbTop = Math.max(usbTop, 80);
+      else if (/thunderbolt|usb\s*4\b/.test(l)) usbTop = Math.max(usbTop, 40);
+      else if (/gen\s*2\s*x\s*2|2x2/.test(l)) usbTop = Math.max(usbTop, 20);
+      else if (/gen\s*2(?!\s*x)/.test(l)) usbTop = Math.max(usbTop, 10);
+      else if (/gen\s*1|usb\s*3\b|usb3/.test(l)) usbTop = Math.max(usbTop, 5);
+      else if (/usb\s*2|usb2/.test(l)) usbTop = Math.max(usbTop, 0.48);
+    }
+    if (usbTop) P.usbTop = usbTop;
+    /* Network + jack scan on raw lines (value-first layouts: "8 x RJ45", "SFP+", "Jack 3,5 mm"). */
+    for (const ln of lines) {
+      const l = low(ln);
+      if (/rj-?45|base-?t|\bethernet\b/.test(l)) {
+        const cm = l.match(/(\d+)\s*(?:x\s*)?(?:ports?\s*)?rj-?45/i);
+        if (cm) P.rj45 = Math.max(P.rj45 || 0, parseInt(cm[1], 10));
+        const spd = [];
+        l.replace(/(\d+(?:[.,]\d+)?)\s*g(?:bps|b(?:ase)?-?t)?\b/gi, (_, n) => { spd.push(parseFloat(String(n).replace(',', '.'))); return ''; });
+        if (/10\/100\/1000|\bgigabit\b|1000\s*mbps/i.test(l)) spd.push(1);
+        if (spd.length) P.portSpeed = Math.max(P.portSpeed || 0, ...spd);
+      }
+      if (/\bsfp\b/.test(l)) {
+        const sm = l.match(/(\d+)\s*x\s*sfp|sfp\+?\D{0,10}(\d+)|(\d+)\s*\D{0,10}sfp/i);
+        P.sfp = Math.max(P.sfp || 0, sm ? parseInt(sm[1] || sm[2] || sm[3], 10) : 1);
+      }
+      if (/wi-?fi/.test(l)) {
+        const wm = l.match(/wi-?fi\s*(\d)/i);
+        if (wm) { P.wifiGen = Math.max(P.wifiGen || 0, parseInt(wm[1], 10)); if (/6e/i.test(l)) P.wifiE = true; }
+      }
+      if (/connect|entrées|entrees|audio|jack|casque/.test(l) && /jack|3[.,]5\s?mm/.test(l)) P.jack = true;
+    }
     P.raw = String(dsText || '').slice(0, 6000); // keyword fallback (liquid cooling, SATA…)
     return P;
   }
 
   function isCaseFan(text) {
     const t = String(text || '');
+    if (/carte mère|motherboard|chipset|socket\s*\d|ddr\s?\d|pcie\s*\d|mémoire|memory/i.test(t)) return false;
     if (!/ventilateur|fan/i.test(t)) return false;
-    if (/processeur|ventirad|watercooling|AIO|refroidissement liquide|CPU/i.test(t) && !/châssis|chassis|boîtier|boitier|\bPC\b/i.test(t)) return false;
-    return /châssis|chassis|boîtier|boitier|\bPC\b|RGB|ARGB|\b120\b|\b140\b|\b200\b|fan/i.test(t);
+    if (/processeur|ventirad|watercooling|AIO|refroidissement liquide|CPU/i.test(t) && !/châssis|chassis|boîtiers?|boitiers?|\bPC\b/i.test(t)) return false;
+    return /châssis|chassis|boîtiers?|boitiers?|\bPC\b|RGB|ARGB|\b120\b|\b140\b|\b200\b|fan/i.test(t);
   }
   function isUsbDevice(text) { return /\bUSB\b/i.test(String(text || '')); }
   function isUsbCDevice(text) { return /USB[-\s]?C|Type.?C/i.test(String(text || '')); }
@@ -290,6 +394,11 @@ const Compat = (() => {
     };
     const mbId = byDef('mb')[0], cpuId = byDef('cpu')[0], ramId = byDef('ram')[0],
       coolerId = byDef('cooler')[0], gpuId = byDef('gpu')[0], caseId = byDef('case')[0], psuId = byDef('psu')[0];
+    const mbHasDs = mbId && P[mbId].hasDs;
+    const mbUsbA = (mbHasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.a || 0) : 0;
+    const mbUsbC = (mbHasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.c || 0) : 0;
+    const mbBt = mbHasDs ? (P[mbId].ds.bt || '') : '';
+    const mbAudio = mbHasDs ? !!P[mbId].ds.audio : false;
 
     /* ---- CPU: socket + TDP (no chipset check) ---- */
     if (cpuId) {
@@ -471,7 +580,12 @@ const Compat = (() => {
     /* ---- PSU wattage vs total ---- */
     if (psuId && !needDs(psuId)) {
       const cap = psuCapW(P[psuId].p, P[psuId].ds);
-      const need = totals.watts || 0;
+      let need = totals.watts || 0;
+      if (!need) { // estimate from datasheets when fiche watts are empty
+        const gw = (gpuId && P[gpuId].hasDs) ? (P[gpuId].ds.gpuW || P[gpuId].watts) : 0;
+        const ct = (cpuId && P[cpuId].hasDs) ? (P[cpuId].ds.tdp || 0) : 0;
+        if (gw || ct) need = Math.round(gw + ct + 120);
+      }
       const n = byDef(['cpu', 'gpu']).reduce((s, id) => s + P[id].watts, 0);
       const head = cap ? Math.round(cap * 0.8) : 0;
       if (!cap) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L('Puissance alim inconnue — vérifiez', 'Unknown PSU wattage — verify'), A('Alim', '?'), A('Besoin', need + ' W'));
@@ -480,12 +594,34 @@ const Compat = (() => {
       else add(psuId, 'watt', L('Puissance', 'Wattage'), OK, L(`${cap}W suffisants`, `${cap}W sufficient`), A('Alim', cap + ' W'), A('Besoin', need + ' W'));
     }
     /* ---- Case fans ---- */
-    order.forEach(id => {
-      if (!P[id] || P[id].defId === 'case' || P[id].defId === 'cooler') return;
-      if (!isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : ''))) return;
+    const PC_PARTS = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
+    const isFanSlot = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));
+    const chassisFanIds = order.filter(id => isFanSlot(id) && isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : '')));
+    chassisFanIds.forEach(id => {
       if (!caseId || !P[caseId].hasDs) { add(id, 'mount', L('Montage', 'Mount'), WARN, L('Boîtier/datasheet à confirmer', 'Confirm case/datasheet'), A('Ventilateur', P[id].p.name || '?'), null); return; }
       add(id, 'mount', L('Montage', 'Mount'), OK, L('Ventilateur boîtier standard', 'Standard case fan'), A('Ventilateur', P[id].p.name || '?'), null);
     });
+    /* ---- Fan headers on motherboard vs fans + cooler ---- */
+    const liquidCooler = coolerId && P[coolerId].hasDs && /liquide|liquid|watercooling|AIO/i.test(P[coolerId].ds.raw || '');
+    const radFans = liquidCooler && P[coolerId].ds.radSize ? Math.min(3, Math.max(1, Math.round(P[coolerId].ds.radSize / 120))) : 0;
+    const needCpu = coolerId ? 1 : 0; // air fan or AIO pump on CPU_FAN/AIO_PUMP
+    const needSys = chassisFanIds.length + radFans;
+    const fanPillId = chassisFanIds[0] || coolerId;
+    if (fanPillId && needSys + needCpu > 0) {
+      if (!mbId || !P[mbId].hasDs) add(fanPillId, 'headers', L('Prises ventilateurs', 'Fan headers'), WARN, L('Prises ventilateurs CM inconnues — vérifiez', 'Unknown board fan headers — verify'), A('Ventilateurs', `${needSys} châssis${needCpu ? ' + ventirad' : ''}`), null);
+      else {
+        const fc = P[mbId].ds.fanCpu || 0, fs = P[mbId].ds.fanSys || 0;
+        if (needCpu) {
+          if (fc >= needCpu) add(fanPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), OK, L(`${fc} prise(s) CPU — ventirad branché`, `${fc} CPU header(s) — cooler connected`), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc));
+          else add(fanPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), WARN, L('Prises CPU_FAN CM inconnues — vérifiez', 'Unknown board CPU_FAN headers — verify'), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc || '?'));
+        }
+        if (needSys) {
+          if (fs >= needSys) add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) châssis`, `${needSys} fan(s) ≤ ${fs} chassis header(s)`), A('Ventilateurs', needSys), A('Prises châssis CM', fs));
+          else if (fs) add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), WARN, L(`${needSys} ventilateurs pour ${fs} prise(s) — splitter/hub requis`, `${needSys} fans for ${fs} header(s) — splitter/hub needed`), A('Ventilateurs', needSys), A('Prises châssis CM', fs));
+          else add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), WARN, L('Prises châssis CM inconnues — vérifiez', 'Unknown board chassis headers — verify'), A('Ventilateurs', needSys), A('Prises châssis CM', '?'));
+        }
+      }
+    }
     /* ---- USB devices vs backpanel ---- */
     const usbIds = order.filter(id => P[id] && isUsbDevice(P[id].p.name));
     if (usbIds.length && mbId && P[mbId].hasDs) {
@@ -501,16 +637,82 @@ const Compat = (() => {
         else add(id, 'usb', 'USB', WARN, L(`${need} appareils pour ${have} ports — hub USB requis`, `${need} devices for ${have} ports — USB hub needed`), A('Appareils USB', need), A('Ports CM', have));
       });
     }
-    /* ---- Router LAN vs motherboard LAN ---- */
+    /* ---- Router: LAN + SFP+ vs motherboard / switch ---- */
+    const cardIds = [...new Set([
+      ...byDef('soundcard'), ...byDef('capture'),
+      ...order.filter(id => P[id] && !['soundcard', 'capture'].includes(P[id].defId) && /capture|acquisition|carte son|sound card|elgato|avermedia/i.test(P[id].p.name || '')),
+    ])];
+    const isExtCard = id => /usb|thunderbolt|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+    const intCards = cardIds.filter(id => !isExtCard(id));
+    const routerLanOf = id => {
+      if (P[id].hasDs && P[id].ds.lan) return P[id].ds.lan;
+      const rn = (P[id].p.name.match(/(\d+(?:[.,]\d+)?)\s*Gb/i) || [])[1];
+      return rn ? parseFloat(String(rn).replace(',', '.')) : 1;
+    };
     const routerIds = byDef('router');
     routerIds.forEach(id => {
       if (!mbId || !P[mbId].hasDs) { add(id, 'lan', 'LAN', NA, L('CM absente/datasheet manquante', 'No board / missing datasheet'), A('Routeur', P[id].p.name || '?'), null); return; }
       const lan = P[mbId].ds.lan || 0;
-      const rn = (P[id].p.name.match(/(\d+(?:[.,]\d+)?)\s*Gb/i) || [])[1];
-      const rlan = rn ? parseFloat(String(rn).replace(',', '.')) : 1;
+      const rlan = routerLanOf(id);
       if (!lan) add(id, 'lan', 'LAN', WARN, L('LAN CM inconnu — vérifiez', 'Unknown board LAN — verify'), A('Routeur', rlan + ' GbE'), A('LAN CM', '?'));
       else if (rlan >= lan) add(id, 'lan', 'LAN', OK, L(`Routeur ${rlan} GbE ≥ CM ${lan} GbE`, `Router ${rlan}GbE ≥ board ${lan}GbE`), A('Routeur', rlan + ' GbE'), A('LAN CM', lan + ' GbE'));
       else add(id, 'lan', 'LAN', WARN, L(`Routeur ${rlan} GbE < CM ${lan} GbE — lien bridé à ${rlan} GbE`, `Router ${rlan}GbE < board ${lan}GbE — link capped at ${rlan}GbE`), A('Routeur', rlan + ' GbE'), A('LAN CM', lan + ' GbE'));
+      if (P[id].hasDs && P[id].ds.sfp) {
+        const swSfp = byDef('switch').some(sid => P[sid].hasDs && P[sid].ds.sfp);
+        if (swSfp) add(id, 'sfp', 'SFP+', OK, L('SFP+ routeur + switch — liaison fibre possible', 'Router + switch SFP+ — fiber uplink possible'), A('Routeur', 'SFP+'), A('Switch', 'SFP+'));
+        else add(id, 'sfp', 'SFP+', WARN, L('SFP+ routeur sans switch SFP+ — port inutilisé', 'Router SFP+ without SFP+ switch — unused port'), A('Routeur', 'SFP+'), A('Switch', '?'));
+      }
+      if (P[id].hasDs && P[id].ds.wifiGen) add(id, 'wifi', 'WiFi', NA, L(`WiFi ${P[id].ds.wifiGen}${P[id].ds.wifiE ? 'E' : ''} — aucun client à comparer`, `WiFi ${P[id].ds.wifiGen}${P[id].ds.wifiE ? 'E' : ''} — no client to compare`), A('Routeur', `WiFi ${P[id].ds.wifiGen}${P[id].ds.wifiE ? 'E' : ''}`), null);
+    });
+    /* ---- Switch vs router LAN + fastest PC link (MB LAN / NIC) ---- */
+    byDef('switch').forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const D = P[id].ds;
+      const swTop = D.portSpeed || (D.rj45 ? 1 : 0);
+      const swSfp = D.sfp || 0;
+      const rLan = routerIds.length ? Math.max(...routerIds.map(rid => routerLanOf(rid))) : 0;
+      const rSfp = routerIds.some(rid => P[rid].hasDs && P[rid].ds.sfp);
+      const nicTop = Math.max(0, ...byDef('netcard').map(nid => (P[nid].hasDs ? (P[nid].ds.portSpeed || P[nid].ds.lan || 0) : 0)));
+      const mbLan = (mbId && P[mbId].hasDs) ? (P[mbId].ds.lan || 0) : 0;
+      if (swSfp && (rSfp || byDef('netcard').some(nid => P[nid].hasDs && P[nid].ds.sfp))) add(id, 'link', L('Liaison', 'Uplink'), OK, L('SFP+ des deux côtés — liaison 10G+ possible', 'SFP+ on both ends — 10G+ uplink possible'), A('Switch', `${swSfp}×SFP+`), A('Pair', 'SFP+'));
+      if (!swTop) { add(id, 'ports', L('Ports', 'Ports'), WARN, L('Débit des ports switch inconnu — vérifiez (1/2,5/10 GbE ?)', 'Unknown switch port speed — verify (1/2.5/10 GbE?)'), A('Switch', D.rj45 ? `${D.rj45}×RJ45` : '?'), null); return; }
+      const aSw = A('Switch', `${D.rj45 ? D.rj45 + '×' : ''}${swTop} GbE${swSfp ? ' + SFP+' : ''}`);
+      if (rLan) {
+        if (swTop >= rLan) add(id, 'router', L('Routeur', 'Router'), OK, L(`Switch ${swTop} ≥ routeur ${rLan} GbE`, `Switch ${swTop} ≥ router ${rLan}GbE`), aSw, A('Routeur', rLan + ' GbE'));
+        else add(id, 'router', L('Routeur', 'Router'), WARN, L(`Switch ${swTop} < routeur ${rLan} GbE — lien bridé`, `Switch ${swTop} < router ${rLan}GbE — capped link`), aSw, A('Routeur', rLan + ' GbE'));
+      }
+      const pcTop = Math.max(mbLan, nicTop);
+      if (pcTop) {
+        if (swTop >= pcTop) add(id, 'pc', 'PC', OK, L(`Switch ${swTop} ≥ lien PC ${pcTop} GbE`, `Switch ${swTop} ≥ PC link ${pcTop}GbE`), aSw, A('Lien PC', pcTop + ' GbE'));
+        else add(id, 'pc', 'PC', WARN, L(`Switch ${swTop} < lien PC ${pcTop} GbE — bridé`, `Switch ${swTop} < PC link ${pcTop}GbE — capped`), aSw, A('Lien PC', pcTop + ' GbE'));
+      } else if (!rLan) add(id, 'ports', L('Ports', 'Ports'), WARN, L('Vitesses routeur/PC inconnues — vérifiez', 'Unknown router/PC speeds — verify'), aSw, null);
+    });
+    /* ---- Network card: PCIe slot (if internal) + link speed ---- */
+    const usbNic = id => /usb|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+    byDef('netcard').forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      if (!usbNic(id) && mbId && P[mbId].hasDs) {
+        const M = P[mbId].ds;
+        const usedX1 = cardIds.filter(cid => cid !== id && !isExtCard(cid)).length;
+        const x1 = M.slotX1 || 0;
+        if (x1 && usedX1 < x1) add(id, 'slot', L('Slot', 'Slot'), OK, L(`Slot PCIe x1 libre (${usedX1 + 1}/${x1})`, `Free PCIe x1 slot (${usedX1 + 1}/${x1})`), A('Carte', 'PCIe x1'), A('Slots x1 CM', x1));
+        else if ((M.slotX16 || 0) > (gpuId ? 1 : 0) + cardIds.filter(cid => cid !== id && !isExtCard(cid) && !x1).length) add(id, 'slot', L('Slot', 'Slot'), OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16', 'libre'));
+        else if (x1 || M.slotX16) add(id, 'slot', L('Slot', 'Slot'), ERR, L('Plus de slot PCIe libre !', 'No free PCIe slot left!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
+        else add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slot libre à confirmer', 'Confirm free slot'), A('Carte', P[id].p.name || '?'), A('Slots CM', '?'));
+      } else if (!usbNic(id)) add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null);
+      else if (mbUsbA > 0) add(id, 'slot', L('Slot', 'Slot'), OK, L(`Carte USB — ${mbUsbA} port(s) USB-A arrière`, `USB card — ${mbUsbA} rear USB-A port(s)`), A('Carte', 'USB'), A('USB-A arrière', mbUsbA));
+      else add(id, 'slot', L('Slot', 'Slot'), WARN, L('Ports USB CM à confirmer', 'Confirm board USB ports'), A('Carte', 'USB'), null);
+      const nicTop = P[id].ds.portSpeed || P[id].ds.lan || 0;
+      const swTops = byDef('switch').filter(sid => P[sid].hasDs).map(sid => P[sid].ds.portSpeed || (P[sid].ds.rj45 ? 1 : 0));
+      const swTop = swTops.length ? Math.max(...swTops) : 0;
+      const mbLan = (mbId && P[mbId].hasDs) ? (P[mbId].ds.lan || 0) : 0;
+      if (nicTop && swTop) {
+        if (nicTop <= swTop) add(id, 'link', L('Débit', 'Speed'), OK, L(`Carte ${nicTop} ≤ switch ${swTop} GbE`, `NIC ${nicTop} ≤ switch ${swTop}GbE`), A('Carte', nicTop + ' GbE'), A('Switch', swTop + ' GbE'));
+        else add(id, 'link', L('Débit', 'Speed'), WARN, L(`Carte ${nicTop} > switch ${swTop} GbE — bridée`, `NIC ${nicTop} > switch ${swTop}GbE — capped`), A('Carte', nicTop + ' GbE'), A('Switch', swTop + ' GbE'));
+      } else if (nicTop && mbLan) {
+        if (nicTop > mbLan) add(id, 'link', L('Débit', 'Speed'), OK, L(`Carte ${nicTop} > LAN CM ${mbLan} GbE — utile`, `NIC ${nicTop} > board LAN ${mbLan}GbE — useful`), A('Carte', nicTop + ' GbE'), A('LAN CM', mbLan + ' GbE'));
+        else add(id, 'link', L('Débit', 'Speed'), WARN, L(`Carte ${nicTop} ≤ LAN CM ${mbLan} GbE — intérêt à confirmer`, `NIC ${nicTop} ≤ board LAN ${mbLan}GbE — confirm usefulness`), A('Carte', nicTop + ' GbE'), A('LAN CM', mbLan + ' GbE'));
+      } else if (nicTop || swTop || mbLan) add(id, 'link', L('Débit', 'Speed'), WARN, L('Débits carte/switch/CM à confirmer', 'Confirm NIC/switch/board speeds'), A('Carte', nicTop ? nicTop + ' GbE' : '?'), A('Réseau', swTop ? swTop + ' GbE' : mbLan ? mbLan + ' GbE' : '?'));
     });
     /* ---- UPS vs total ---- */
     byDef('ups').forEach(id => {
@@ -522,16 +724,29 @@ const Compat = (() => {
         else add(id, 'load', L('Charge', 'Load'), OK, L(`~${cap}W suffisants`, `~${cap}W sufficient`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
       }
     });
-    /* ---- PCIe capture/sound cards: free x1/x16 slot ---- */
-    order.forEach(id => {
-      if (!P[id] || !/capture|acquisition|carte son|sound card|elgato|averMedia/i.test(P[id].p.name || '')) return;
-      const w1 = /x1/i.test(P[id].p.name || '');
-      if (!mbId || !P[mbId].hasDs) { add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null); return; }
+    /* ---- PCIe capture/sound cards: internal (PCIe x1) vs external (USB) ---- */
+    cardIds.forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const lbl = L('Slot', 'Slot');
+      if (isExtCard(id)) {
+        const cType = /usb[-\s]?c|thunderbolt/i.test((P[id].p.name || '') + ' ' + (P[id].ds.raw || '')) ? 'C' : 'A';
+        const have = cType === 'C' ? mbUsbC : mbUsbA;
+        if (!mbId || !P[mbId].hasDs) add(id, 'slot', lbl, WARN, L('Carte externe — ports USB CM à confirmer', 'External card — confirm board USB ports'), A('Carte', P[id].p.name || '?'), null);
+        else if (have > 0) add(id, 'slot', lbl, OK, L(`Carte externe USB-${cType} — ${have} port(s) arrière`, `External USB-${cType} card — ${have} rear port(s)`), A('Carte', 'USB-' + cType), A(`USB-${cType} arrière`, have));
+        else add(id, 'slot', lbl, WARN, L(`Carte externe USB-${cType} — ports arrière à confirmer`, `External USB-${cType} card — confirm rear ports`), A('Carte', 'USB-' + cType), A(`USB-${cType} arrière`, '?'));
+        return;
+      }
+      if (!mbId || !P[mbId].hasDs) { add(id, 'slot', lbl, WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null); return; }
       const M = P[mbId].ds;
-      const ok = (M.slotX16 || 0) >= (gpuId ? 2 : 1) || (!w1 && (M.slotX1 || 0) > 0) || (w1 && (M.slotX1 || 0) > 0);
-      add(id, 'slot', L('Slot', 'Slot'), ok ? OK : WARN,
-        ok ? L('Slot libre disponible', 'Free slot available') : L('Slot libre à confirmer (GPU + carte d’extension)', 'Confirm free slot (GPU + add-in card)'),
-        A('Carte', P[id].p.name || '?'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
+      const x1 = M.slotX1 || 0;
+      const rank = intCards.indexOf(id); // 0-based among internal cards
+      if (x1 && rank < x1) add(id, 'slot', lbl, OK, L(`Carte interne — slot PCIe x1 n°${rank + 1}/${x1} libre`, `Internal card — free PCIe x1 slot #${rank + 1}/${x1}`), A('Carte', 'PCIe x1'), A('Slots x1 CM', x1));
+      else {
+        const x16used = (gpuId ? 1 : 0) + Math.max(0, rank - x1);
+        if ((M.slotX16 || 0) > x16used) add(id, 'slot', lbl, OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16 libres', (M.slotX16 || 0) - x16used));
+        else if (x1 || M.slotX16) add(id, 'slot', lbl, ERR, L('Plus de slot PCIe libre pour cette carte !', 'No free PCIe slot left for this card!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
+        else add(id, 'slot', lbl, WARN, L('Slot libre à confirmer (GPU + carte d’extension)', 'Confirm free slot (GPU + add-in card)'), A('Carte', P[id].p.name || '?'), A('Slots CM', '?'));
+      }
     });
     /* ---- Screens vs video outputs (GPU, else motherboard iGPU) ---- */
     const fmtVid = v => {
@@ -543,22 +758,51 @@ const Compat = (() => {
       return parts.length ? parts.join(' + ') : '?';
     };
     const screenIds = byDef('screen1');
-    const srcVid = (gpuId && P[gpuId].hasDs) ? P[gpuId].ds.vid : null;
-    const mbVid = (mbId && P[mbId].hasDs) ? P[mbId].ds.vid : null;
+    const srcDs = (gpuId && P[gpuId].hasDs) ? P[gpuId].ds : null;
+    const mbDs = (mbId && P[mbId].hasDs) ? P[mbId].ds : null;
+    const srcVid = srcDs ? srcDs.vid : null;
+    const mbVid = mbDs ? mbDs.vid : null;
     const outVid = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? srcVid : mbVid;
+    const outDs = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? srcDs : mbDs;
     const outName = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? L('Sorties GPU', 'GPU outputs') : L('Sorties CM', 'Board outputs');
     screenIds.forEach(id => {
       if (!P[id].hasDs) { needDs(id); return; }
-      const V = P[id].ds.vid;
+      const SD = P[id].ds;
+      const V = SD.vid;
       const hasIn = V && (V.hdmi || V.dp || V.usbc);
       const ins = V ? [V.hdmi && 'HDMI', V.dp && 'DP', V.usbc && 'USB-C'].filter(Boolean) : [];
       const hasOut = outVid && (outVid.hdmi || outVid.dp || outVid.usbc);
+      let common = [];
       if (!hasIn) add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L('Entrées vidéo de l’écran inconnues — vérifiez le câble (HDMI/DP/USB-C)', 'Unknown monitor inputs — verify cable (HDMI/DP/USB-C)'), A('Entrées écran', '?'), hasOut ? A(outName, fmtVid(outVid)) : null);
       else if (!hasOut) add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L('Sorties vidéo GPU/CM inconnues — vérifiez', 'Unknown GPU/board outputs — verify'), A('Entrées écran', ins.join(' + ')), A(outName, '?'));
       else {
-        const common = ins.filter(k => (k === 'HDMI' && outVid.hdmi) || (k === 'DP' && outVid.dp) || (k === 'USB-C' && outVid.usbc));
+        common = ins.filter(k => (k === 'HDMI' && outVid.hdmi) || (k === 'DP' && outVid.dp) || (k === 'USB-C' && outVid.usbc));
         if (common.length) add(id, 'input', L('Entrée vidéo', 'Video input'), OK, L(`${common.join(' + ')} des deux côtés`, `${common.join(' + ')} on both ends`), A('Entrées écran', ins.join(' + ')), A(outName, fmtVid(outVid)));
         else add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L(`Écran ${ins.join(' + ')} ≠ ${fmtVid(outVid)} — adaptateur à prévoir`, `Monitor ${ins.join(' + ')} ≠ ${fmtVid(outVid)} — adapter needed`), A('Entrées écran', ins.join(' + ')), A(outName, fmtVid(outVid)));
+      }
+      /* port speed: hi-demand (res×Hz) needs HDMI 2.1 / DP 1.4 on both ends */
+      const rw = SD.resWH, hz = SD.refresh || 0;
+      const dem = (rw && hz) ? rw.w * rw.h * hz : 0;
+      const hi = dem > 450000000;
+      if (common.length && (hi || (SD.hdmiVer && outDs && outDs.hdmiVer) || (SD.dpVer && outDs && outDs.dpVer))) {
+        const port = common.includes('DP') ? 'DP' : common.includes('HDMI') ? 'HDMI' : 'USB-C';
+        if (port === 'USB-C') add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L('USB-C Alt Mode — débit suffisant', 'USB-C Alt Mode — enough bandwidth'), A('Écran', `${rw ? rw.w + '×' + rw.h : '?'}@${hz || '?'}Hz`), A(outName, 'USB-C'));
+        else {
+          const needV = port === 'HDMI' ? 2.1 : 1.4;
+          const sV = port === 'HDMI' ? (SD.hdmiVer || 0) : (SD.dpVer || 0);
+          const oV = outDs ? (port === 'HDMI' ? (outDs.hdmiVer || 0) : (outDs.dpVer || 0)) : 0;
+          const fmtV = v => v || '?';
+          if (sV && oV) {
+            if (sV >= needV && oV >= needV) add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L(`${port} ${sV}/${oV} — suffisant pour ${rw.w}×${rw.h}@${hz}Hz`, `${port} ${sV}/${oV} — enough for ${rw.w}×${rw.h}@${hz}Hz`), A('Écran', `${port} ${sV}`), A(outName, `${port} ${oV}`));
+            else add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rw.w}×${rw.h}@${hz}Hz bridé, vérifiez le câble`, `${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rw.w}×${rw.h}@${hz}Hz capped, verify cable`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`));
+          } else if (hi) add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${rw.w}×${rw.h}@${hz}Hz exige ${port} ${needV} des deux côtés — versions à confirmer`, `${rw.w}×${rw.h}@${hz}Hz needs ${port} ${needV} on both ends — confirm versions`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`));
+        }
+      }
+      /* resolution vs GPU max */
+      const gpMax = srcDs ? srcDs.maxResWH : null;
+      if (rw && gpMax) {
+        if (rw.w * rw.h <= gpMax.w * gpMax.h) add(id, 'res', L('Résolution', 'Resolution'), OK, L(`${rw.w}×${rw.h} ≤ max GPU ${gpMax.w}×${gpMax.h}`, `${rw.w}×${rw.h} ≤ GPU max ${gpMax.w}×${gpMax.h}`), A('Écran', `${rw.w}×${rw.h}`), A('Max GPU', `${gpMax.w}×${gpMax.h}`));
+        else add(id, 'res', L('Résolution', 'Resolution'), WARN, L(`${rw.w}×${rw.h} > max GPU ${gpMax.w}×${gpMax.h} !`, `${rw.w}×${rw.h} > GPU max ${gpMax.w}×${gpMax.h}!`), A('Écran', `${rw.w}×${rw.h}`), A('Max GPU', `${gpMax.w}×${gpMax.h}`));
       }
       if (screenIds.length > 1) {
         const outs = hasOut ? ((outVid.hdmi || 0) + (outVid.dp || 0) + (outVid.usbc || 0)) : 0;
@@ -567,17 +811,14 @@ const Compat = (() => {
       }
     });
     /* ---- USB / wireless / audio peripherals vs motherboard ---- */
-    const mbUsbA = (mbId && P[mbId].hasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.a || 0) : 0;
-    const mbUsbC = (mbId && P[mbId].hasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.c || 0) : 0;
-    const mbBt = (mbId && P[mbId].hasDs) ? (P[mbId].ds.bt || '') : '';
-    const mbAudio = (mbId && P[mbId].hasDs) ? !!P[mbId].ds.audio : false;
-    const usbPeripherals = ['keyboard', 'mouse', 'headset', 'speakers', 'webcam'];
+    const usbPeripherals = ['keyboard', 'mouse', 'pad', 'headset', 'speakers', 'webcam', 'graphictab', 'usbstick', 'extstorage'];
     usbPeripherals.forEach(defId => {
       byDef(defId).forEach(id => {
         if (!P[id].hasDs) { needDs(id); return; }
         const D = P[id].ds, W = D.wireless || {};
         const lbl = L('Connexion', 'Connection');
-        const needsUsb = W.rf || W.wired || (!W.bt && !W.wl && !D.jack && /usb/i.test(D.raw || ''));
+        const forceUsb = defId === 'pad' || defId === 'usbstick' || defId === 'extstorage';
+        const needsUsb = forceUsb || W.rf || W.wired || (!W.bt && !W.wl && !D.jack && /usb/i.test(D.raw || ''));
         if (D.jack && (defId === 'headset' || defId === 'speakers')) {
           if (mbAudio) add(id, 'audio', lbl, OK, L('Jack 3,5 mm — audio CM intégrée', '3.5mm jack — onboard board audio'), A('Casque/enceintes', 'Jack 3,5 mm'), A('Audio CM', String(P[mbId].ds.audio || 'intégré')));
           else add(id, 'audio', lbl, WARN, L('Jack 3,5 mm — audio CM à confirmer', '3.5mm jack — confirm board audio'), A('Casque/enceintes', 'Jack 3,5 mm'), A('Audio CM', '?'));
@@ -593,17 +834,44 @@ const Compat = (() => {
           if (!mbId || !P[mbId].hasDs) add(id, 'usb', lbl, WARN, L('Ports USB arrière CM inconnus — vérifiez', 'Unknown board rear USB ports — verify'), A('Périphérique', what), null);
           else if (mbUsbA > 0) add(id, 'usb', lbl, OK, L(`${what} — ${mbUsbA} port(s) USB-A à l’arrière`, `${what} — ${mbUsbA} rear USB-A port(s)`), A('Périphérique', what), A('USB-A arrière', mbUsbA));
           else add(id, 'usb', lbl, WARN, L('Ports USB-A arrière CM inconnus — hub conseillé', 'Unknown board rear USB-A ports — hub advised'), A('Périphérique', what), A('USB-A arrière', '?'));
+          if ((defId === 'webcam' || defId === 'extstorage') && mbId && P[mbId].hasDs) { // cable speed
+            const uhd = defId === 'webcam' && /4k|uhd|2160/i.test((P[id].p.name || '') + ' ' + (D.raw || ''));
+            const rs = defId === 'extstorage' ? (D.readSpeed || 0) : 0;
+            const needSpd = defId === 'extstorage' ? (rs ? rs * 8 / 1000 : 5) : (uhd ? 5 : 0.48);
+            const devLbl = defId === 'extstorage' ? (rs ? `${rs} Mo/s` : 'SSD/HDD externe') : (uhd ? '4K/UHD' : 'HD');
+            const mbTop = P[mbId].ds.usbTop || 0;
+            if (!mbTop) add(id, 'speed', L('Débit', 'Speed'), WARN, L(`Débit USB arrière CM inconnu — ${defId === 'extstorage' ? 'vérifiez (5-20 Gbps)' : uhd ? '4K exige ~5 Gbps' : 'vérifiez'}`, `Unknown board rear USB speed — ${defId === 'extstorage' ? 'verify (5-20 Gbps)' : uhd ? '4K needs ~5 Gbps' : 'verify'}`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', '?'));
+            else if (mbTop >= needSpd) add(id, 'speed', L('Débit', 'Speed'), OK, L(`USB arrière ~${mbTop} Gbps — suffisant`, `Rear USB ~${mbTop} Gbps — enough`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', `~${mbTop} Gbps`));
+            else add(id, 'speed', L('Débit', 'Speed'), WARN, L(`USB arrière ~${mbTop} Gbps < ~${Math.round(needSpd * 10) / 10} requis — bridé`, `Rear USB ~${mbTop} Gbps < ~${Math.round(needSpd * 10) / 10} needed — capped`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', `~${mbTop} Gbps`));
+          }
           return;
         }
         add(id, 'conn', lbl, WARN, L('Connectivité non détectée dans la datasheet — vérifiez (USB/Bluetooth/Jack)', 'Connectivity not found in datasheet — verify (USB/Bluetooth/Jack)'), A('Périphérique', P[id].p.name || '?'), null);
       });
     });
-    /* ---- Docking station: needs rear USB-C / Thunderbolt ---- */
+    /* ---- Docking station: rear USB-C + uplink speed ---- */
     byDef('dock').forEach(id => {
       if (!P[id].hasDs) { needDs(id); return; }
       if (!mbId || !P[mbId].hasDs) add(id, 'link', L('Liaison', 'Uplink'), WARN, L('USB-C arrière CM inconnu — vérifiez', 'Unknown board rear USB-C — verify'), A('Station', 'USB-C/TB'), null);
       else if (mbUsbC > 0) add(id, 'link', L('Liaison', 'Uplink'), OK, L(`USB-C vers ${mbUsbC} port(s) arrière`, `USB-C to ${mbUsbC} rear port(s)`), A('Station', 'USB-C/TB'), A('USB-C arrière', mbUsbC));
       else add(id, 'link', L('Liaison', 'Uplink'), WARN, L('Pas d’USB-C arrière détecté sur la CM — vérifiez', 'No rear USB-C detected on board — verify'), A('Station', 'USB-C/TB'), A('USB-C arrière', '?'));
+      if (mbId && P[mbId].hasDs) {
+        const dTop = P[id].ds.usbTop || 0, mTop = P[mbId].ds.usbTop || 0;
+        if (dTop && mTop) {
+          if (dTop <= mTop) add(id, 'speed', L('Débit', 'Speed'), OK, L(`Station ~${dTop} ≤ CM ~${mTop} Gbps — plein débit`, `Dock ~${dTop} ≤ board ~${mTop} Gbps — full speed`), A('Station', `~${dTop} Gbps`), A('USB-C CM', `~${mTop} Gbps`));
+          else add(id, 'speed', L('Débit', 'Speed'), WARN, L(`Station ~${dTop} > CM ~${mTop} Gbps — bridée à ~${mTop}`, `Dock ~${dTop} > board ~${mTop} Gbps — capped at ~${mTop}`), A('Station', `~${dTop} Gbps`), A('USB-C CM', `~${mTop} Gbps`));
+        } else if (dTop || mTop) add(id, 'speed', L('Débit', 'Speed'), WARN, L('Débit station/CM à confirmer (Thunderbolt/USB 5-40 Gbps)', 'Confirm dock/board speed (Thunderbolt/USB 5-40 Gbps)'), A('Station', dTop ? `~${dTop} Gbps` : '?'), A('USB-C CM', mTop ? `~${mTop} Gbps` : '?'));
+      }
+    });
+    /* ---- SD / microSD card vs case or dock reader ---- */
+    byDef('memcard').forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const cR = caseId && P[caseId].hasDs && P[caseId].ds.cardReader ? 'case' : null;
+      const dR = byDef('dock').find(did => P[did].hasDs && P[did].ds.cardReader) ? 'dock' : null;
+      const where = cR && dR ? L('Boîtier + dock', 'Case + dock') : cR ? L('Boîtier', 'Case') : dR ? 'Dock' : null;
+      if (where) add(id, 'reader', L('Lecteur', 'Reader'), OK, L(`Lecteur SD : ${where}`, `SD reader: ${where}`), A('Carte', 'SD/microSD'), A('Lecteur', where));
+      else if (mbUsbA > 0) add(id, 'reader', L('Lecteur', 'Reader'), WARN, L('Pas de lecteur SD détecté (boîtier/dock) — adaptateur USB requis', 'No SD reader detected (case/dock) — USB adapter needed'), A('Carte', 'SD/microSD'), A('Lecteur', '?'));
+      else add(id, 'reader', L('Lecteur', 'Reader'), WARN, L('Lecteur SD à confirmer (boîtier/dock/adaptateur USB)', 'Confirm SD reader (case/dock/USB adapter)'), A('Carte', 'SD/microSD'), A('Lecteur', '?'));
     });
     /* ---- slot worst-status map ---- */
     const statusOf = {};
