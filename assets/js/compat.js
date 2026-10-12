@@ -1,125 +1,215 @@
 /* ConfigMaker — compatibility checking (100% local, no dependency).
-   Layer 1: parseSpecs() extracts structured data from Idealo FR/EN free text.
-   Layer 2: check() runs pairwise rules → per-slot bubbles + global issues.
-   Statuses: ok (green) | warn (yellow: missing data or degraded) | err (red) | na (grey: counterpart absent). */
+   Source of truth: the Idealo product page DATASHEET section only
+   ("## Détails du produit", label/value lines), never the short summary.
+   Layer 1: parseDatasheet() maps known labels → structured fields (+EN variants).
+   Layer 2: check() runs pairwise rules → per-slot checks {key,label,status,tip,a,b}
+   (a/b = the two compared specs) + global issues.
+   Statuses: ok (green) | warn (yellow) | err (red) | na (grey, counterpart absent)
+   | checked (light green, warning verified by user). */
 'use strict';
 const Compat = (() => {
-  const OK = 'ok', WARN = 'warn', ERR = 'err', NA = 'na';
+  const OK = 'ok', WARN = 'warn', ERR = 'err', NA = 'na', CHECKED = 'checked';
   const T = (lang, fr, en) => (lang === 'en' ? en : fr);
 
-  function allNums(s, re) {
-    const out = [];
-    const rx = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
-    let m;
-    while ((m = rx.exec(String(s || ''))) !== null) out.push(m);
-    return out;
-  }
   function fnum(s) {
     const m = String(s || '').replace(/\s/g, '').match(/(\d+(?:[.,]\d+)?)/);
     return m ? parseFloat(m[1].replace(',', '.')) : 0;
   }
+  function ints(s, min, max) {
+    const out = [];
+    const rx = /(\d+(?:[.,]\d+)?)/g;
+    let m;
+    const clean = String(s || '').replace(/\s/g, '');
+    while ((m = rx.exec(clean)) !== null) {
+      const v = parseFloat(m[1].replace(',', '.'));
+      if (v >= min && v <= max) out.push(v);
+    }
+    return out;
+  }
+  function low(s) {
+    return String(s || '').toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim();
+  }
 
-  /* ---------------- Layer 1: spec parsing ---------------- */
-  function parse(defId, name, specs) {
-    const text = `${name || ''}\n${specs || ''}`;
-    const P = { raw: text };
-    // sockets
-    P.sockets = [...new Set(allNums(text, /\b(AM5|AM4|1700|1851|1200|1151)\b/gi).map(m => m[1].toUpperCase()))];
-    // chipset
-    const cm = text.match(/\b(B850|B650E?|X870E?|X670E?|B550|X570S?|Z790|Z690|B760|B660|H610|H670|Z590|B560|H510|A520|A320|X470|B450)\b/i);
-    P.chipset = cm ? cm[1].toUpperCase() : '';
-    // board format (own) — E-ATX before ATX to avoid substring issues
-    P.form = '';
-    if (/E-?\s?ATX/i.test(text)) P.form = 'EATX';
-    else if (/MICRO\s?-?\s?ATX/i.test(text)) P.form = 'MATX';
-    else if (/MINI[ -]?ITX/i.test(text)) P.form = 'ITX';
-    else if (/\bATX\b/.test(text) && !/ATX12V/i.test(text.replace(/\bATX\b/, ''))) P.form = /ATX12V/.test(text) && !/format|Format|supporté|Supported/i.test(text) ? '' : (/\bATX\b/.test(text) ? 'ATX' : '');
-    if (/ATX12V/i.test(text) && !/format|Format|supporté|Supported|tour|Tower|boîtier|Boîtier|Case|case/i.test(text)) P.form = '';
-    // case supported formats
-    P.caseForms = [];
-    if (/E-?\s?ATX/i.test(text)) P.caseForms.push('EATX');
-    if (/MICRO\s?-?\s?ATX/i.test(text)) P.caseForms.push('MATX');
-    if (/MINI[ -]?ITX/i.test(text)) P.caseForms.push('ITX');
-    if (/(supporté|support|Formats?|compatibles?)[^.:\n]{0,60}\bATX\b/i.test(text) || /ATX\s*,\s*(Micro|Mini)/i.test(text)) P.caseForms.push('ATX');
-    // DDR type
-    const dm = text.match(/DDR\s?([45])\b/i);
-    P.ddr = dm ? 'DDR' + dm[1] : '';
-    // RAM slots / sticks / speed
-    let     m = text.match(/Nombre d['\u2019]emplacements RAM\s*(\d+)|(\d+)\s*(?:emplacements?|slots?)\s*(?:de\s*)?(?:RAM|DIMM|mémoire|memory)/i);
-    P.ramSlots = m ? parseInt(m[1] || m[2], 10) : 0;
-    m = text.match(/Nombre de modules?\s*(\d+)/i) || text.match(/(\d+)\s*x\s*\d+\s*Go/i);
-    P.ramSticks = m ? parseInt(m[1], 10) : 0;
-    const speeds = allNums(text, /(\d[\d\s]*)\s*(MT\/s|MHz)/gi).map(x => parseInt(x[1].replace(/\s/g, ''), 10)).filter(x => x > 100);
-    P.ramSpeed = speeds.length ? Math.max(...speeds) : 0;
-    // PCIe gen/lanes (own device: GPU/SSD)
-    P.pcie = allNums(text, /PCIe?\s*(\d)(?:\.0)?\s*x\s*(\d+)/gi).map(x => ({ gen: parseInt(x[1], 10), lanes: parseInt(x[2], 10) }));
-    const pg = text.match(/PCI(?:-E|e| Express)?\s*(\d)(?:\.0)?\s*x\s*(\d+)/i);
-    P.pcieGen = pg ? parseInt(pg[1], 10) : (P.pcie.length ? Math.max(...P.pcie.map(x => x.gen)) : 0);
-    P.pcieLanes = pg ? parseInt(pg[2], 10) : (P.pcie.length ? Math.max(...P.pcie.map(x => x.lanes)) : 0);
-    // MB PCIe x16 slot count
-    m = text.match(/Nombre de slots PCIe x(\d+)\s*(\d+)/i);
-    P.slotX16 = m ? { lanes: parseInt(m[1], 10), count: parseInt(m[2], 10) } : null;
-    // M.2 / SATA
-    P.m2 = /M\.?\s?2/i.test(text);
-    if (!P.m2 && P.chipset) P.m2 = true; // tout chipset moderne embarque du M.2 NVMe
-    m = text.match(/(\d+)\s*x\s*M\.?\s?2/i);
-    P.m2count = m ? parseInt(m[1], 10) : 0;
-    P.sata = /SATA/i.test(text);
-    m = text.match(/(\d+)\s*x\s*S-?ATA/i);
-    P.sataCount = m ? parseInt(m[1], 10) : 0;
-    // dimensions (mm)
-    m = text.match(/Longueur max[^\d\n]{0,40}(\d+)\s*mm/i);
-    P.caseGpuMax = m ? parseInt(m[1], 10) : 0;
-    m = text.match(/Hauteur max[^\d\n]{0,40}(\d+)\s*(?:mm)?(?=[,.\s]|$)/i);
-    P.caseCoolerMax = m ? parseInt(m[1], 10) : 0;
-    m = text.match(/(?:longueur|length|long)\D{0,20}(\d+)\s*mm/i);
-    P.gpuLen = /carte graphique|GPU|graphics card|GeForce|Radeon|Arc /i.test(text) && m ? parseInt(m[1], 10) : 0;
-    // TDP
-    m = text.match(/TDP\D{0,25}(\d+)\s*(?:watts|W)\b/i);
-    P.tdp = m ? parseInt(m[1], 10) : 0;
-    // PSU/UPS capacity
-    m = text.match(/Puissance continue\D{0,10}(\d+)\s*W/i);
-    if (m) P.capW = parseInt(m[1], 10);
-    else {
-      m = text.match(/(\d+)\s*VA\b/i);
-      if (m) P.capW = Math.round(parseInt(m[1], 10) * 0.6);
-      else {
-        const cands = allNums(text, /(\d{3,4})\s*W\b/g).map(x => parseInt(x[1], 10)).filter(x => x >= 300);
-        P.capW = cands.length ? Math.max(...cands) : 0;
+  /* Normalize datasheet text: table rows "| L | V |" become "L V" lines. */
+  function dsLines(ds) {
+    return String(ds || '').split('\n').map(ln => {
+      let s = ln.trim();
+      if (/^\|.*\|$/.test(s)) s = s.replace(/^\||\|$/g, '').split('|').map(x => x.trim()).filter(Boolean).join(' ');
+      return s.replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+  }
+
+  /* label (lowercase) -> [field, kind]; longest labels first.
+     kinds: raw | num | numlist | sockets | forms | form | ddr | pciegen | usbports | lan | flag */
+  const LABELS = [
+    ['support', 'socket', 'sockets'], ['socket du processeur', 'socket', 'sockets'],
+    ['processor socket', 'socket', 'sockets'], ['socket', 'socket', 'sockets'],
+    ['support des processeurs jusqu', 'cpuMaxTdp', 'num'],
+    ['nombre d\u2019emplacements ram', 'ramSlots', 'num'], ["nombre d'emplacements ram", 'ramSlots', 'num'],
+    ['number of ram slots', 'ramSlots', 'num'], ['memory slots', 'ramSlots', 'num'],
+    ['architecture de la ram', null, null],
+    ['type de ram', 'ddr', 'ddr'], ['memory type', 'ddr', 'ddr'],
+    ['fréquence mémoire (oc)', 'ramSpeedMax', 'num'], ['memory frequency (oc)', 'ramSpeedMax', 'num'],
+    ['fréquence mémoire', 'ramSpeedMax', 'num'],
+    ['memory frequency', 'ramSpeedMax', 'num'], ['bus frequency', 'ramSpeedMax', 'num'], ['fréquence de bus', 'ramSpeedMax', 'num'],
+    ['extension de mémoire max', 'ramCapMax', 'num'], ['max memory', 'ramCapMax', 'num'],
+    ['capacité mémoire', 'ramCap', 'num'], ['memory capacity', 'ramCap', 'num'], ['memory size', 'ramCap', 'num'],
+    ['configuration', 'ramConfig', 'raw'],
+    ['hauteur', 'height', 'num'], ['height', 'height', 'num'],
+    ['tension', null, null], ['voltage', null, null],
+    ['connecteurs de disque', null, null],
+    ['nombre de ports sata', 'sataCount', 'num'], ['sata ports', 'sataCount', 'num'],
+    ['nombre de ports m.2', 'm2count', 'num'], ['nombre de ports m2', 'm2count', 'num'], ['m.2 ports', 'm2count', 'num'],
+    ['raccordements périphériques', 'usbBack', 'usbports'], ['rear usb', 'usbBack', 'usbports'],
+    ['nombre de ports usb', null, null],
+    ['ports internes', null, null], ['internal usb', null, null],
+    ['format', 'form', 'form'], ['form factor', 'form', 'form'],
+    ['formats de cartes mères supportés', 'caseForms', 'forms'], ['supported motherboard formats', 'caseForms', 'forms'],
+    ['standards ethernet', 'lan', 'lan'], ['ethernet', 'lan', 'lan'], ['network', 'lan', 'lan'],
+    ['connecteurs vidéo', 'vid', 'vidports'], ['sorties vidéo', 'vid', 'vidports'], ['sorties video', 'vid', 'vidports'],
+    ['entrées vidéo', 'vid', 'vidports'], ['entrees video', 'vid', 'vidports'], ['entrées', 'vid', 'vidports'],
+    ['connecteur vidéo', 'vid', 'vidports'], ['ports vidéo', 'vid', 'vidports'],
+    ['video inputs', 'vid', 'vidports'], ['video outputs', 'vid', 'vidports'],
+    ['inputs', 'vid', 'vidports'], ['outputs', 'vid', 'vidports'],
+    ['connecteurs', 'vid', 'vidports'], ['connectique', 'vid', 'vidports'],
+    ['carte son intégrée', 'audio', 'flag'], ['integrated sound', 'audio', 'flag'], ['carte son', 'audio', 'flag'],
+    ['version bluetooth', 'bt', 'raw'], ['bluetooth', 'bt', 'raw'],
+    ['connectivité', 'wireless', 'wireless'], ['connectivity', 'wireless', 'wireless'],
+    ['connexion', 'wireless', 'wireless'], ['sans fil', 'wireless', 'wireless'],
+    ['prise casque', 'jack', 'flag'], ['connecteur casque', 'jack', 'flag'],
+    ['versions pcie', 'pcieVers', 'numlist'],
+    ['nombre de slots pcie x16', 'slotX16', 'num'], ['nombre de slots pcie x1', 'slotX1', 'num'],
+    ['tdp (thermal design power)', 'tdp', 'num'], ['thermal design power', 'tdp', 'num'], ['tdp', 'tdp', 'num'],
+    ['types de mémoire', 'ddr', 'ddr'], ['memory types', 'ddr', 'ddr'],
+    ['vitesse de transfert (lecture)', 'readSpeed', 'num'], ['read speed', 'readSpeed', 'num'],
+    ['bus', 'bus', 'raw'], ['interface', 'bus', 'raw'],
+    ['protocole', 'proto', 'raw'], ['protocol', 'proto', 'raw'],
+    ['facteur de forme', 'ff', 'raw'],
+    ['longueur', 'length', 'num'], ['length', 'length', 'num'],
+    ['version pcie', 'pcieGen', 'num'], ['pcie version', 'pcieGen', 'num'],
+    ['voies pcie', 'pcieLanes', 'num'], ['pcie lanes', 'pcieLanes', 'num'],
+    ['port d\u2019alimentation', 'powConn', 'raw'], ["port d'alimentation", 'powConn', 'raw'], ['power connector', 'powConn', 'raw'],
+    ['supports de processeurs compatibles', 'sockets', 'sockets'], ['compatible sockets', 'sockets', 'sockets'],
+    ['taille du radiateur', 'radSize', 'num'], ['radiator size', 'radSize', 'num'],
+    ['baies 3,5', 'bays35', 'num'], ['baie 2,5', 'bays25', 'num'],
+    ['hauteur max. du ventilateur de processeur', 'caseCoolerMax', 'num'], ['max cpu cooler height', 'caseCoolerMax', 'num'],
+    ['longueur max. de la carte graphique', 'caseGpuMax', 'num'], ['max gpu length', 'caseGpuMax', 'num'],
+    ['refroidissement par eau', 'watercool', 'flag'], ['liquid cooling', 'watercool', 'flag'], ['water cooling', 'watercool', 'flag'],
+    ['connecteurs pci-e (8 broches)', 'pcie8', 'num'], ['pci-e 8-pin connectors', 'pcie8', 'num'],
+    ['autres connecteurs', 'otherConn', 'raw'],
+    ['puissance continue', 'capW', 'num'],
+    ['type de produit', null, null], ['product type', null, null],
+  ];
+  const SORTED = [...LABELS].sort((a, b) => b[0].length - a[0].length);
+
+  function parseDatasheet(dsText) {
+    const P = { sockets: [], caseForms: [], pcieVers: [], usbBack: { c: 0, a: 0 } };
+    const rawLines = dsLines(dsText);
+    /* Join "label" + "value" pairs split across two lines. */
+    const lines = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      const l = low(rawLines[i]);
+      const isLab = SORTED.some(([lab]) => l === lab);
+      if (isLab && i + 1 < rawLines.length) { lines.push(rawLines[i] + ' ' + rawLines[i + 1]); i++; }
+      else lines.push(rawLines[i]);
+    }
+    for (const ln of lines) {
+      const l = low(ln);
+      let hit = null;
+      for (const [lab, field, kind] of SORTED) {
+        if (!field) continue;
+        const rest = l.startsWith(lab) ? l.slice(lab.length) : null;
+        if (rest !== null && (rest === '' || /^[\s.:'"\-–_(/]/.test(rest))) { hit = [field, kind, ln.slice(lab.length).replace(/^[\s:]+/, '')]; break; }
+      }
+      if (!hit) continue;
+      const [field, kind, val] = hit;
+      if (kind === 'raw') { P[field] = (P[field] ? P[field] + ' / ' : '') + val; continue; }
+      if (kind === 'flag') { P[field] = /oui|yes|true/i.test(val) ? true : val; continue; }
+      if (kind === 'num') {
+        const nums = ints(val, 0, 1000000);
+        if (field === 'ramSpeedMax' || field === 'readSpeed') P[field] = nums.length ? Math.max(...nums) : 0;
+        else P[field] = nums.length ? nums[0] : 0;
+        continue;
+      }
+      if (kind === 'numlist') { P[field] = ints(val, 1, 9); continue; }
+      if (kind === 'sockets') {
+        const ss = (val.match(/\b(AM5|AM4|1700|1851|1200|1151)\b/gi) || []).map(s => s.toUpperCase());
+        P.sockets = [...new Set([...P.sockets, ...ss])];
+        continue;
+      }
+      if (kind === 'forms') {
+        const f = [];
+        if (/E-?\s?ATX/i.test(val)) f.push('EATX');
+        if (/MICRO\s?-?\s?ATX/i.test(val)) f.push('MATX');
+        if (/MINI[ -]?ITX/i.test(val)) f.push('ITX');
+        if (/\bATX\b/i.test(val) && !/ATX12V/i.test(val.replace(/\bATX\b/, ''))) f.push('ATX');
+        P.caseForms = [...new Set([...P.caseForms, ...f])];
+        continue;
+      }
+      if (kind === 'form') {
+        if (/E-?\s?ATX/i.test(val)) P.form = 'EATX';
+        else if (/MICRO\s?-?\s?ATX/i.test(val)) P.form = 'MATX';
+        else if (/MINI[ -]?ITX/i.test(val)) P.form = 'ITX';
+        else if (/\bATX\b/i.test(val)) P.form = 'ATX';
+        continue;
+      }
+      if (kind === 'ddr') {
+        const dm = val.match(/DDR\s?([45])\b/i);
+        if (dm) P.ddr = 'DDR' + dm[1];
+        continue;
+      }
+      if (kind === 'pciegen') { const n = fnum(val); if (n) P.pcieGen = n; continue; }
+      if (kind === 'usbports') {
+        val.split(',').forEach(part => {
+          const n = fnum(part);
+          if (!n) return;
+          if (/C\b|2x2|Type.?C/i.test(part)) P.usbBack.c += n;
+          else P.usbBack.a += n;
+        });
+        continue;
+      }
+      if (kind === 'lan') {
+        const ns = ints(val.replace(',', '.'), 0, 100);
+        if (ns.length) P.lan = Math.max(...ns);
+        continue;
+      }
+      if (kind === 'vidports') {
+        P.vid = P.vid || { hdmi: 0, dp: 0, usbc: 0 };
+        String(val).split(/[,;+]/).forEach(part => {
+          let n = 1;
+          const m = part.match(/(\d+)\s*x\b/i);
+          if (m) n = parseInt(m[1], 10);
+          if (/hdmi/i.test(part)) P.vid.hdmi += n;
+          else if (/display\s?port|\bdp\b|mini\s?dp/i.test(part)) P.vid.dp += n;
+          else if (/usb[-\s]?c|type.?c|thunderbolt|usb4/i.test(part)) P.vid.usbc += n;
+        });
+        continue;
+      }
+      if (kind === 'wireless') {
+        P.wireless = P.wireless || {};
+        const v = String(val);
+        if (/bluetooth/i.test(v)) {
+          P.wireless.bt = true;
+          const bmv = v.match(/(\d+(?:[.,]\d+)?)/);
+          if (bmv) P.wireless.btVer = bmv[1];
+        }
+        if (/2[.,]4\s?ghz|dongle|récepteur|receiver|radio/i.test(v)) P.wireless.rf = true;
+        if (/sans fil|wireless/i.test(v)) P.wireless.wl = true;
+        if (/filaire|wired|\busb\b/i.test(v)) P.wireless.wired = true;
+        continue;
       }
     }
-    // PSU format
-    P.psuFormat = /SFX/i.test(text) ? 'SFX' : (/ATX/i.test(text) ? 'ATX' : '');
-    // PSU cables / GPU needs
-    const c8 = allNums(text, /(\d+)\s*[x×]\s*8\s*(?:broches|pins?)/gi).map(x => parseInt(x[1], 10));
-    const c8b = allNums(text, /(\d+)\s*x\s*PCI-?E\b/gi).map(x => parseInt(x[1], 10));
-    P.pcie8 = Math.max(0, ...c8, ...c8b);
-    P.hpwr = /12VHPWR/i.test(text);
-    // USB backpanel counts
-    P.usbC = 0; P.usbA = 0; P.usbUnknown = false;
-    const uc = allNums(text, /(\d+)\s*x\s*[^,\n]{0,30}USB[-\s]?C/gi).map(x => parseInt(x[1], 10));
-    const ua = allNums(text, /(\d+)\s*x\s*USB(?![-\s]?C)/gi).map(x => parseInt(x[1], 10));
-    P.usbC = uc.length ? Math.max(...uc) : (/USB[-\s]?C/i.test(text) ? -1 : 0);
-    P.usbA = ua.length ? ua.reduce((a, b) => a + b, 0) : (/USB(?![-\s]?C)/i.test(text) ? -1 : 0);
-    if ((/USB/i.test(text)) && P.usbC === 0 && P.usbA === 0) P.usbUnknown = true;
-    // LAN speed (GbE)
-    m = text.match(/(?:LAN|Ethernet|RJ-?45|réseau|network)[^\d\n]{0,50}(\d+(?:[.,]\d+)?)\s*Gb/i) || text.match(/(\d+(?:[.,]\d+)?)\s*GbE/i);
-    P.lan = m ? parseFloat(m[1].replace(',', '.')) : 0;
-    // drive bays
-    m = text.match(/(\d+)\s*(?:x|×|baies?)\s*2[.,]5/i);
-    P.bays25 = m ? parseInt(m[1], 10) : 0;
-    m = text.match(/(\d+)\s*(?:x|×|baies?)\s*3[.,]5/i);
-    P.bays35 = m ? parseInt(m[1], 10) : 0;
-    // fans
-    const fz = allNums(text, /(\d{2,3})\s*mm/gi).map(x => parseInt(x[1], 10)).filter(x => x >= 80 && x <= 250);
-    P.fanSizes = [...new Set(fz)];
-    P.fanSize = P.fanSizes.length ? P.fanSizes[0] : 0;
-    // drive kind
-    P.isNvme = /NVMe|M\.?\s?2|PCIe/i.test(text);
-    P.sataOnly = /SATA/i.test(text) && !P.isNvme;
-    const sz = text.match(/22(80|110)\b/);
-    P.m2size = sz ? '22' + sz[1] : (P.isNvme ? '2280' : '');
-    P.isHdd35 = /3[.,]5\s*(pouces|"|inch)/i.test(text);
+    /* "Configuration: 2 x 16 Go" → sticks + capacity (datasheet text, not summary). */    if (P.ramConfig && (!P.ramSticks || !P.ramCap)) {
+      const m = String(P.ramConfig).match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)/i);
+      if (m) {
+        if (!P.ramSticks) P.ramSticks = parseInt(m[1], 10) || 0;
+        if (!P.ramCap && /go|gb/i.test(P.ramConfig)) P.ramCap = Math.round(parseInt(m[1], 10) * parseFloat(m[2].replace(',', '.')));
+      } else if (!P.ramCap) {
+        const g = String(P.ramConfig).match(/(\d+(?:[.,]\d+)?)\s*(?:go|gb)/i);
+        if (g) P.ramCap = Math.round(parseFloat(g[1].replace(',', '.')));
+      }
+    }
+    P.raw = String(dsText || '').slice(0, 6000); // keyword fallback (liquid cooling, SATA…)
     return P;
   }
 
@@ -129,271 +219,412 @@ const Compat = (() => {
     if (/processeur|ventirad|watercooling|AIO|refroidissement liquide|CPU/i.test(t) && !/châssis|chassis|boîtier|boitier|\bPC\b/i.test(t)) return false;
     return /châssis|chassis|boîtier|boitier|\bPC\b|RGB|ARGB|\b120\b|\b140\b|\b200\b|fan/i.test(t);
   }
-  function isUsbDevice(text) {
-    return /\bUSB\b/i.test(String(text || ''));
+  function isUsbDevice(text) { return /\bUSB\b/i.test(String(text || '')); }
+  function isUsbCDevice(text) { return /USB[-\s]?C|Type.?C/i.test(String(text || '')); }
+  /* Slot generation, datasheet-first: the board's own "Versions PCIe" list,
+     with socket/chipset-era guessing only as fallback. */
+  function slotGen(M, mbName) {
+    if (M && Array.isArray(M.pcieVers) && M.pcieVers.length) return Math.max(...M.pcieVers);
+    const soc = M ? (M.sockets || []) : [];
+    return socketEraGen(soc, chipsetOf(M || {}, mbName));
   }
-  function eraM2gen(sockets, chipset) {
-    const c = String(chipset || '').toUpperCase();
+  function socketEraGen(sockets, chipsetText) {
+    const c = String(chipsetText || '').toUpperCase();
     if (/X870|B850/.test(c)) return 5;
-    if (/^(AM5)/.test((sockets || [])[0] || '') || /B650|X670|Z790|Z690|B760/.test(c)) return 4;
-    if (/AM4|1700|1200/.test((sockets || []).join(',')) || /B550|X570|B560|Z590/.test(c)) return 4;
+    const s = (sockets || []).join(',');
+    if (/AM5/.test(s)) return 4;
+    if (/AM4|1700|1200/.test(s)) return 4;
+    return 0;
+  }
+  function chipsetOf(P, name) {
+    if (P.chipset) return P.chipset;
+    const m = `${name || ''}`.match(/\b(B860M?|B850|B650E?|X870E?|X670E?|B550|X570S?|Z890|Z790|Z690|B760|B660|H810|H610|H670|Z590|B560|H510|A520|A320|X470|B450)\b/i);
+    return m ? m[1].toUpperCase() : '';
+  }
+  function psuCapW(p, P) {
+    if (Number(p.capW) > 0) return Number(p.capW);
+    if (P.capW) return P.capW;
+    const m = `${p.name || ''}`.match(/(\d{3,4})\s*W\b/i);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  function upsCapW(p, P, text) {
+    if (Number(p.capW) > 0) return Number(p.capW);
+    if (P.capW) return P.capW;
+    const m = String(text || '').match(/(\d[\d\s]*)\s*VA\b/i);
+    if (m) return Math.round(fnum(m[1]) * 0.6);
     return 0;
   }
 
-  /* ---------------- Layer 2: rules engine ---------------- */
-  // ctx: {order, slots, sel(id)->product|null, def(id)->def, totals:{watts}, lang}
+  /* ---------------- Layer 2: rules engine ----------------
+     ctx: {order, slots, sel(slot)->product|null, def(slot)->{sec}, totals:{watts}, lang}
+     check: {key,label,status,tip,a,b}  a/b = {label, value} of compared specs */
   function check(ctx) {
     const { order, slots, sel, def, totals, lang } = ctx;
     const L = (fr, en) => (lang === 'en' ? en : fr);
-    const prod = id => { const s = slots[id]; return s ? sel(s) : null; };
-    const P = {}; // slotId -> {slot, p, parsed, defId}
+    const P = {};
     order.forEach(id => {
       const s = slots[id]; if (!s) return;
       const p = sel(s); if (!p) return;
-      P[id] = { slot: s, p, parsed: parse(s.defId, p.name, p.specs || ''), defId: s.defId, watts: (Number(p.watts) || 0) * (Number(p.qty) || 1), capW: Number(p.capW) || 0 };
+      const dst = String((p.datasheet || '')).trim();
+      P[id] = {
+        slot: s, p, defId: s.defId, hasDs: !!dst,
+        ds: dst ? parseDatasheet(dst) : null,
+        watts: (Number(p.watts) || 0) * (Number(p.qty) || 1),
+        verified: Array.isArray(p.verified) ? p.verified : [],
+      };
     });
     const byDef = want => order.filter(id => P[id] && (Array.isArray(want) ? want.includes(P[id].defId) : P[id].defId === want));
     const checks = {}; const flatIssues = [];
-    const add = (slot, key, label, status, tip, level) => {
-      (checks[slot] = checks[slot] || []).push({ key, label, status, tip });
-      if (level === 'err' || status === ERR) flatIssues.push({ level: 'err', msg: `${label} — ${tip}`, slots: [slot] });
-      else if (level === 'warn' || status === WARN) flatIssues.push({ level: 'warn', msg: `${label} — ${tip}`, slots: [slot] });
+    const A = (label, value) => ({ label, value: value == null || value === '' ? '—' : String(value) });
+    const add = (slot, key, label, status, tip, a, b) => {
+      (checks[slot] = checks[slot] || []).push({ key, label, status, tip, a: a || null, b: b || null });
+      if (status === ERR) flatIssues.push({ level: 'err', msg: `${label} — ${tip}`, slots: [slot], slot, key });
+      else if (status === WARN && !(P[slot] && P[slot].verified.includes(key))) flatIssues.push({ level: 'warn', msg: `${label} — ${tip}`, slots: [slot], slot, key });
+    };
+    const needDs = id => {
+      if (P[id].hasDs) return false;
+      add(id, 'datasheet', L('Datasheet', 'Datasheet'), WARN,
+        L('Fiche technique absente — re-sélectionnez ce composant via Idealo pour la charger', 'Missing datasheet — re-select this part via Idealo to load it'),
+        A(L('Datasheet', 'Datasheet'), L('absente', 'missing')), null);
+      return true;
     };
     const mbId = byDef('mb')[0], cpuId = byDef('cpu')[0], ramId = byDef('ram')[0],
       coolerId = byDef('cooler')[0], gpuId = byDef('gpu')[0], caseId = byDef('case')[0], psuId = byDef('psu')[0];
-    const MB = mbId ? P[mbId].parsed : null, CPU = cpuId ? P[cpuId].parsed : null;
 
-    // CPU: socket + chipset vs motherboard
+    /* ---- CPU: socket + TDP (no chipset check) ---- */
     if (cpuId) {
-      const C = P[cpuId].parsed;
-      if (!mbId) { add(cpuId, 'socket', L('Socket', 'Socket'), NA, L('Carte mère absente', 'No motherboard')); add(cpuId, 'chipset', 'Chipset', NA, L('Carte mère absente', 'No motherboard')); }
-      else {
-        if (!C.sockets.length || !MB.sockets.length) add(cpuId, 'socket', L('Socket', 'Socket'), WARN, L('Socket CPU ou CM non détecté — vérifiez', 'CPU or board socket not detected — verify'));
-        else if (C.sockets.some(s => MB.sockets.includes(s))) add(cpuId, 'socket', L('Socket', 'Socket'), OK, L(`Socket ${C.sockets.join('/')} sur les deux`, `Socket ${C.sockets.join('/')} on both`));
-        else { add(cpuId, 'socket', L('Socket', 'Socket'), ERR, L(`CPU ${C.sockets.join('/')} ≠ CM ${MB.sockets.join('/')}`, `CPU ${C.sockets.join('/')} ≠ board ${MB.sockets.join('/')}`)); }
-        if (!MB.chipset) add(cpuId, 'chipset', 'Chipset', WARN, L('Chipset CM non détecté — vérifiez', 'Board chipset not detected — verify'));
-        else if (C.sockets.some(s => MB.sockets.includes(s))) add(cpuId, 'chipset', 'Chipset', OK, L(`Chipset ${MB.chipset} compatible (même socket)`, `Chipset ${MB.chipset} compatible (same socket)`));
-        else add(cpuId, 'chipset', 'Chipset', ERR, L('Incompatible (voir socket)', 'Incompatible (see socket)'));
+      if (!needDs(cpuId)) {
+        const C = P[cpuId].ds;
+        const cpuSock = (C.sockets || []).join('/');
+        if (!mbId) add(cpuId, 'socket', L('Socket', 'Socket'), NA, L('Carte mère absente', 'No motherboard'), A('Socket CPU', cpuSock || '?'), null);
+        else if (!P[mbId].hasDs) add(cpuId, 'socket', L('Socket', 'Socket'), WARN, L('Datasheet CM absente — vérifiez', 'Missing board datasheet — verify'), A('Socket CPU', cpuSock || '?'), null);
+        else {
+          const M = P[mbId].ds, mbSock = (M.sockets || []).join('/');
+          if (!cpuSock || !mbSock) add(cpuId, 'socket', L('Socket', 'Socket'), WARN, L(`Socket CPU ${cpuSock || '?'} / CM ${mbSock || '?'} — vérifiez`, `CPU socket ${cpuSock || '?'} / board ${mbSock || '?'} — verify`), A('Socket CPU', cpuSock || '?'), A('Socket CM', mbSock || '?'));
+          else if (C.sockets.some(s => M.sockets.includes(s))) add(cpuId, 'socket', L('Socket', 'Socket'), OK, L(`Socket ${cpuSock} des deux côtés`, `Socket ${cpuSock} on both`), A('Socket CPU', cpuSock), A('Socket CM', mbSock));
+          else add(cpuId, 'socket', L('Socket', 'Socket'), ERR, L(`CPU ${cpuSock} ≠ CM ${mbSock} !`, `CPU ${cpuSock} ≠ board ${mbSock}!`), A('Socket CPU', cpuSock), A('Socket CM', mbSock));
+        }
+        const tdp = C.tdp || 0;
+        const mbMax = (mbId && P[mbId].hasDs) ? (P[mbId].ds.cpuMaxTdp || 0) : 0;
+        if (!tdp) add(cpuId, 'tdp', 'TDP', WARN, L('TDP CPU non renseigné — vérifiez ventirad et carte mère', 'CPU TDP unknown — verify cooler and board'), A('TDP CPU', '?'), null);
+        else if (mbMax && tdp > mbMax) add(cpuId, 'tdp', 'TDP', ERR, L(`CPU ${tdp}W > max CM ${mbMax}W !`, `CPU ${tdp}W > board max ${mbMax}W!`), A('TDP CPU', tdp + ' W'), A('Max CM', mbMax + ' W'));
+        else if (mbMax) add(cpuId, 'tdp', 'TDP', OK, L(`CPU ${tdp}W ≤ max CM ${mbMax}W`, `CPU ${tdp}W ≤ board max ${mbMax}W`), A('TDP CPU', tdp + ' W'), A('Max CM', mbMax + ' W'));
+        else add(cpuId, 'tdp', 'TDP', WARN, L(`CPU ${tdp}W — dissipation (ventirad/CM) à confirmer`, `CPU ${tdp}W — confirm cooling (cooler/board)`), A('TDP CPU', tdp + ' W'), null);
       }
     }
-    // MB format vs case
-    if (mbId) {
-      const M = P[mbId].parsed;
+    /* ---- MB format vs case ---- */
+    if (mbId && !needDs(mbId)) {
+      const M = P[mbId].ds;
       const caseIds = byDef('case');
-      if (!caseIds.length) add(mbId, 'format', L('Format', 'Form factor'), NA, L('Boîtier absent', 'No case'));
+      if (!caseIds.length) add(mbId, 'format', L('Format', 'Form factor'), NA, L('Boîtier absent', 'No case'), A('Format CM', M.form || '?'), null);
+      else if (!P[caseIds[0]].hasDs) add(mbId, 'format', L('Format', 'Form factor'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Format CM', M.form || '?'), null);
       else {
-        const C = P[caseIds[0]].parsed;
-        if (!M.form || !C.caseForms.length) add(mbId, 'format', L('Format', 'Form factor'), WARN, L(`Format CM ${M.form || '?'} / boîtier ${C.caseForms.join('/') || '?'} — vérifiez`, `Board ${M.form || '?'} / case ${C.caseForms.join('/') || '?'} — verify`));
-        else if (C.caseForms.includes(M.form)) add(mbId, 'format', L('Format', 'Form factor'), OK, L(`${M.form} supporté par le boîtier`, `${M.form} supported by the case`));
-        else add(mbId, 'format', L('Format', 'Form factor'), ERR, L(`${M.form} non supporté (${C.caseForms.join('/')})`, `${M.form} not supported (${C.caseForms.join('/')})`));
+        const C = P[caseIds[0]].ds;
+        if (!M.form || !C.caseForms.length) add(mbId, 'format', L('Format', 'Form factor'), WARN, L(`CM ${M.form || '?'} / boîtier ${C.caseForms.join('/') || '?'} — vérifiez`, `Board ${M.form || '?'} / case ${C.caseForms.join('/') || '?'} — verify`), A('Format CM', M.form || '?'), A('Formats boîtier', C.caseForms.join('/') || '?'));
+        else if (C.caseForms.includes(M.form)) add(mbId, 'format', L('Format', 'Form factor'), OK, L(`${M.form} supporté par le boîtier`, `${M.form} supported by the case`), A('Format CM', M.form), A('Formats boîtier', C.caseForms.join('/')));
+        else add(mbId, 'format', L('Format', 'Form factor'), ERR, L(`${M.form} non supporté (${C.caseForms.join('/')}) !`, `${M.form} not supported (${C.caseForms.join('/')})!`), A('Format CM', M.form), A('Formats boîtier', C.caseForms.join('/')));
       }
     }
-    // RAM vs motherboard
-    if (ramId) {
-      const R = P[ramId].parsed, rp = P[ramId];
-      if (!mbId) { ['type', 'speed', 'sticks'].forEach(k => add(ramId, k, k === 'type' ? L('Type', 'Type') : k === 'speed' ? L('Vitesse', 'Speed') : L('Barrettes', 'Sticks'), NA, L('Carte mère absente', 'No motherboard'))); }
+    /* ---- RAM vs motherboard (max speed + max capacity from MB datasheet) ---- */
+    if (ramId && !needDs(ramId)) {
+      const R = P[ramId].ds, rp = P[ramId].p;
+      const sticks = R.ramSticks || (Number(rp.qty) || 1);
+      const cap = R.ramCap || 0;
+      const rSpeed = R.ramSpeed || R.ramSpeedMax || 0; // kit speed (same datasheet label as board max)
+      if (!mbId) add(ramId, 'type', L('Type', 'Type'), NA, L('Carte mère absente', 'No motherboard'), A('Type RAM', R.ddr || '?'), null);
+      else if (!P[mbId].hasDs) add(ramId, 'type', L('Type', 'Type'), WARN, L('Datasheet CM absente — vérifiez', 'Missing board datasheet — verify'), A('Type RAM', R.ddr || '?'), null);
       else {
-        if (!R.ddr || !MB.ddr) add(ramId, 'type', L('Type', 'Type'), WARN, L(`RAM ${R.ddr || '?'} / CM ${MB.ddr || '?'} — vérifiez`, `RAM ${R.ddr || '?'} / board ${MB.ddr || '?'} — verify`));
-        else if (R.ddr === MB.ddr) add(ramId, 'type', L('Type', 'Type'), OK, L(`DDR commune : ${R.ddr}`, `Common DDR: ${R.ddr}`));
-        else add(ramId, 'type', L('Type', 'Type'), ERR, L(`RAM ${R.ddr} ≠ CM ${MB.ddr}`, `RAM ${R.ddr} ≠ board ${MB.ddr}`));
-        const sticks = R.ramSticks || (Number(rp.p.qty) || 1);
-        if (!R.ramSpeed || !MB.ramSpeed) add(ramId, 'speed', L('Vitesse', 'Speed'), WARN, L(`RAM ${R.ramSpeed || '?'} / max CM ${MB.ramSpeed || '?'} — vérifiez (XMP/EXPO ?)`, `RAM ${R.ramSpeed || '?'} / board max ${MB.ramSpeed || '?'} — verify (XMP/EXPO?)`));
-        else if (R.ramSpeed <= MB.ramSpeed) add(ramId, 'speed', L('Vitesse', 'Speed'), OK, L(`${R.ramSpeed} ≤ max ${MB.ramSpeed} MT/s`, `${R.ramSpeed} ≤ max ${MB.ramSpeed} MT/s`));
-        else add(ramId, 'speed', L('Vitesse', 'Speed'), WARN, L(`${R.ramSpeed} > max ${MB.ramSpeed} MT/s — fonctionnera bridé / XMP requis`, `${R.ramSpeed} > max ${MB.ramSpeed} MT/s — will downclock / XMP needed`));
-        if (!MB.ramSlots) add(ramId, 'sticks', L('Barrettes', 'Sticks'), WARN, L(`${sticks} barrette(s), slots CM inconnus — vérifiez`, `${sticks} stick(s), unknown board slots — verify`));
-        else if (sticks <= MB.ramSlots) add(ramId, 'sticks', L('Barrettes', 'Sticks'), OK, L(`${sticks} ≤ ${MB.ramSlots} slots`, `${sticks} ≤ ${MB.ramSlots} slots`));
-        else add(ramId, 'sticks', L('Barrettes', 'Sticks'), ERR, L(`${sticks} barrettes pour ${MB.ramSlots} slots !`, `${sticks} sticks for ${MB.ramSlots} slots!`));
+        const M = P[mbId].ds;
+        if (!R.ddr || !M.ddr) add(ramId, 'type', L('Type', 'Type'), WARN, L(`RAM ${R.ddr || '?'} / CM ${M.ddr || '?'} — vérifiez`, `RAM ${R.ddr || '?'} / board ${M.ddr || '?'} — verify`), A('Type RAM', R.ddr || '?'), A('Type CM', M.ddr || '?'));
+        else if (R.ddr === M.ddr) add(ramId, 'type', L('Type', 'Type'), OK, L(`DDR commune : ${R.ddr}`, `Common DDR: ${R.ddr}`), A('Type RAM', R.ddr), A('Type CM', M.ddr));
+        else add(ramId, 'type', L('Type', 'Type'), ERR, L(`RAM ${R.ddr} ≠ CM ${M.ddr} !`, `RAM ${R.ddr} ≠ board ${M.ddr} !`), A('Type RAM', R.ddr), A('Type CM', M.ddr));
+        if (!rSpeed || !M.ramSpeedMax) add(ramId, 'speed', L('Vitesse', 'Speed'), WARN, L(`RAM ${rSpeed || '?'} / max CM ${M.ramSpeedMax || '?'} MHz — vérifiez (XMP/EXPO ?)`, `RAM ${rSpeed || '?'} / board max ${M.ramSpeedMax || '?'} MHz — verify (XMP/EXPO?)`), A('Vitesse RAM', (rSpeed || '?') + ' MHz'), A('Max CM', (M.ramSpeedMax || '?') + ' MHz'));
+        else if (rSpeed <= M.ramSpeedMax) add(ramId, 'speed', L('Vitesse', 'Speed'), OK, L(`${rSpeed} ≤ max ${M.ramSpeedMax} MHz`, `${rSpeed} ≤ max ${M.ramSpeedMax} MHz`), A('Vitesse RAM', rSpeed + ' MHz'), A('Max CM', M.ramSpeedMax + ' MHz'));
+        else add(ramId, 'speed', L('Vitesse', 'Speed'), WARN, L(`${rSpeed} > max ${M.ramSpeedMax} MHz — bridé / XMP requis`, `${rSpeed} > max ${M.ramSpeedMax} MHz — capped / XMP needed`), A('Vitesse RAM', rSpeed + ' MHz'), A('Max CM', M.ramSpeedMax + ' MHz'));
+        if (!M.ramSlots) add(ramId, 'sticks', L('Barrettes', 'Sticks'), WARN, L(`${sticks} barrette(s), slots CM inconnus — vérifiez`, `${sticks} stick(s), unknown board slots — verify`), A('Barrettes', sticks), A('Slots CM', '?'));
+        else if (sticks <= M.ramSlots) add(ramId, 'sticks', L('Barrettes', 'Sticks'), OK, L(`${sticks} ≤ ${M.ramSlots} slots`, `${sticks} ≤ ${M.ramSlots} slots`), A('Barrettes', sticks), A('Slots CM', M.ramSlots));
+        else add(ramId, 'sticks', L('Barrettes', 'Sticks'), ERR, L(`${sticks} barrettes pour ${M.ramSlots} slots !`, `${sticks} sticks for ${M.ramSlots} slots!`), A('Barrettes', sticks), A('Slots CM', M.ramSlots));
+        if (cap && M.ramCapMax) {
+          if (cap <= M.ramCapMax) add(ramId, 'capacity', L('Capacité', 'Capacity'), OK, L(`${cap} ≤ max ${M.ramCapMax} Go`, `${cap} ≤ max ${M.ramCapMax} GB`), A('Total RAM', cap + ' Go'), A('Max CM', M.ramCapMax + ' Go'));
+          else add(ramId, 'capacity', L('Capacité', 'Capacity'), ERR, L(`${cap} > max ${M.ramCapMax} Go !`, `${cap} > max ${M.ramCapMax} GB!`), A('Total RAM', cap + ' Go'), A('Max CM', M.ramCapMax + ' Go'));
+        } else if (cap || M.ramCapMax) add(ramId, 'capacity', L('Capacité', 'Capacity'), WARN, L('Capacité max à confirmer', 'Confirm max capacity'), A('Total RAM', cap ? cap + ' Go' : '?'), A('Max CM', M.ramCapMax ? M.ramCapMax + ' Go' : '?'));
       }
     }
-    // Cooler: sockets + height
-    if (coolerId) {
-      const C = P[coolerId].parsed;
-      const srcSockets = [...(MB ? MB.sockets : []), ...(CPU ? CPU.sockets : [])];
-      if (!srcSockets.length) add(coolerId, 'socket', L('Socket', 'Socket'), NA, L('Ni CPU ni CM', 'No CPU or board'));
-      else if (!C.sockets.length) add(coolerId, 'socket', L('Socket', 'Socket'), WARN, L('Sockets supportés non détectés — vérifiez', 'Supported sockets not detected — verify'));
-      else if (C.sockets.some(s => srcSockets.includes(s))) add(coolerId, 'socket', L('Socket', 'Socket'), OK, L(`Supporte ${C.sockets.join('/')} +`, `Supports ${C.sockets.join('/')} +`));
-      else add(coolerId, 'socket', L('Socket', 'Socket'), ERR, L(`${C.sockets.join('/')} ≠ ${srcSockets.join('/')} !`, `${C.sockets.join('/')} ≠ ${srcSockets.join('/')}!`));
+    /* ---- Cooler ---- */
+    if (coolerId && !needDs(coolerId)) {
+      const C = P[coolerId].ds;
+      const srcSockets = [...((mbId && P[mbId].hasDs) ? P[mbId].ds.sockets || [] : []), ...((cpuId && P[cpuId].hasDs) ? P[cpuId].ds.sockets || [] : [])];
+      const liquid = /liquide|liquid|watercooling|AIO/i.test(C.raw || '');
+      if (!srcSockets.length) add(coolerId, 'socket', L('Socket', 'Socket'), NA, L('Ni CPU ni CM renseignés', 'No CPU or board data'), A('Supports', (C.sockets || []).join('/') || '?'), null);
+      else if (!(C.sockets || []).length) add(coolerId, 'socket', L('Socket', 'Socket'), WARN, L('Sockets supportés non détectés — vérifiez', 'Supported sockets not detected — verify'), A('Supports', '?'), A('Socket', srcSockets.join('/')));
+      else if (C.sockets.some(s => srcSockets.includes(s))) add(coolerId, 'socket', L('Socket', 'Socket'), OK, L(`Supporte ${srcSockets.join('/')} +`, `Supports ${srcSockets.join('/')} +`), A('Supports', C.sockets.join('/')), A('Socket', srcSockets.join('/')));
+      else add(coolerId, 'socket', L('Socket', 'Socket'), ERR, L(`${(C.sockets || []).join('/')} ≠ ${srcSockets.join('/')} !`, `${(C.sockets || []).join('/')} ≠ ${srcSockets.join('/')}!`), A('Supports', (C.sockets || []).join('/')), A('Socket', srcSockets.join('/')));
       const caseIds = byDef('case');
-      if (!caseIds.length) add(coolerId, 'height', L('Hauteur', 'Height'), NA, L('Boîtier absent', 'No case'));
+      if (liquid) {
+        if (!caseIds.length || !P[caseIds[0]].hasDs) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), WARN, L('Watercooling : support boîtier à confirmer', 'Watercooling: confirm case support'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
+        else {
+          const w = P[caseIds[0]].ds.watercool;
+          if (w === true || /oui|yes/i.test(String(w))) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), OK, L('Boîtier compatible watercooling', 'Watercooling-ready case'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
+          else add(coolerId, 'radiator', L('Radiateur', 'Radiator'), WARN, L('Support watercooling du boîtier à confirmer', 'Confirm case watercooling support'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
+        }
+      } else if (!caseIds.length) add(coolerId, 'height', L('Hauteur', 'Height'), NA, L('Boîtier absent', 'No case'), A('Hauteur', (C.height || '?') + ' mm'), null);
+      else if (!P[caseIds[0]].hasDs) add(coolerId, 'height', L('Hauteur', 'Height'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Hauteur', (C.height || '?') + ' mm'), null);
       else {
-        const H = P[caseIds[0]].parsed.caseCoolerMax, h = C.coolerH;
-        if (!H || !h) add(coolerId, 'height', L('Hauteur', 'Height'), WARN, L(`Ventirad ${h || '?'} mm / max ${H || '?'} mm — vérifiez`, `Cooler ${h || '?'} mm / max ${H || '?'} mm — verify`));
-        else if (h <= H) add(coolerId, 'height', L('Hauteur', 'Height'), OK, L(`${h} ≤ ${H} mm`, `${h} ≤ ${H} mm`));
-        else add(coolerId, 'height', L('Hauteur', 'Height'), ERR, L(`${h} mm > max ${H} mm !`, `${h} mm > max ${H} mm!`));
+        const H = P[caseIds[0]].ds.caseCoolerMax, h = C.height;
+        if (!H || !h) add(coolerId, 'height', L('Hauteur', 'Height'), WARN, L(`Ventirad ${h || '?'} mm / max ${H || '?'} mm — vérifiez`, `Cooler ${h || '?'} mm / max ${H || '?'} mm — verify`), A('Hauteur', (h || '?') + ' mm'), A('Max boîtier', (H || '?') + ' mm'));
+        else if (h <= H) add(coolerId, 'height', L('Hauteur', 'Height'), OK, L(`${h} ≤ ${H} mm`, `${h} ≤ ${H} mm`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm'));
+        else add(coolerId, 'height', L('Hauteur', 'Height'), ERR, L(`${h} mm > max ${H} mm !`, `${h} mm > max ${H} mm!`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm'));
       }
-      // CPU TDP vs cooler rating
-      const cpuTdp = CPU ? CPU.tdp : 0;
-      if (cpuTdp && C.tdp) {
-        if (C.tdp >= cpuTdp) add(coolerId, 'tdp', 'TDP', OK, L(`${C.tdp}W ≥ CPU ${cpuTdp}W`, `${C.tdp}W ≥ CPU ${cpuTdp}W`));
-        else add(coolerId, 'tdp', 'TDP', ERR, L(`${C.tdp}W < CPU ${cpuTdp}W !`, `${C.tdp}W < CPU ${cpuTdp}W!`));
-      } else if (cpuTdp || C.tdp) add(coolerId, 'tdp', 'TDP', WARN, L('TDP incomplet — vérifiez la dissipation', 'Incomplete TDP — verify cooling capacity'));
     }
-    // Drives (ssd1 extras share defId ssd1; hdd too)
+    /* ---- Drives ---- */
     const driveIds = order.filter(id => P[id] && (P[id].defId === 'ssd1' || P[id].defId === 'hdd'));
-    const nvmeCount = driveIds.filter(id => !P[id].parsed.sataOnly).length;
+    const nvmeIds = driveIds.filter(id => {
+      const D = P[id].ds, nm = P[id].p.name || '';
+      return P[id].hasDs && !(/SATA/i.test(nm + ' ' + (D.raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(nm + ' ' + (D.raw || '')));
+    });
     driveIds.forEach(id => {
-      const D = P[id].parsed;
-      if (D.sataOnly) {
-        add(id, 'iface', L('Interface', 'Interface'), OK, L('SATA — ports standards', 'SATA — standard ports'));
-        if (D.isHdd35 || /3[.,]5/.test(D.raw)) {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const D = P[id].ds, nm = P[id].p.name || '';
+      const sataOnly = /SATA/i.test(nm + ' ' + (D.raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(nm + ' ' + (D.raw || ''));
+      if (sataOnly) {
+        add(id, 'iface', L('Interface', 'Interface'), OK, L('SATA — ports standards', 'SATA — standard ports'), A('Interface', 'SATA'), null);
+        if (/3[.,]5/.test(nm)) {
           const caseIds = byDef('case');
-          if (!caseIds.length) add(id, 'bays', L('Baies', 'Bays'), NA, L('Boîtier absent', 'No case'));
-          else if (!P[caseIds[0]].parsed.bays35) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Baies 3,5" du boîtier inconnues — vérifiez', 'Unknown case 3.5" bays — verify'));
-          else add(id, 'bays', L('Baies', 'Bays'), OK, L('Baie 3,5" disponible', '3.5" bay available'));
+          if (!caseIds.length) add(id, 'bays', L('Baies', 'Bays'), NA, L('Boîtier absent', 'No case'), A('Format', '3,5"'), null);
+          else if (!P[caseIds[0]].hasDs) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Format', '3,5"'), null);
+          else if (!P[caseIds[0]].ds.bays35) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Baies 3,5" du boîtier inconnues — vérifiez', 'Unknown case 3.5" bays — verify'), A('Format', '3,5"'), null);
+          else add(id, 'bays', L('Baies', 'Bays'), OK, L('Baie 3,5" disponible', '3.5" bay available'), A('Format', '3,5"'), null);
         }
         return;
       }
-      // NVMe path
-      if (!mbId) { add(id, 'iface', L('Interface', 'Interface'), NA, L('Carte mère absente', 'No motherboard')); }
-      else if (!MB.m2) add(id, 'iface', L('Interface', 'Interface'), WARN, L('Pas de M.2 détecté sur la CM — vérifiez', 'No M.2 detected on board — verify'));
-      else add(id, 'iface', L('Interface', 'Interface'), OK, L('NVMe sur slot M.2', 'NVMe on M.2 slot'));
-      const gEra = eraM2gen(MB ? MB.sockets : [], MB ? MB.chipset : '');
-      const dg = D.pcieGen;
-      if (!mbId || !dg || !gEra) add(id, 'gen', L('Gen PCIe', 'PCIe gen'), mbId ? WARN : NA, mbId ? L(`SSD Gen${dg || '?'} / gen slot inconnue — vérifiez`, `SSD Gen${dg || '?'} / unknown slot gen — verify`) : L('Carte mère absente', 'No motherboard'));
-      else if (dg <= gEra) add(id, 'gen', L('Gen PCIe', 'PCIe gen'), OK, L(`Gen${dg} ≤ Gen${gEra} du slot`, `Gen${dg} ≤ slot Gen${gEra}`));
-      else add(id, 'gen', L('Gen PCIe', 'PCIe gen'), WARN, L(`Gen${dg} sur slot Gen${gEra} — bridé mais fonctionne`, `Gen${dg} on Gen${gEra} slot — capped but works`));
-      if (nvmeCount > 1 && !(MB && MB.m2count)) add(id, 'slots', L('Slots', 'Slots'), WARN, L(`${nvmeCount} NVMe — nombre de slots M.2 à confirmer`, `${nvmeCount} NVMes — confirm M.2 slot count`));
-      else if (MB && MB.m2count && nvmeCount > MB.m2count) add(id, 'slots', L('Slots', 'Slots'), ERR, L(`${nvmeCount} NVMe pour ${MB.m2count} slots !`, `${nvmeCount} NVMes for ${MB.m2count} slots!`));
-      else if (mbId) add(id, 'slots', L('Slots', 'Slots'), OK, L('Slot M.2 disponible', 'M.2 slot available'));
+      if (!mbId) add(id, 'iface', L('Interface', 'Interface'), NA, L('Carte mère absente', 'No motherboard'), A('Interface', 'NVMe'), null);
+      else if (!P[mbId].hasDs) add(id, 'iface', L('Interface', 'Interface'), WARN, L('Datasheet CM absente — vérifiez le M.2', 'Missing board datasheet — verify M.2'), A('Interface', 'NVMe'), null);
+      else add(id, 'iface', L('Interface', 'Interface'), OK, L('NVMe sur slot M.2', 'NVMe on M.2 slot'), A('Interface', 'NVMe'), null);
+      const M = (mbId && P[mbId].hasDs) ? P[mbId].ds : null;
+      const gEra = slotGen(M, mbId ? P[mbId].p.name : '');
+      const dg = D.pcieGen || 0;
+      if (!mbId) add(id, 'gen', L('Gen PCIe', 'PCIe gen'), NA, L('Carte mère absente', 'No motherboard'), A('Gen SSD', dg || '?'), null);
+      else if (!dg || !gEra) add(id, 'gen', L('Gen PCIe', 'PCIe gen'), WARN, L(`SSD Gen${dg || '?'} / gen slot inconnue — vérifiez`, `SSD Gen${dg || '?'} / unknown slot gen — verify`), A('Gen SSD', dg || '?'), A('Gen slot', gEra || '?'));
+      else if (dg <= gEra) add(id, 'gen', L('Gen PCIe', 'PCIe gen'), OK, L(`Gen${dg} ≤ Gen${gEra} du slot`, `Gen${dg} ≤ slot Gen${gEra}`), A('Gen SSD', dg), A('Gen slot', gEra));
+      else add(id, 'gen', L('Gen PCIe', 'PCIe gen'), WARN, L(`Gen${dg} sur slot Gen${gEra} — bridé mais fonctionne`, `Gen${dg} on Gen${gEra} slot — capped but works`), A('Gen SSD', dg), A('Gen slot', gEra));
+      if (M && M.m2count && nvmeIds.length > M.m2count) add(id, 'slots', L('Slots', 'Slots'), ERR, L(`${nvmeIds.length} NVMe pour ${M.m2count} slots !`, `${nvmeIds.length} NVMes for ${M.m2count} slots!`), A('NVMe', nvmeIds.length), A('Slots M.2', M.m2count));
+      else if (nvmeIds.length > 1 && !(M && M.m2count)) add(id, 'slots', L('Slots', 'Slots'), WARN, L(`${nvmeIds.length} NVMe — nombre de slots M.2 à confirmer`, `${nvmeIds.length} NVMes — confirm M.2 slot count`), A('NVMe', nvmeIds.length), A('Slots M.2', '?'));
+      else if (mbId) add(id, 'slots', L('Slots', 'Slots'), OK, L('Slot M.2 disponible', 'M.2 slot available'), A('NVMe', nvmeIds.length), null);
+      const m2sz = D.m2size || D.length;
+      if (m2sz && m2sz !== 80 && m2sz !== '2280') add(id, 'size', L('Format', 'Form factor'), WARN, L(`M.2 ${m2sz} — vérifiez le support boîtier/CM`, `M.2 ${m2sz} — verify board/case support`), A('Longueur', m2sz), null);
     });
-    // GPU
-    if (gpuId) {
-      const G = P[gpuId].parsed;
+
+    /* ---- GPU ---- */
+    if (gpuId && !needDs(gpuId)) {
+      const G = P[gpuId].ds;
+      const gl = G.length || 0;
       const caseIds = byDef('case');
-      if (!caseIds.length) add(gpuId, 'length', L('Longueur', 'Length'), NA, L('Boîtier absent', 'No case'));
+      if (!caseIds.length) add(gpuId, 'length', L('Longueur', 'Length'), NA, L('Boîtier absent', 'No case'), A('Longueur GPU', gl ? gl + ' mm' : '?'), null);
+      else if (!P[caseIds[0]].hasDs) add(gpuId, 'length', L('Longueur', 'Length'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Longueur GPU', gl ? gl + ' mm' : '?'), null);
       else {
-        const Mx = P[caseIds[0]].parsed.caseGpuMax, gl = G.gpuLen;
-        if (!Mx || !gl) add(gpuId, 'length', L('Longueur', 'Length'), WARN, L(`GPU ${gl || '?'} mm / max ${Mx || '?'} mm — vérifiez`, `GPU ${gl || '?'} mm / max ${Mx || '?'} mm — verify`));
-        else if (gl <= Mx) add(gpuId, 'length', L('Longueur', 'Length'), OK, L(`${gl} ≤ ${Mx} mm`, `${gl} ≤ ${Mx} mm`));
-        else add(gpuId, 'length', L('Longueur', 'Length'), ERR, L(`${gl} mm > max ${Mx} mm !`, `${gl} mm > max ${Mx} mm!`));
+        const Mx = P[caseIds[0]].ds.caseGpuMax || 0;
+        if (!Mx || !gl) add(gpuId, 'length', L('Longueur', 'Length'), WARN, L(`GPU ${gl || '?'} mm / max ${Mx || '?'} mm — vérifiez`, `GPU ${gl || '?'} mm / max ${Mx || '?'} mm — verify`), A('Longueur GPU', gl ? gl + ' mm' : '?'), A('Max boîtier', Mx ? Mx + ' mm' : '?'));
+        else if (gl <= Mx) add(gpuId, 'length', L('Longueur', 'Length'), OK, L(`${gl} ≤ ${Mx} mm`, `${gl} ≤ ${Mx} mm`), A('Longueur GPU', gl + ' mm'), A('Max boîtier', Mx + ' mm'));
+        else add(gpuId, 'length', L('Longueur', 'Length'), ERR, L(`${gl} mm > max ${Mx} mm !`, `${gl} mm > max ${Mx} mm!`), A('Longueur GPU', gl + ' mm'), A('Max boîtier', Mx + ' mm'));
       }
-      const gEra = eraM2gen(MB ? MB.sockets : [], MB ? MB.chipset : '');
-      if (!mbId) add(gpuId, 'pcie', L('PCIe', 'PCIe'), NA, L('Carte mère absente', 'No motherboard'));
-      else if (!G.pcieGen || !gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), WARN, L(`GPU Gen${G.pcieGen || '?'} / slot Gen${gEra || '?'} — vérifiez`, `GPU Gen${G.pcieGen || '?'} / slot Gen${gEra || '?'} — verify`));
-      else if (G.pcieGen <= gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), OK, L(`Gen${G.pcieGen} ≤ Gen${gEra}`, `Gen${G.pcieGen} ≤ Gen${gEra}`));
-      else add(gpuId, 'pcie', L('PCIe', 'PCIe'), WARN, L(`Gen${G.pcieGen} sur slot Gen${gEra} — légèrement bridé`, `Gen${G.pcieGen} on Gen${gEra} slot — slightly capped`));
-      const need8 = G.pcie8, needH = G.hpwr;
+      const Mb = (mbId && P[mbId].hasDs) ? P[mbId].ds : null;
+      const gEra = slotGen(Mb, mbId ? P[mbId].p.name : '');
+      const gg = G.pcieGen || 0;
+      if (!mbId) add(gpuId, 'pcie', L('PCIe', 'PCIe'), NA, L('Carte mère absente', 'No motherboard'), A('Gen GPU', gg || '?'), null);
+      else if (!gg || !gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), WARN, L(`GPU Gen${gg || '?'} / slot Gen${gEra || '?'} — vérifiez`, `GPU Gen${gg || '?'} / slot Gen${gEra || '?'} — verify`), A('Gen GPU', gg || '?'), A('Gen slot', gEra || '?'));
+      else if (gg <= gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), OK, L(`Gen${gg} ≤ Gen${gEra}`, `Gen${gg} ≤ Gen${gEra}`), A('Gen GPU', gg), A('Gen slot', gEra));
+      else add(gpuId, 'pcie', L('PCIe', 'PCIe'), WARN, L(`Gen${gg} sur slot Gen${gEra} — légèrement bridé`, `Gen${gg} on Gen${gEra} slot — slightly capped`), A('Gen GPU', gg), A('Gen slot', gEra));
+      const pc = String(G.powConn || '');
+      const need8 = /8/.test(pc) ? (pc.match(/8/g) || []).length : 0;
+      const needH = /12VHPWR|12V-2x6/i.test(pc);
       const psuIds = byDef('psu');
-      if (!need8 && !needH) add(gpuId, 'power', L('Alim', 'Power'), NA, L('Connecteurs GPU inconnus', 'Unknown GPU connectors'));
-      else if (!psuIds.length) add(gpuId, 'power', L('Alim', 'Power'), NA, L('Alimentation absente', 'No PSU'));
+      if (!need8 && !needH) add(gpuId, 'power', L('Alim', 'Power'), NA, L('Connecteurs GPU inconnus', 'Unknown GPU connectors'), A('Connecteur GPU', pc || '?'), null);
+      else if (!psuIds.length) add(gpuId, 'power', L('Alim', 'Power'), NA, L('Alimentation absente', 'No PSU'), A('Connecteur GPU', pc || '?'), null);
+      else if (!P[psuIds[0]].hasDs) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Datasheet alim absente — vérifiez les câbles (PCIe 8P / 12VHPWR)', 'Missing PSU datasheet — verify cables (PCIe 8P / 12VHPWR)'), A('Connecteur GPU', pc), null);
       else {
-        const U = P[psuIds[0]].parsed;
-        if (!U.pcie8 && !U.hpwr) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Câbles alim non détectés — vérifiez (PCIe 8P / 12VHPWR)', 'PSU cables not detected — verify (PCIe 8P / 12VHPWR)'));
-        else if ((needH && U.hpwr) || (need8 && U.pcie8 >= need8)) add(gpuId, 'power', L('Alim', 'Power'), OK, L('Connecteurs OK', 'Connectors OK'));
-        else if (need8 && U.hpwr) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Alim 12VHPWR uniquement — adaptateur vers 2×8P (souvent fourni avec le GPU)', '12VHPWR-only PSU — adapter to 2×8P (often bundled with GPU)'));
-        else add(gpuId, 'power', L('Alim', 'Power'), ERR, L('Connecteurs insuffisants !', 'Insufficient connectors!'));
+        const U = P[psuIds[0]].ds;
+        const oc = String(U.otherConn || '');
+        const u8 = (U.pcie8 || 0) + (oc.match(/8/g) || []).length;
+        const uh = /12VHPWR|12V-2x6/i.test(oc);
+        if (!u8 && !uh) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Câbles alim non détectés — vérifiez (PCIe 8P / 12VHPWR)', 'PSU cables not detected — verify (PCIe 8P / 12VHPWR)'), A('Connecteur GPU', pc), A('Câbles alim', '?'));
+        else if ((needH && uh) || (need8 && u8 >= need8)) add(gpuId, 'power', L('Alim', 'Power'), OK, L('Connecteurs OK', 'Connectors OK'), A('Connecteur GPU', pc), A('Câbles alim', `${u8}×8P${uh ? ' + 12VHPWR' : ''}`));
+        else if (need8 && uh) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Alim 12VHPWR uniquement — adaptateur vers 2×8P (souvent fourni avec le GPU)', '12VHPWR-only PSU — adapter to 2×8P (often bundled with GPU)'), A('Connecteur GPU', pc), A('Câbles alim', '12VHPWR'));
+        else add(gpuId, 'power', L('Alim', 'Power'), ERR, L('Connecteurs insuffisants !', 'Insufficient connectors!'), A('Connecteur GPU', pc), A('Câbles alim', `${u8}×8P`));
       }
     }
-    // Case mirrors
-    if (byDef('case').length) {
-      const cid = byDef('case')[0], C = P[cid].parsed;
-      if (mbId) {
-        const M = P[mbId].parsed;
-        if (!M.form || !C.caseForms.length) add(cid, 'format', L('Format', 'Form factor'), WARN, L('Formats à confirmer', 'Confirm form factors'));
-        else if (C.caseForms.includes(M.form)) add(cid, 'format', L('Format', 'Form factor'), OK, L(`Accepte ${M.form}`, `Accepts ${M.form}`));
-        else add(cid, 'format', L('Format', 'Form factor'), ERR, L(`${M.form} refusé (${C.caseForms.join('/')})`, `${M.form} refused (${C.caseForms.join('/')})`));
+    /* ---- Case mirrors (GPU/cooler caps) ---- */
+    if (caseId && !needDs(caseId)) {
+      const W = P[caseId].ds;
+      if (gpuId && P[gpuId].hasDs) {
+        const gl = P[gpuId].ds.length || 0, Mx = W.caseGpuMax || 0;
+        if (!Mx || !gl) add(caseId, 'gpu', L('GPU max', 'Max GPU'), WARN, L('Longueurs à confirmer', 'Confirm lengths'), A('Max boîtier', Mx ? Mx + ' mm' : '?'), A('Longueur GPU', gl ? gl + ' mm' : '?'));
+        else if (gl <= Mx) add(caseId, 'gpu', L('GPU max', 'Max GPU'), OK, L(`${Mx} ≥ ${gl} mm`, `${Mx} ≥ ${gl} mm`), A('Max boîtier', Mx + ' mm'), A('Longueur GPU', gl + ' mm'));
+        else add(caseId, 'gpu', L('GPU max', 'Max GPU'), ERR, L(`${Mx} < ${gl} mm !`, `${Mx} < ${gl} mm!`), A('Max boîtier', Mx + ' mm'), A('Longueur GPU', gl + ' mm'));
       }
-      if (gpuId) {
-        const gl = P[gpuId].parsed.gpuLen;
-        if (!C.caseGpuMax || !gl) add(cid, 'gpu', L('GPU max', 'Max GPU'), WARN, L('Longueurs à confirmer', 'Confirm lengths'));
-        else if (gl <= C.caseGpuMax) add(cid, 'gpu', L('GPU max', 'Max GPU'), OK, L(`${gl} ≤ ${C.caseGpuMax} mm`, `${gl} ≤ ${C.caseGpuMax} mm`));
-        else add(cid, 'gpu', L('GPU max', 'Max GPU'), ERR, L(`GPU ${gl} mm > ${C.caseGpuMax} mm !`, `GPU ${gl} mm > ${C.caseGpuMax} mm!`));
-      }
-      if (coolerId) {
-        const h = P[coolerId].parsed.coolerH;
-        if (!C.caseCoolerMax || !h) add(cid, 'cooler', L('Ventirad max', 'Max cooler'), WARN, L('Hauteurs à confirmer', 'Confirm heights'));
-        else if (h <= C.caseCoolerMax) add(cid, 'cooler', L('Ventirad max', 'Max cooler'), OK, L(`${h} ≤ ${C.caseCoolerMax} mm`, `${h} ≤ ${C.caseCoolerMax} mm`));
-        else add(cid, 'cooler', L('Ventirad max', 'Max cooler'), ERR, L(`${h} mm > ${C.caseCoolerMax} mm !`, `${h} mm > ${C.caseCoolerMax} mm!`));
+      if (coolerId && P[coolerId].hasDs && !/liquide|liquid|watercooling|AIO/i.test(P[coolerId].ds.raw || '')) {
+        const h = P[coolerId].ds.height || 0, Mx = W.caseCoolerMax || 0;
+        if (!Mx || !h) add(caseId, 'cooler', L('Ventirad max', 'Max cooler'), WARN, L('Hauteurs à confirmer', 'Confirm heights'), A('Max boîtier', Mx ? Mx + ' mm' : '?'), A('Hauteur', h ? h + ' mm' : '?'));
+        else if (h <= Mx) add(caseId, 'cooler', L('Ventirad max', 'Max cooler'), OK, L(`${Mx} ≥ ${h} mm`, `${Mx} ≥ ${h} mm`), A('Max boîtier', Mx + ' mm'), A('Hauteur', h + ' mm'));
+        else add(caseId, 'cooler', L('Ventirad max', 'Max cooler'), ERR, L(`${Mx} < ${h} mm !`, `${Mx} < ${h} mm!`), A('Max boîtier', Mx + ' mm'), A('Hauteur', h + ' mm'));
       }
     }
-    // PSU
-    if (psuId) {
-      const U = P[psuId].parsed, cap = P[psuId].capW || U.capW, tot = totals.watts || 0;
-      if (!cap) add(psuId, 'power', L('Puissance', 'Wattage'), WARN, L('Puissance alim inconnue — renseignez-la (nom ou champ)', 'Unknown PSU wattage — fill it in (name or field)'));
-      else if (!tot) add(psuId, 'power', L('Puissance', 'Wattage'), NA, L('Aucune consommation renseignée', 'No power draw entered'));
-      else if (cap >= tot * 1.25) add(psuId, 'power', L('Puissance', 'Wattage'), OK, L(`${cap}W ≥ ${tot}W × 1,25`, `${cap}W ≥ ${tot}W × 1.25`));
-      else if (cap >= tot) add(psuId, 'power', L('Puissance', 'Wattage'), WARN, L(`${cap}W juste pour ${tot}W — marge faible`, `${cap}W just for ${tot}W — thin headroom`));
-      else add(psuId, 'power', L('Puissance', 'Wattage'), ERR, L(`${cap}W < ${tot}W !`, `${cap}W < ${tot}W!`));
-      const caseIds = byDef('case');
-      if (!caseIds.length) add(psuId, 'format', L('Format', 'Form factor'), NA, L('Boîtier absent', 'No case'));
-      else if (!U.psuFormat) add(psuId, 'format', L('Format', 'Form factor'), WARN, L('Format alim inconnu — vérifiez (ATX/SFX)', 'Unknown PSU format — verify (ATX/SFX)'));
-      else add(psuId, 'format', L('Format', 'Form factor'), OK, L(`${U.psuFormat}`, `${U.psuFormat}`));
-      if (gpuId) {
-        const G = P[gpuId].parsed;
-        if ((!G.pcie8 && !G.hpwr)) { /* na silently */ }
-        else if (!U.pcie8 && !U.hpwr) add(psuId, 'cables', L('Câbles', 'Cables'), WARN, L('Câbles non détectés — vérifiez', 'Cables not detected — verify'));
-        else if ((G.hpwr && U.hpwr) || (G.pcie8 && U.pcie8 >= G.pcie8)) add(psuId, 'cables', L('Câbles', 'Cables'), OK, L('Câbles OK', 'Cables OK'));
-        else if (G.pcie8 && U.hpwr) add(psuId, 'cables', L('Câbles', 'Cables'), WARN, L('Adaptateur 12VHPWR→2×8P probablement fourni avec le GPU', '12VHPWR→2×8P adapter likely bundled with GPU'));
-        else add(psuId, 'cables', L('Câbles', 'Cables'), ERR, L('Câbles insuffisants !', 'Insufficient cables!'));
-      }
+    /* ---- PSU wattage vs total ---- */
+    if (psuId && !needDs(psuId)) {
+      const cap = psuCapW(P[psuId].p, P[psuId].ds);
+      const need = totals.watts || 0;
+      const n = byDef(['cpu', 'gpu']).reduce((s, id) => s + P[id].watts, 0);
+      const head = cap ? Math.round(cap * 0.8) : 0;
+      if (!cap) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L('Puissance alim inconnue — vérifiez', 'Unknown PSU wattage — verify'), A('Alim', '?'), A('Besoin', need + ' W'));
+      else if (need && need > cap) add(psuId, 'watt', L('Puissance', 'Wattage'), ERR, L(`${need}W > ${cap}W !`, `${need}W > ${cap}W!`), A('Alim', cap + ' W'), A('Besoin', need + ' W'));
+      else if (n && n > head) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L(`CPU+GPU ${n}W proches de ${cap}W — marge faible`, `CPU+GPU ${n}W close to ${cap}W — thin margin`), A('Alim', cap + ' W'), A('CPU+GPU', n + ' W'));
+      else add(psuId, 'watt', L('Puissance', 'Wattage'), OK, L(`${cap}W suffisants`, `${cap}W sufficient`), A('Alim', cap + ' W'), A('Besoin', need + ' W'));
     }
-    // Case fans (any product looking like a chassis fan, any slot)
+    /* ---- Case fans ---- */
     order.forEach(id => {
-      if (!P[id] || P[id].defId === 'cooler') return;
-      const F = P[id].parsed;
-      if (!isCaseFan(F.raw)) return;
-      const caseIds = byDef('case');
-      if (!caseIds.length) { add(id, 'mount', L('Montage', 'Mounting'), NA, L('Boîtier absent', 'No case')); return; }
-      const C = P[caseIds[0]].parsed;
-      if (!F.fanSize || !C.fanSizes.length) add(id, 'mount', L('Montage', 'Mounting'), WARN, L(`Ventilateur ${F.fanSize || '?'} mm — emplacements ${C.fanSizes.join('/') || '?'} mm à confirmer`, `Fan ${F.fanSize || '?'} mm — confirm ${C.fanSizes.join('/') || '?'} mm mounts`));
-      else if (C.fanSizes.includes(F.fanSize)) add(id, 'mount', L('Montage', 'Mounting'), OK, L(`${F.fanSize} mm supporté`, `${F.fanSize} mm supported`));
-      else add(id, 'mount', L('Montage', 'Mounting'), ERR, L(`${F.fanSize} mm non supporté (${C.fanSizes.join('/')})`, `${F.fanSize} mm unsupported (${C.fanSizes.join('/')})`));
+      if (!P[id] || P[id].defId === 'case' || P[id].defId === 'cooler') return;
+      if (!isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : ''))) return;
+      if (!caseId || !P[caseId].hasDs) { add(id, 'mount', L('Montage', 'Mount'), WARN, L('Boîtier/datasheet à confirmer', 'Confirm case/datasheet'), A('Ventilateur', P[id].p.name || '?'), null); return; }
+      add(id, 'mount', L('Montage', 'Mount'), OK, L('Ventilateur boîtier standard', 'Standard case fan'), A('Ventilateur', P[id].p.name || '?'), null);
     });
-    // USB devices vs backpanel
-    const usbDevs = order.filter(id => P[id] && P[id].defId !== 'mb' && isUsbDevice(P[id].parsed.raw));
-    if (usbDevs.length && mbId) {
-      const M = P[mbId].parsed;
-      const ports = (M.usbC > 0 ? M.usbC : 0) + (M.usbA > 0 ? M.usbA : 0);
-      const unknown = M.usbUnknown || M.usbC < 0 || M.usbA < 0;
-      usbDevs.forEach(id => {
-        if (unknown) add(id, 'usb', 'USB', WARN, L(`${usbDevs.length} périphérique(s) USB — ports dorsaux à compter`, `${usbDevs.length} USB device(s) — count backpanel ports`));
-        else if (usbDevs.length <= ports) add(id, 'usb', 'USB', OK, L(`${usbDevs.length}/${ports} ports USB`, `${usbDevs.length}/${ports} USB ports`));
-        else add(id, 'usb', 'USB', ERR, L(`${usbDevs.length} appareils pour ${ports} ports !`, `${usbDevs.length} devices for ${ports} ports!`));
-        const t = P[id].parsed.raw;
-        if (/USB[-\s]?C|Type-?C/i.test(t) && M.usbC === 0 && !unknown) add(id, 'usbc', 'USB-C', WARN, L('Pas de USB-C dorsal détecté (adaptateur ?)', 'No backpanel USB-C detected (adapter?)'));
+    /* ---- USB devices vs backpanel ---- */
+    const usbIds = order.filter(id => P[id] && isUsbDevice(P[id].p.name));
+    if (usbIds.length && mbId && P[mbId].hasDs) {
+      const back = P[mbId].ds.usbBack || { c: 0, a: 0 };
+      const needC = usbIds.filter(id => isUsbCDevice(P[id].p.name)).length;
+      const needA = usbIds.length - needC;
+      usbIds.forEach((id, i) => {
+        if (i > 0) return;
+        const c = isUsbCDevice(P[id].p.name);
+        const have = c ? back.c : back.a, need = c ? needC : needA;
+        if (!have) add(id, 'usb', 'USB', WARN, L('Ports arrière CM inconnus — hub conseillé', 'Unknown board rear ports — hub advised'), A('Appareils USB', usbIds.length), A('Ports CM', '?'));
+        else if (need <= have) add(id, 'usb', 'USB', OK, L(`${need} appareil(s) ≤ ${have} port(s)`, `${need} device(s) ≤ ${have} port(s)`), A('Appareils USB', need), A('Ports CM', have));
+        else add(id, 'usb', 'USB', WARN, L(`${need} appareils pour ${have} ports — hub USB requis`, `${need} devices for ${have} ports — USB hub needed`), A('Appareils USB', need), A('Ports CM', have));
       });
-    } else if (usbDevs.length && !mbId) {
-      usbDevs.forEach(id => add(id, 'usb', 'USB', NA, L('Carte mère absente', 'No motherboard')));
     }
-    // Router LAN vs motherboard LAN (user example: 2.5GbE board vs 1G router ports)
-    byDef('router').forEach(id => {
-      const R = P[id].parsed;
-      if (!mbId) { add(id, 'lan', 'LAN', NA, L('Carte mère absente', 'No motherboard')); return; }
-      const M = P[mbId].parsed;
-      if (!R.lan || !M.lan) add(id, 'lan', 'LAN', WARN, L(`Débits LAN à confirmer (routeur ${R.lan || '?'} / CM ${M.lan || '?'})`, `Confirm LAN speeds (router ${R.lan || '?'} / board ${M.lan || '?'})`));
-      else if (R.lan >= M.lan) add(id, 'lan', 'LAN', OK, L(`Routeur ${R.lan}G ≥ CM ${M.lan}G`, `Router ${R.lan}G ≥ board ${M.lan}G`));
-      else add(id, 'lan', 'LAN', WARN, L(`Routeur ${R.lan}G < CM ${M.lan}G — débit bridé au routeur`, `Router ${R.lan}G < board ${M.lan}G — capped at router speed`));
+    /* ---- Router LAN vs motherboard LAN ---- */
+    const routerIds = byDef('router');
+    routerIds.forEach(id => {
+      if (!mbId || !P[mbId].hasDs) { add(id, 'lan', 'LAN', NA, L('CM absente/datasheet manquante', 'No board / missing datasheet'), A('Routeur', P[id].p.name || '?'), null); return; }
+      const lan = P[mbId].ds.lan || 0;
+      const rn = (P[id].p.name.match(/(\d+(?:[.,]\d+)?)\s*Gb/i) || [])[1];
+      const rlan = rn ? parseFloat(String(rn).replace(',', '.')) : 1;
+      if (!lan) add(id, 'lan', 'LAN', WARN, L('LAN CM inconnu — vérifiez', 'Unknown board LAN — verify'), A('Routeur', rlan + ' GbE'), A('LAN CM', '?'));
+      else if (rlan >= lan) add(id, 'lan', 'LAN', OK, L(`Routeur ${rlan} GbE ≥ CM ${lan} GbE`, `Router ${rlan}GbE ≥ board ${lan}GbE`), A('Routeur', rlan + ' GbE'), A('LAN CM', lan + ' GbE'));
+      else add(id, 'lan', 'LAN', WARN, L(`Routeur ${rlan} GbE < CM ${lan} GbE — lien bridé à ${rlan} GbE`, `Router ${rlan}GbE < board ${lan}GbE — link capped at ${rlan}GbE`), A('Routeur', rlan + ' GbE'), A('LAN CM', lan + ' GbE'));
     });
-    // UPS vs total
-    const upsIds = byDef('ups');
-    upsIds.forEach(id => {
-      const cap = P[id].capW || P[id].parsed.capW, tot = totals.watts || 0;
-      if (!cap) add(id, 'load', L('Charge', 'Load'), WARN, L('Puissance onduleur inconnue (VA ou champ) — renseignez-la', 'Unknown UPS rating (VA or field) — fill it in'));
-      else if (!tot) add(id, 'load', L('Charge', 'Load'), NA, L('Aucune consommation renseignée', 'No power draw entered'));
-      else if (cap >= tot * 1.2) add(id, 'load', L('Charge', 'Load'), OK, L(`${cap}W ≥ ${tot}W × 1,2`, `${cap}W ≥ ${tot}W × 1.2`));
-      else if (cap >= tot) add(id, 'load', L('Charge', 'Load'), WARN, L(`${cap}W juste pour ${tot}W`, `${cap}W just for ${tot}W`));
-      else add(id, 'load', L('Charge', 'Load'), ERR, L(`${cap}W < ${tot}W !`, `${cap}W < ${tot}W!`));
+    /* ---- UPS vs total ---- */
+    byDef('ups').forEach(id => {
+      if (!needDs(id)) {
+        const cap = upsCapW(P[id].p, P[id].ds, P[id].ds.raw);
+        const need = totals.watts || 0;
+        if (!cap) add(id, 'load', L('Charge', 'Load'), WARN, L('Puissance onduleur inconnue — vérifiez', 'Unknown UPS capacity — verify'), A('Onduleur', '?'), A('Besoin', need + ' W'));
+        else if (need && need > cap) add(id, 'load', L('Charge', 'Load'), ERR, L(`${need}W > ~${cap}W !`, `${need}W > ~${cap}W!`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
+        else add(id, 'load', L('Charge', 'Load'), OK, L(`~${cap}W suffisants`, `~${cap}W sufficient`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
+      }
     });
-    // PCIe capture / sound cards: free slot of width
+    /* ---- PCIe capture/sound cards: free x1/x16 slot ---- */
     order.forEach(id => {
-      if (!P[id]) return;
-      const t = P[id].parsed.raw, isCap = /capture|acquisition|elgato|avermedia/i.test(t), isSnd = /carte son|sound blaster|soundcard|Dac\b/i.test(t);
-      if (!isCap && !isSnd) return;
-      if (isUsbDevice(t) && !/pci[\s-]?e/i.test(t)) return; // external USB: no slot needed
-      if (!mbId) { add(id, 'slot', L('Slot', 'Slot'), NA, L('Carte mère absente', 'No motherboard')); return; }
-      const M = P[mbId].parsed;
-      if (!M.slotX16 && !M.slotX1 && !/PCIe?\s*x\s*1/i.test(M.raw)) add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slots PCIe de la CM inconnus — vérifiez un slot libre', 'Unknown board PCIe slots — verify a free slot'));
-      else add(id, 'slot', L('Slot', 'Slot'), OK, L('Slot PCIe disponible', 'PCIe slot available'));
+      if (!P[id] || !/capture|acquisition|carte son|sound card|elgato|averMedia/i.test(P[id].p.name || '')) return;
+      const w1 = /x1/i.test(P[id].p.name || '');
+      if (!mbId || !P[mbId].hasDs) { add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null); return; }
+      const M = P[mbId].ds;
+      const ok = (M.slotX16 || 0) >= (gpuId ? 2 : 1) || (!w1 && (M.slotX1 || 0) > 0) || (w1 && (M.slotX1 || 0) > 0);
+      add(id, 'slot', L('Slot', 'Slot'), ok ? OK : WARN,
+        ok ? L('Slot libre disponible', 'Free slot available') : L('Slot libre à confirmer (GPU + carte d’extension)', 'Confirm free slot (GPU + add-in card)'),
+        A('Carte', P[id].p.name || '?'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
     });
-    // slot worst-status map
+    /* ---- Screens vs video outputs (GPU, else motherboard iGPU) ---- */
+    const fmtVid = v => {
+      if (!v) return '?';
+      const parts = [];
+      if (v.hdmi) parts.push(`${v.hdmi}×HDMI`);
+      if (v.dp) parts.push(`${v.dp}×DP`);
+      if (v.usbc) parts.push(`${v.usbc}×USB-C`);
+      return parts.length ? parts.join(' + ') : '?';
+    };
+    const screenIds = byDef('screen1');
+    const srcVid = (gpuId && P[gpuId].hasDs) ? P[gpuId].ds.vid : null;
+    const mbVid = (mbId && P[mbId].hasDs) ? P[mbId].ds.vid : null;
+    const outVid = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? srcVid : mbVid;
+    const outName = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? L('Sorties GPU', 'GPU outputs') : L('Sorties CM', 'Board outputs');
+    screenIds.forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const V = P[id].ds.vid;
+      const hasIn = V && (V.hdmi || V.dp || V.usbc);
+      const ins = V ? [V.hdmi && 'HDMI', V.dp && 'DP', V.usbc && 'USB-C'].filter(Boolean) : [];
+      const hasOut = outVid && (outVid.hdmi || outVid.dp || outVid.usbc);
+      if (!hasIn) add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L('Entrées vidéo de l’écran inconnues — vérifiez le câble (HDMI/DP/USB-C)', 'Unknown monitor inputs — verify cable (HDMI/DP/USB-C)'), A('Entrées écran', '?'), hasOut ? A(outName, fmtVid(outVid)) : null);
+      else if (!hasOut) add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L('Sorties vidéo GPU/CM inconnues — vérifiez', 'Unknown GPU/board outputs — verify'), A('Entrées écran', ins.join(' + ')), A(outName, '?'));
+      else {
+        const common = ins.filter(k => (k === 'HDMI' && outVid.hdmi) || (k === 'DP' && outVid.dp) || (k === 'USB-C' && outVid.usbc));
+        if (common.length) add(id, 'input', L('Entrée vidéo', 'Video input'), OK, L(`${common.join(' + ')} des deux côtés`, `${common.join(' + ')} on both ends`), A('Entrées écran', ins.join(' + ')), A(outName, fmtVid(outVid)));
+        else add(id, 'input', L('Entrée vidéo', 'Video input'), WARN, L(`Écran ${ins.join(' + ')} ≠ ${fmtVid(outVid)} — adaptateur à prévoir`, `Monitor ${ins.join(' + ')} ≠ ${fmtVid(outVid)} — adapter needed`), A('Entrées écran', ins.join(' + ')), A(outName, fmtVid(outVid)));
+      }
+      if (screenIds.length > 1) {
+        const outs = hasOut ? ((outVid.hdmi || 0) + (outVid.dp || 0) + (outVid.usbc || 0)) : 0;
+        if (outs && screenIds.length > outs) add(id, 'count', L('Écrans', 'Monitors'), WARN, L(`${screenIds.length} écrans pour ~${outs} sortie(s) — MST/dock requis`, `${screenIds.length} monitors for ~${outs} output(s) — MST/dock needed`), A('Écrans', screenIds.length), A(outName, fmtVid(outVid)));
+        else if (outs) add(id, 'count', L('Écrans', 'Monitors'), OK, L(`${screenIds.length} écran(s) pour ~${outs} sortie(s)`, `${screenIds.length} monitor(s) for ~${outs} output(s)`), A('Écrans', screenIds.length), A(outName, fmtVid(outVid)));
+      }
+    });
+    /* ---- USB / wireless / audio peripherals vs motherboard ---- */
+    const mbUsbA = (mbId && P[mbId].hasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.a || 0) : 0;
+    const mbUsbC = (mbId && P[mbId].hasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.c || 0) : 0;
+    const mbBt = (mbId && P[mbId].hasDs) ? (P[mbId].ds.bt || '') : '';
+    const mbAudio = (mbId && P[mbId].hasDs) ? !!P[mbId].ds.audio : false;
+    const usbPeripherals = ['keyboard', 'mouse', 'headset', 'speakers', 'webcam'];
+    usbPeripherals.forEach(defId => {
+      byDef(defId).forEach(id => {
+        if (!P[id].hasDs) { needDs(id); return; }
+        const D = P[id].ds, W = D.wireless || {};
+        const lbl = L('Connexion', 'Connection');
+        const needsUsb = W.rf || W.wired || (!W.bt && !W.wl && !D.jack && /usb/i.test(D.raw || ''));
+        if (D.jack && (defId === 'headset' || defId === 'speakers')) {
+          if (mbAudio) add(id, 'audio', lbl, OK, L('Jack 3,5 mm — audio CM intégrée', '3.5mm jack — onboard board audio'), A('Casque/enceintes', 'Jack 3,5 mm'), A('Audio CM', String(P[mbId].ds.audio || 'intégré')));
+          else add(id, 'audio', lbl, WARN, L('Jack 3,5 mm — audio CM à confirmer', '3.5mm jack — confirm board audio'), A('Casque/enceintes', 'Jack 3,5 mm'), A('Audio CM', '?'));
+          return;
+        }
+        if (W.bt) {
+          if (mbBt) add(id, 'bt', lbl, OK, L(`Bluetooth des deux côtés (CM ${mbBt})`, `Bluetooth on both ends (board ${mbBt})`), A('Périphérique', 'Bluetooth' + (W.btVer ? ' ' + W.btVer : '')), A('Bluetooth CM', String(mbBt)));
+          else add(id, 'bt', lbl, WARN, L('Bluetooth CM non détecté — dongle USB fourni avec le périphérique ?', 'Board Bluetooth not detected — USB dongle bundled?'), A('Périphérique', 'Bluetooth'), A('Bluetooth CM', '?'));
+          return;
+        }
+        if (needsUsb || W.wl) {
+          const what = W.rf ? L('Dongle 2,4 GHz (USB-A)', '2.4GHz dongle (USB-A)') : L('USB filaire (USB-A)', 'Wired USB (USB-A)');
+          if (!mbId || !P[mbId].hasDs) add(id, 'usb', lbl, WARN, L('Ports USB arrière CM inconnus — vérifiez', 'Unknown board rear USB ports — verify'), A('Périphérique', what), null);
+          else if (mbUsbA > 0) add(id, 'usb', lbl, OK, L(`${what} — ${mbUsbA} port(s) USB-A à l’arrière`, `${what} — ${mbUsbA} rear USB-A port(s)`), A('Périphérique', what), A('USB-A arrière', mbUsbA));
+          else add(id, 'usb', lbl, WARN, L('Ports USB-A arrière CM inconnus — hub conseillé', 'Unknown board rear USB-A ports — hub advised'), A('Périphérique', what), A('USB-A arrière', '?'));
+          return;
+        }
+        add(id, 'conn', lbl, WARN, L('Connectivité non détectée dans la datasheet — vérifiez (USB/Bluetooth/Jack)', 'Connectivity not found in datasheet — verify (USB/Bluetooth/Jack)'), A('Périphérique', P[id].p.name || '?'), null);
+      });
+    });
+    /* ---- Docking station: needs rear USB-C / Thunderbolt ---- */
+    byDef('dock').forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      if (!mbId || !P[mbId].hasDs) add(id, 'link', L('Liaison', 'Uplink'), WARN, L('USB-C arrière CM inconnu — vérifiez', 'Unknown board rear USB-C — verify'), A('Station', 'USB-C/TB'), null);
+      else if (mbUsbC > 0) add(id, 'link', L('Liaison', 'Uplink'), OK, L(`USB-C vers ${mbUsbC} port(s) arrière`, `USB-C to ${mbUsbC} rear port(s)`), A('Station', 'USB-C/TB'), A('USB-C arrière', mbUsbC));
+      else add(id, 'link', L('Liaison', 'Uplink'), WARN, L('Pas d’USB-C arrière détecté sur la CM — vérifiez', 'No rear USB-C detected on board — verify'), A('Station', 'USB-C/TB'), A('USB-C arrière', '?'));
+    });
+    /* ---- slot worst-status map ---- */
     const statusOf = {};
-    Object.keys(checks).forEach(id => {
-      const arr = checks[id];
-      statusOf[id] = arr.some(c => c.status === ERR) ? ERR : arr.some(c => c.status === WARN) ? WARN : OK;
+    order.forEach(id => {
+      const arr = checks[id] || [];
+      const vis = arr.filter(c => !(c.status === WARN && P[id] && P[id].verified.includes(c.key)));
+      const eff = vis.map(c => c.status);
+      statusOf[id] = eff.includes(ERR) ? ERR : vis.length < arr.length && !eff.length ? CHECKED : eff.includes(WARN) ? WARN : vis.length ? OK : undefined;
+      if (vis.length < arr.length && eff.includes(ERR)) statusOf[id] = ERR;
+      else if (vis.length < arr.length && eff.includes(WARN)) statusOf[id] = WARN;
+      else if (vis.length < arr.length) statusOf[id] = CHECKED;
     });
     const issues = { err: flatIssues.filter(i => i.level === 'err'), warn: flatIssues.filter(i => i.level === 'warn') };
     return { checks, issues, statusOf };
   }
 
-  return { check, parse, isCaseFan, OK, WARN, ERR, NA };
+  /* Legacy shim: name-based wattage hint for the fiche editor (datasheet text may be absent). */
+  function parse(defId, name, specs) {
+    const m = String(name || '').match(/(\d{3,4})\s*W\b/i);
+    return { capW: m ? parseInt(m[1], 10) : 0 };
+  }
+
+  return { check, parseDatasheet, parse, OK, WARN, ERR, NA, CHECKED };
 })();

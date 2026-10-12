@@ -111,7 +111,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -184,6 +184,20 @@ function renderCompat() {
   const host = $('#sumCompatPane'); if (!host) return;
   host.innerHTML = '';
   updateCompatBadge();
+  const abHtml = (slot, key) => {
+    const c = (cc.checks[slot] || []).find(x => x.key === key);
+    if (!c || (!c.a && !c.b)) return '';
+    return `<span class="di-ab">${c.a ? `<span class="di-a"><b>${esc(c.a.label)}</b> ${esc(c.a.value)}</span>` : ''}${(c.a && c.b) ? '<span class="di-vs">↔</span>' : ''}${c.b ? `<span class="di-b"><b>${esc(c.b.label)}</b> ${esc(c.b.value)}</span>` : ''}</span>`;
+  };
+  const verifyBtn = (it) => {
+    if (it.level !== 'warn' || !it.slot || !it.key) return null;
+    const b = document.createElement('button');
+    b.className = 'mini-btn verify-btn';
+    b.innerHTML = `<i class="fa-solid fa-check-double"></i> ${lang === 'en' ? 'Verified' : 'Vérifié'}`;
+    b.title = lang === 'en' ? 'Mark as verified (I checked this myself)' : 'Marquer comme vérifié (je l’ai contrôlé moi-même)';
+    b.onclick = () => toggleVerified(it.slot, it.key);
+    return b;
+  };
   const sec = (title, list, cls) => {
     const d = document.createElement('div');
     d.className = 'dsec';
@@ -191,8 +205,10 @@ function renderCompat() {
     list.forEach(it => {
       const row = document.createElement('div');
       row.className = 'ditem';
-      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(it.msg)}</span></span><span class="di-btns"></span>`;
+      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(it.msg)}</span>${abHtml(it.slot, it.key)}</span><span class="di-btns"></span>`;
       const btns = row.querySelector('.di-btns');
+      const vb = verifyBtn(it);
+      if (vb) btns.appendChild(vb);
       (it.slots || []).forEach(sid => {
         const b = document.createElement('button');
         b.className = 'mini-btn'; b.textContent = slotName(sid);
@@ -203,7 +219,13 @@ function renderCompat() {
     });
     host.appendChild(d);
   };
-  if (!cc.issues.err.length && !cc.issues.warn.length) {
+  const verifiedList = [];
+  state.order.forEach(id => {
+    const s = state.slots[id], p = s && sel(s);
+    if (!p || !Array.isArray(p.verified) || !p.verified.length) return;
+    (cc.checks[id] || []).filter(c => c.status === 'warn' && p.verified.includes(c.key)).forEach(c => verifiedList.push({ slot: id, key: c.key, label: c.label, tip: c.tip, a: c.a, b: c.b }));
+  });
+  if (!cc.issues.err.length && !cc.issues.warn.length && !verifiedList.length) {
     host.innerHTML = `<p class="hint">${lang === 'en' ? 'No compatibility issue detected.' : 'Aucun problème de compatibilité détecté.'}</p>`;
     return;
   }
@@ -212,6 +234,60 @@ function renderCompat() {
     if (cc.issues.err.length) { const s = document.createElement('div'); s.className = 'dsec-sep'; host.appendChild(s); }
     sec(lang === 'en' ? 'Warnings' : 'Avertissements', cc.issues.warn, 'warn');
   }
+  if (verifiedList.length) {
+    if (cc.issues.err.length || cc.issues.warn.length) { const s = document.createElement('div'); s.className = 'dsec-sep'; host.appendChild(s); }
+    const d = document.createElement('div');
+    d.className = 'dsec dsec-checked';
+    d.innerHTML = `<div class="dsec-head"><i class="fa-solid fa-check-double"></i><span>${lang === 'en' ? 'Verified by you' : 'Vérifié par vous'}</span><span class="dsec-total">${verifiedList.length}</span></div>`;
+    verifiedList.forEach(v => {
+      const row = document.createElement('div');
+      row.className = 'ditem checked-item';
+      row.innerHTML = `<span class="di-txt"><span class="di-name">${esc(v.label)} — ${esc(v.tip)}</span>${(v.a || v.b) ? `<span class="di-ab">${v.a ? `<span class="di-a"><b>${esc(v.a.label)}</b> ${esc(v.a.value)}</span>` : ''}${(v.a && v.b) ? '<span class="di-vs">↔</span>' : ''}${v.b ? `<span class="di-b"><b>${esc(v.b.label)}</b> ${esc(v.b.value)}</span>` : ''}</span>` : ''}</span><span class="di-btns"></span>`;
+      const btns = row.querySelector('.di-btns');
+      const ub = document.createElement('button');
+      ub.className = 'mini-btn'; ub.textContent = lang === 'en' ? 'Unverify' : 'Annuler';
+      ub.onclick = () => toggleVerified(v.slot, v.key);
+      btns.appendChild(ub);
+      const fb = document.createElement('button');
+      fb.className = 'mini-btn'; fb.textContent = slotName(v.slot);
+      fb.onclick = () => focusComponent(v.slot);
+      btns.appendChild(fb);
+      d.appendChild(row);
+    });
+    host.appendChild(d);
+  }
+}
+
+/* Toggle "verified" on a warning: hides it from issues, slot turns light green. */
+function toggleVerified(slotId, key) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p || !key) return;
+  if (!Array.isArray(p.verified)) p.verified = [];
+  const i = p.verified.indexOf(key);
+  if (i >= 0) p.verified.splice(i, 1); else p.verified.push(key);
+  persist(); compatCache = null; refresh();
+  if ($('#modalOverlay') && !$('#modalOverlay').classList.contains('hidden') && openCompatDetail._slot === slotId) openCompatDetail(slotId, true);
+  if (sumTab === 'compat') renderCompat();
+}
+
+/* "…" popup after the pills: every check with explanation + compared specs a/b. */
+function openCompatDetail(slotId, keepOpen) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p) return;
+  openCompatDetail._slot = slotId;
+  const cc = getCompat(), cks = cc.checks[slotId] || [];
+  const rows = cks.length ? cks.map(c => {
+    const isV = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key);
+    const icon = c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : 'minus';
+    return `<div class="cd-row ${c.status}${isV ? ' is-verified' : ''}">
+      <span class="compat-badge ${isV ? 'checked' : c.status}"><i class="fa-solid fa-${icon}"></i>${esc(c.label)}</span>
+      <div class="cd-tip">${esc(c.tip)}</div>
+      ${(c.a || c.b) ? `<div class="cd-ab">${c.a ? `<span class="di-a"><b>${esc(c.a.label)}</b> ${esc(c.a.value)}</span>` : ''}${(c.a && c.b) ? '<span class="di-vs">↔</span>' : ''}${c.b ? `<span class="di-b"><b>${esc(c.b.label)}</b> ${esc(c.b.value)}</span>` : ''}</div>` : ''}
+      ${c.status === 'warn' ? `<button class="mini-btn verify-btn" data-vkey="${esc(c.key)}"><i class="fa-solid fa-check-double"></i> ${isV ? (lang === 'en' ? 'Unverify' : 'Annuler') : (lang === 'en' ? 'Verified' : 'Vérifié')}</button>` : ''}
+    </div>`;
+  }).join('') : `<p class="hint">${lang === 'en' ? 'No checks for this component.' : 'Aucune vérification pour ce composant.'}</p>`;
+  openModal((lang === 'en' ? 'Compatibility — ' : 'Compatibilité — ') + slotName(slotId), `<div class="compat-detail">${rows}</div>`);
+  document.querySelectorAll('[data-vkey]').forEach(b => b.addEventListener('click', () => toggleVerified(slotId, b.getAttribute('data-vkey'))));
 }
 
 /* ---------- Slot rendering ---------- */
@@ -338,7 +414,7 @@ function slotCard(id) {
   el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
-  if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
+  if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn'); else if (cst === 'checked') el.classList.add('has-checked');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
   const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
@@ -373,7 +449,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${cks.length ? `<div class="slot-compat">${cks.map(c => `<span class="compat-badge ${c.status}" title="${esc(c.tip)}"><i class="fa-solid fa-${c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`).join('')}</div>` : ''}
+    ${cks.length ? `<div class="slot-compat">${cks.map(c => `<span class="compat-badge ${c.status}" title="${esc(c.tip)}"><i class="fa-solid fa-${c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : c.status === 'checked' ? 'check-double' : 'minus'}"></i>${esc(c.label)}</span>`).join('')}<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button></div>` : ''}
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
@@ -453,6 +529,7 @@ function slotAction(id, act) {
   else if (act === 'pcie') openPcieSim();
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'refetch') refreshOnePrice(id);
+  else if (act === 'compat') openCompatDetail(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
 }
 async function refreshOnePrice(slotId) {
@@ -739,6 +816,7 @@ function chooseIdealoItem(it) {
   Idealo.product(it.url).then(d => {
     if (!d || d.error) return;
     if (d.specs) np.specs = d.specs;
+    if (d.datasheet) np.datasheet = d.datasheet;
     if (d.price && !np.price) np.price = d.price;
     if (d.img && !np.image) np.image = d.img;
     if (d.name && !before.name) np.name = d.name;
@@ -1401,7 +1479,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.48', `
+  openModal('Changelog — v2.49', `
+    <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et specs comparées a/b, bouton Vérifié (pastilles vert clair), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110.</p></div>
     <div class="chlog"><h3>v2.48 — Vérification de compatibilité</h3><p class="hint">Pastilles vertes/jaunes/rouges par composant (socket, chipset, format, RAM, PCIe…), boutons et résumé surlignés en cas de souci, onglet Compat avec problèmes et avertissements cliquables, champ puissance alim/onduleur.</p></div>
     <div class="chlog"><h3>v2.47 — Offres directes en pause</h3><p class="hint">Le flux d'offre directe est grisé partout avec mention du problème connu pendant la correction.</p></div>
     <div class="chlog"><h3>v2.46 — Tokens toujours frais</h3><p class="hint">Le token d'offre est re-récupéré à chaque clic (fini les tokens périmés en cache) et les échecs réseau affichent un message précis au lieu d'une page d'accueil silencieuse.</p></div>

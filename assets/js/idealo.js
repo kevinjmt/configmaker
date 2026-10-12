@@ -311,6 +311,9 @@ const Idealo = (() => {
       .split(/\n| {2,}/).map(s => s.replace(/^[\*_\-–:·\s]+/, '').trim())
       .filter(s => s && !/^(variante|neuf\b|d'occasion)/i.test(s));
     out.specs = lines.slice(0, 40).join('\n');
+    /* Raw "## Détails du produit" datasheet section (source of truth for Compat). */
+    const mds = md.match(/## Détails du produit\s*([\s\S]*?)(?:\n## |\n\*\*Produits similaires|\n\*   \[)/);
+    if (mds) out.datasheet = mds[1].replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim().slice(0, 30000);
     return out;
   }
 
