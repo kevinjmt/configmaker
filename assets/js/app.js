@@ -180,6 +180,14 @@ function updateCompatBadge() {
   const cc = getCompat(), n = cc.issues.err.length + cc.issues.warn.length;
   const b = $('#compatCount'); if (b) b.textContent = n ? ` (${n})` : '';
 }
+/* Pure helper: {err, warn} issue counts per section (pc/setup/others). Testable. */
+function compatCountsBySec(cc, slotsMap, secOf) {
+  const out = { pc: { err: 0, warn: 0 }, setup: { err: 0, warn: 0 }, others: { err: 0, warn: 0 } };
+  const bump = (level, sec) => { const k = sec === 'setup' ? 'setup' : sec === 'others' ? 'others' : 'pc'; if (level === 'err') out[k].err++; else if (level === 'warn') out[k].warn++; };
+  (cc.issues.err || []).forEach(it => (it.slots || []).forEach(sid => { const s = slotsMap[sid]; if (s) bump('err', secOf(s)); }));
+  (cc.issues.warn || []).forEach(it => (it.slots || []).forEach(sid => { const s = slotsMap[sid]; if (s) bump('warn', secOf(s)); }));
+  return out;
+}
 function renderCompat() {
   const cc = getCompat();
   const host = $('#sumCompatPane'); if (!host) return;
@@ -279,21 +287,25 @@ function openCompatDetail(slotId, keepOpen) {
   openCompatDetail._slot = slotId;
   const cc = getCompat(), cks = cc.checks[slotId] || [];
   const sic = iconHtml(defOf(s).icon || 'lucide:cpu');
+  const sideIcon = sd => {
+    try {
+      const sid = (sd && sd.slot) || slotId;
+      const st = sid && state.slots[sid];
+      return iconHtml((st && defOf(st).icon) || 'lucide:cpu');
+    } catch { return sic; }
+  };
   const rows = cks.length ? cks.map(c => {
     const isV = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key);
-    const icon = c.status === 'ok' ? 'check' : c.status === 'warn' ? 'triangle-exclamation' : c.status === 'err' ? 'xmark' : 'minus';
-    const head = c.status === 'err'
-      ? `<span class="cd-title">${esc(c.label)}</span>`
-      : `<span class="compat-badge ${isV ? 'checked' : c.status}"><i class="fa-solid fa-${icon}"></i>${esc(c.label)}</span>`;
     return `<div class="cd-row ${c.status}${isV ? ' is-verified' : ''}">
-      ${head}
+      <span class="cd-title ${isV ? 'checked' : c.status}">${esc(c.label)}</span>
       <div class="cd-tip">${esc(c.tip)}</div>
-      ${(c.a || c.b) ? `<div class="cd-vs">${c.a ? `<div class="cd-side"><span class="cd-ico">${sic}</span><span class="cd-side-lbl">${esc(c.a.label)}</span><span class="cd-side-val">${esc(c.a.value)}</span></div>` : ''}<span class="cd-vs-badge">VS</span>${c.b ? `<div class="cd-side"><span class="cd-ico">${sic}</span><span class="cd-side-lbl">${esc(c.b.label)}</span><span class="cd-side-val">${esc(c.b.value)}</span></div>` : ''}</div>` : ''}
+      ${(c.a || c.b) ? `<div class="cd-vs">${c.a ? `<div class="cd-side"><span class="cd-ico">${sideIcon(c.a)}</span><span class="cd-side-lbl">${esc(c.a.label)}</span><span class="cd-side-val">${esc(c.a.value)}</span></div>` : ''}<span class="cd-vs-badge">VS</span>${c.b ? `<div class="cd-side"><span class="cd-ico">${sideIcon(c.b)}</span><span class="cd-side-lbl">${esc(c.b.label)}</span><span class="cd-side-val">${esc(c.b.value)}</span></div>` : ''}</div>` : ''}
       ${c.status === 'warn' ? `<button class="mini-btn verify-btn" data-vkey="${esc(c.key)}"><i class="fa-solid fa-check"></i> ${isV ? (lang === 'en' ? 'Unverify' : 'Annuler') : (lang === 'en' ? 'Verified' : 'Vérifié')}</button>` : ''}
     </div>`;
   }).join('') : `<p class="hint">${lang === 'en' ? 'No checks for this component.' : 'Aucune vérification pour ce composant.'}</p>`;
   openModal((lang === 'en' ? 'Compatibility — ' : 'Compatibilité — ') + slotName(slotId), `<div class="compat-detail">${rows}</div>`);
   document.querySelectorAll('[data-vkey]').forEach(b => b.addEventListener('click', () => toggleVerified(slotId, b.getAttribute('data-vkey'))));
+  refreshIcons(); // hydrate lucide <i data-lucide> instantly, same frame as popup open
 }
 
 /* ---------- Slot rendering ---------- */
@@ -1061,6 +1073,7 @@ function renderSummary() {
   const T = totals();
   const host = $('#sumDescPane'); host.innerHTML = '';
   const secs = [['pc', T.pc], ['setup', T.setup], ['others', T.others]];
+  const cc = getCompat(), cnt = compatCountsBySec(cc, state.slots, s => defOf(s).sec);
   let any = false;
   secs.forEach(([sec, sub], si) => {
     const ids = state.order.filter(id => { const s = state.slots[id]; return s && defOf(s).sec === sec && sel(s); });
@@ -1069,7 +1082,9 @@ function renderSummary() {
     const secEl = document.createElement('div');
     secEl.className = 'dsec';
     const icons = { pc: 'fa-solid fa-computer', setup: 'fa-solid fa-display', others: 'fa-solid fa-box-open' };
-    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(sub)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
+    const ce = cnt[sec].err, cw = cnt[sec].warn;
+    const flags = (ce || cw) ? `<span class="sum-compat-flags">${ce ? `<span class="mini-count err" title="${ce} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${ce}</span>` : ''}${cw ? `<span class="mini-count warn" title="${cw} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${cw}</span>` : ''}</span>` : '';
+    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span>${flags}<span class="dsec-total">${eur(sub)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
     if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
@@ -1087,6 +1102,7 @@ function renderSummary() {
       foldedSecs.has(sec) ? foldedSecs.delete(sec) : foldedSecs.add(sec);
       renderSummary();
     };
+    secEl.querySelectorAll('.mini-count').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); switchSum('compat'); }));
     const sep = document.createElement('div');
     sep.className = 'dsec-sep';
     host.appendChild(sep);
