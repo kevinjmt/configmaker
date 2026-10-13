@@ -112,7 +112,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -122,6 +122,10 @@ let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
 const openAlts = new Set();
+const openVariants = new Set(); // slotIds with expanded variant selector
+const variantFilters = {}; // slotId -> {dimIdx: valIdx} (-1 = all)
+const variantPending = {}; // slotId -> url being loaded (optimistic selected state)
+let variantLoading = null; // global lock: one variant fetch at a time (Idealo rate limit)
 const foldedSecs = new Set();
 let prefs = load(LS.prefs, {});
 function persist() { save(LS.state, state); }
@@ -169,6 +173,21 @@ let editingPid = null;
 
 /* ---------- Compatibility (Compat module) ---------- */
 let compatCache = null, compatFold = {};
+const variantFetching = new Set();
+function ensureVariants(slotId) { // background: old fiches have an Idealo URL but no variants yet
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p || p.variants || !p.idealo || typeof Idealo === 'undefined') return;
+  if (variantFetching.has(p.idealo)) return;
+  variantFetching.add(p.idealo);
+  Idealo.product(p.idealo).then(d => {
+    variantFetching.delete(p.idealo);
+    if (!d || d.error || !d.variants || !d.variants.items || !d.variants.items.length) return;
+    const cur = s.products.find(x => x.id === p.id);
+    if (!cur) return;
+    cur.variants = d.variants;
+    persist(); renderSlots();
+  }).catch(() => variantFetching.delete(p.idealo));
+}
 function getCompat() {
   if (!compatCache && typeof Compat !== 'undefined') {
     try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang }); }
@@ -423,6 +442,108 @@ function buyUrlFor(p) {
   if (p.idealo && /idealo\.fr/i.test(p.idealo)) return p.idealo;
   return '';
 }
+/* ---------- Idealo variants on slot cards ---------- */
+const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const COLOR_SYN = { white: ['blanc', 'white', 'weiss', 'bianco'], black: ['noir', 'black', 'schwarz', 'nero', 'dark', 'sombre'], grey: ['gris', 'gray', 'grey', 'grau'], red: ['rouge', 'red', 'rot'], blue: ['bleu', 'blue', 'blau'], green: ['vert', 'green', 'grun'], pink: ['rose', 'pink'], purple: ['violet', 'purple', 'lila'], orange: ['orange'], yellow: ['jaune', 'yellow', 'gelb'], silver: ['argent', 'silver', 'silber'], gold: ['or', 'gold'], titanium: ['titane', 'titanium', 'titan'] };
+function variantValueKeys(val) {
+  const t = normTxt(val).replace(/[.,]/g, '');
+  const keys = new Set();
+  for (const [canon, words] of Object.entries(COLOR_SYN)) {
+    const hit = words.filter(w => t.includes(w));
+    if (hit.length || t.includes(canon)) { keys.add(canon); hit.forEach(w => keys.add(w)); }
+  }
+  const digits = (t.match(/\d+/g) || []).join('');
+  if (digits) keys.add(digits);
+  if (!keys.size && t.trim()) keys.add(t.trim());
+  return keys;
+}
+const variantModelText = it => normTxt((it.name || '') + ' ' + (it.url || ''));
+function variantValMatches(val, modelText) {
+  const vk = variantValueKeys(val), mk = variantValueKeys(modelText);
+  for (const k of vk) if (k && mk.has(k)) return true;
+  return false;
+}
+function variantCurIdx(p) {
+  const items = (p.variants && p.variants.items) || [];
+  const cur = normTxt(p.idealo || '').replace(/\/$/, '');
+  if (!cur) return items.length ? 0 : -1;
+  const i = items.findIndex(it => normTxt(it.url || '').replace(/\/$/, '') === cur);
+  return i >= 0 ? i : -1;
+}
+function renderVariantRow(id, p) {
+  const v = p.variants;
+  if (!v || !v.items || !v.items.length) return '';
+  const items = v.items, texts = items.map(variantModelText);
+  const curIdx = variantCurIdx(p);
+  const curLbl = curIdx >= 0 ? items[curIdx].name : `${v.count || items.length} ${lang === 'en' ? 'variants' : 'variantes'}`;
+  const fsel = variantFilters[id] || {};
+  const filters = v.filters || [];
+  const matchable = filters.map(f => (f.values || []).some(val => texts.some(t => variantValMatches(val, t))));
+  const active = filters.map((f, fi) => {
+    if (!matchable[fi]) return -1;
+    const vi = fsel[fi];
+    return (vi >= 0 && vi < f.values.length) ? vi : -1;
+  });
+  /* Price colors: black by default, lowest green, ≥25% below max orange (huge promotion). */
+  const vprices = items.map(it => Number(it.price) || 0).filter(Boolean);
+  const pMin = vprices.length ? Math.min(...vprices) : 0;
+  const pMax = vprices.length ? Math.max(...vprices) : 0;
+  const priceCls = pr => {
+    if (!(pr > 0) || !pMax) return '';
+    if (pr <= pMin) return ' best';
+    if ((pMax - pr) / pMax >= 0.25) return ' promo';
+    return '';
+  };
+  const loading = !!variantLoading, pendingUrl = variantPending[id];
+  let body = '';
+  if (openVariants.has(id)) {
+    const dims = filters.map((f, fi) => {
+      if (!matchable[fi]) return `<div class="variant-dim"><span class="variant-dim-lbl">${esc(f.label)} :</span><span class="variant-vals">${esc(f.values.join(' · '))}</span></div>`;
+      const chips = f.values.map((val, vi) => `<button class="mini-btn vchip${active[fi] === vi ? ' sel' : ''}" data-act="variantchip" data-f="${fi}" data-v="${vi}">${esc(val)}</button>`).join('');
+      return `<div class="variant-dim"><span class="variant-dim-lbl">${esc(f.label)} :</span>${chips}</div>`;
+    }).join('');
+    const cards = items.map((it, ii) => {
+      if (!active.every((vi, fi) => vi < 0 || variantValMatches(filters[fi].values[vi], texts[ii]))) return '';
+      const pend = pendingUrl && normTxt(it.url || '').replace(/\/$/, '') === normTxt(pendingUrl).replace(/\/$/, '');
+      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${loading ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span></button>`;
+    }).join('');
+    body = `<div class="variant-body">${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
+  }
+  return `<div class="slot-variants"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
+}
+async function selectVariant(slotId, url, cardPrice) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p || !url || typeof Idealo === 'undefined') return;
+  if (variantLoading) { toast(lang === 'en' ? 'A variant is already loading — please wait' : 'Une variante charge déjà — patientez'); return; }
+  variantLoading = url; variantPending[slotId] = url; renderSlots(); // instant feedback
+  showProgress(lang === 'en' ? 'Loading variant…' : 'Chargement de la variante…');
+  try {
+    const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
+    const cur = s.products.find(x => x.id === p.id);
+    if (!cur) return;
+    if (d && !d.error) {
+      if (d.name) cur.name = d.name;
+      if (d.img) cur.image = d.img;
+      if (d.specs) cur.specs = d.specs;
+      if (d.datasheet) cur.datasheet = d.datasheet;
+      if (d.variants && d.variants.items && d.variants.items.length) cur.variants = d.variants;
+    }
+    cur.idealo = url;
+    if (r && !r.error && r.offers.length) {
+      const o = r.offers[0];
+      if (o.merchant) cur.vendor = o.merchant;
+      if (o.price) cur.price = o.price;
+      if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+      if (o.url) cur.store = o.url;
+      if (o.promo) cur.promo = true;
+    } else if (cardPrice > 0) cur.price = cardPrice;
+    cur.verified = [];
+    persist(); compatCache = null; refresh();
+    toast(lang === 'en' ? 'Variant loaded — prices and compatibility updated' : 'Variante chargée — prix et compatibilité actualisés');
+  } catch {
+    toast(lang === 'en' ? 'Variant unavailable — retry later' : 'Variante indisponible — réessayez plus tard');
+  } finally { variantLoading = null; delete variantPending[slotId]; hideProgress(); }
+}
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
   const el = document.createElement('div');
@@ -431,6 +552,7 @@ function slotCard(id) {
   const stale = !!(p && refreshFailed.has(p.id));
   el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
+  if (p && p.idealo && !p.variants) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
   if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
@@ -468,6 +590,7 @@ function slotCard(id) {
         : priceHtml}</span>
     </button>
     ${cks.length ? `<div class="slot-compat">${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button></div>` : ''}
+    ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
@@ -485,6 +608,15 @@ function slotCard(id) {
     e.stopPropagation();
     if (b.dataset.act === 'alts') { openAlts.has(id) ? openAlts.delete(id) : openAlts.add(id); renderSlots(); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
+    if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); renderSlots(); return; }
+    if (b.dataset.act === 'variantchip') {
+      const f = parseInt(b.dataset.f, 10), v = parseInt(b.dataset.v, 10);
+      const cur = (variantFilters[id] || {})[f];
+      variantFilters[id] = { ...(variantFilters[id] || {}) };
+      if (cur === v) delete variantFilters[id][f]; else variantFilters[id][f] = v;
+      renderSlots(); return;
+    }
+    if (b.dataset.act === 'variantpick') { selectVariant(id, b.dataset.url, parseFloat(b.dataset.price) || 0); return; }
     slotAction(id, b.dataset.act);
   }));
   const alts = el.querySelector('[data-alts]');
@@ -849,6 +981,7 @@ function chooseIdealoItem(it) {
     if (!d || d.error) return;
     if (d.specs) np.specs = d.specs;
     if (d.datasheet) np.datasheet = d.datasheet;
+    if (d.variants && d.variants.items && d.variants.items.length) np.variants = d.variants;
     if (d.price && !np.price) np.price = d.price;
     if (d.img && !np.image) np.image = d.img;
     if (d.name && !before.name) np.name = d.name;

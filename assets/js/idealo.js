@@ -287,6 +287,49 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
+  /* Variants ("## 5 Variantes à partir de 858,00€"): filter dimensions
+     (**Label:** + value lines) and model cards, each with its own /prix/ page.
+     Returns null when the page has no variant section. */
+  function parseVariants(md) {
+    md = String(md || '');
+    const mh = md.match(/^##\s*(?:(\d+)\s*)?Variantes?\s*:?\s*(?:à partir de\s*([\d\s]+[.,]\d{2})\s*€)?/mi);
+    if (!mh) return null;
+    const start = mh.index;
+    const rest = md.slice(start);
+    const mend = rest.search(/\n## (?!.*Variantes)/);
+    const sec = mend > 0 ? rest.slice(0, mend) : rest;
+    const filters = [];
+    const fre = /\*\*(.+?):\*\*/g;
+    let fm, lastIdx = -1, lastLabel = null;
+    const flush = (label, body) => {
+      const vals = body.split('\n').map(s => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim())
+        .filter(s => s && !/^(filtrer|toutes?\b)/i.test(s) && !s.startsWith('!') && !s.startsWith('[') && !/à partir de|^\d[\d\s]*[.,]\d{2}\s*€/.test(s));
+      if (label && vals.length) filters.push({ label, values: vals.slice(0, 12) });
+    };
+    while ((fm = fre.exec(sec)) !== null) {
+      if (lastLabel !== null) flush(lastLabel, sec.slice(lastIdx, fm.index));
+      lastLabel = fm[1].trim(); lastIdx = fm.index + fm[0].length;
+    }
+    if (lastLabel !== null) {
+      const cardStart = sec.slice(lastIdx).search(/!\[/);
+      flush(lastLabel, cardStart >= 0 ? sec.slice(lastIdx, lastIdx + cardStart) : sec.slice(lastIdx));
+    }
+    const items = [];
+    const cre = /\[([^\]]+)\]\((https:\/\/www\.idealo\.fr\/prix\/[^)]+)\)\s*\n\s*!\[Image[^:]*: ([^\]]*)\]\(([^)]+)\)[\s\S]{0,600}?à partir de\s*\n?\s*([\d\s]+[.,]\d{2})\s*€/g;
+    let cm;
+    while ((cm = cre.exec(sec)) !== null && items.length < 12) {
+      const name = (cm[1] || cm[3] || '').trim();
+      const url = cm[2].trim();
+      if (!name || !url) continue;
+      if (items.some(it => it.url === url)) continue;
+      items.push({ name, url, img: (cm[4] || '').trim(), price: parsePrice(cm[5]) });
+    }
+    if (!items.length) return null;
+    let fromPrice = 0;
+    if (mh[2]) fromPrice = parsePrice(mh[2]);
+    return { count: parseInt(mh[1], 10) || items.length, fromPrice, filters, items };
+  }
+
   /* Full product fiche from a /prix/ page: the text next to "Aperçu du produit". */
   function parseProduct(md, url) {
     md = String(md || '');
@@ -314,6 +357,7 @@ const Idealo = (() => {
     /* Raw "## Détails du produit" datasheet section (source of truth for Compat). */
     const mds = md.match(/## Détails du produit\s*([\s\S]*?)(?:\n## |\n\*\*Produits similaires|\n\*   \[)/);
     if (mds) out.datasheet = mds[1].replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim().slice(0, 30000);
+    out.variants = parseVariants(md);
     return out;
   }
 
@@ -483,5 +527,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseOffers, sortUrl };
+  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, parseOffers, sortUrl };
 })();
