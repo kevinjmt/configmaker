@@ -332,6 +332,7 @@ const Compat = (() => {
         if (wm) { P.wifiGen = parseInt(wm[1], 10); if (/6e/i.test(P.wifiStd)) P.wifiE = true; }
       }
       if (/connect|entrées|entrees|audio|jack|casque/.test(l) && /jack|3[.,]5\s?mm/.test(l)) P.jack = true;
+      if (/daisy[\s-]?chain/i.test(l)) P.daisy = true; // fans linkable in series on one header
       /* RGB headers (3-pin ARGB vs 4-pin RGB) — only header-worded lines with counts. */
       if (/rgb/.test(l) && (/connecteur|header|prise|broche|pin|embase/i.test(ln) || /(\d+)\s*x\s*.rgb/i.test(l))) {
         const parts = l.split(/[,;+]/);
@@ -339,7 +340,7 @@ const Compat = (() => {
           let n = 1;
           const m = part.match(/(\d+)\s*x\b/i);
           if (m) n = parseInt(m[1], 10);
-          if (/a-?rgb|adressable|3\s*broches|3\s*pin|5v/i.test(part)) P.argb = (P.argb || 0) + n;
+          if (/(^|[^a-z])a[\s-]?rgb|adressable|addressable|3\s*broches|3\s*pin|5v/i.test(part)) P.argb = (P.argb || 0) + n;
           else if (/rgb|led/i.test(part)) P.rgb4 = (P.rgb4 || 0) + n;
         });
       }
@@ -426,6 +427,22 @@ const Compat = (() => {
         L('Fiche technique absente — re-sélectionnez ce composant via Idealo pour la charger', 'Missing datasheet — re-select this part via Idealo to load it'),
         A(L('Datasheet', 'Datasheet'), L('absente', 'missing')), null);
       return true;
+    };
+    /* Lighting check factory: ARGB (3-pin 5V) vs RGB (4-pin 12V) vs board headers. */
+    const rgbCheck = (id, wantArgb, devKind) => {
+      const lbl = L('Éclairage', 'Lighting');
+      const kind = wantArgb ? 'ARGB' : 'RGB';
+      if (!mbId || !P[mbId].hasDs) { add(id, 'rgb', lbl, WARN, L('Prises RGB CM à confirmer', 'Confirm board RGB headers'), A(devKind, kind), null); return; }
+      const mA = P[mbId].ds.argb || 0, mR = P[mbId].ds.rgb4 || 0;
+      if (wantArgb) {
+        if (mA > 0) add(id, 'rgb', lbl, OK, L(`ARGB vers ${mA} prise(s) 3-pin 5V`, `ARGB to ${mA} 3-pin 5V header(s)`), A(devKind, 'ARGB'), A('Prises ARGB CM', mA, mbId));
+        else if (mR > 0) add(id, 'rgb', lbl, WARN, L('ARGB incompatible 4-pin 12V — contrôleur/hub requis', 'ARGB incompatible with 4-pin 12V — controller/hub needed'), A(devKind, 'ARGB'), A('Prises RGB CM', mR + '× 4-pin', mbId));
+        else add(id, 'rgb', lbl, WARN, L('Aucune prise ARGB détectée — vérifiez le manuel (contrôleur ?)', 'No ARGB header detected — check manual (controller?)'), A(devKind, 'ARGB'), A('Prises ARGB CM', '?', mbId));
+      } else {
+        if (mR > 0) add(id, 'rgb', lbl, OK, L(`RGB vers ${mR} prise(s) 4-pin 12V`, `RGB to ${mR} 4-pin 12V header(s)`), A(devKind, 'RGB'), A('Prises RGB CM', mR, mbId));
+        else if (mA > 0) add(id, 'rgb', lbl, WARN, L('Prise ARGB 3-pin uniquement — adaptateur/contrôleur requis', 'ARGB 3-pin header only — adapter/controller needed'), A(devKind, 'RGB'), A('Prises ARGB CM', mA, mbId));
+        else add(id, 'rgb', lbl, WARN, L('Prises RGB CM non renseignées — vérifiez le manuel', 'Board RGB headers unknown — check manual'), A(devKind, 'RGB'), A('Prises RGB CM', '?', mbId));
+      }
     };
     const mbId = byDef('mb')[0], cpuId = byDef('cpu')[0], ramId = byDef('ram')[0],
       coolerId = byDef('cooler')[0], gpuId = byDef('gpu')[0], caseId = byDef('case')[0], psuId = byDef('psu')[0];
@@ -530,25 +547,11 @@ const Compat = (() => {
         else if (h <= H) add(coolerId, 'height', L('Hauteur', 'Height'), OK, L(`${h} ≤ ${H} mm`, `${h} ≤ ${H} mm`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm', caseIds[0]));
         else add(coolerId, 'height', L('Hauteur', 'Height'), ERR, L(`${h} mm > max ${H} mm !`, `${h} mm > max ${H} mm!`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm', caseIds[0]));
       }
-      /* ---- Cooler lighting: ARGB (3-pin 5V) vs RGB (4-pin 12V) vs board headers ---- */
+      /* ---- Cooler lighting (name + datasheet); fans handled in the fan-headers section ---- */
       const cName = P[coolerId].p.name || '';
-      const argbNeed = /a-?rgb|adressable/i.test(cName + ' ' + (C.raw || ''));
+      const argbNeed = /(^|[^a-z])a[\s-]?rgb|adressable|addressable/i.test(cName + ' ' + (C.raw || ''));
       const rgbNeed = !argbNeed && /\brgb\b|led/i.test(cName + ' ' + (C.raw || ''));
-      if (argbNeed || rgbNeed) {
-        if (!mbId || !P[mbId].hasDs) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prises RGB CM à confirmer', 'Confirm board RGB headers'), A('Ventirad', argbNeed ? 'ARGB' : 'RGB'), null);
-        else {
-          const mA = P[mbId].ds.argb || 0, mR = P[mbId].ds.rgb4 || 0;
-          if (argbNeed) {
-            if (mA > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), OK, L(`ARGB vers ${mA} prise(s) 3-pin 5V`, `ARGB to ${mA} 3-pin 5V header(s)`), A('Ventirad', 'ARGB'), A('Prises ARGB CM', mA, mbId));
-            else if (mR > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('ARGB incompatible 4-pin 12V — contrôleur/hub requis', 'ARGB incompatible with 4-pin 12V — controller/hub needed'), A('Ventirad', 'ARGB'), A('Prises RGB CM', mR + '× 4-pin', mbId));
-            else add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Aucune prise ARGB détectée — vérifiez le manuel (contrôleur ?)', 'No ARGB header detected — check manual (controller?)'), A('Ventirad', 'ARGB'), A('Prises ARGB CM', '?', mbId));
-          } else {
-            if (mR > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), OK, L(`RGB vers ${mR} prise(s) 4-pin 12V`, `RGB to ${mR} 4-pin 12V header(s)`), A('Ventirad', 'RGB'), A('Prises RGB CM', mR, mbId));
-            else if (mA > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prise ARGB 3-pin uniquement — adaptateur/contrôleur requis', 'ARGB 3-pin header only — adapter/controller needed'), A('Ventirad', 'RGB'), A('Prises ARGB CM', mA, mbId));
-            else add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prises RGB CM non renseignées — vérifiez le manuel', 'Board RGB headers unknown — check manual'), A('Ventirad', 'RGB'), A('Prises RGB CM', '?', mbId));
-          }
-        }
-      }
+      if (argbNeed || rgbNeed) rgbCheck(coolerId, argbNeed, L('Ventirad', 'Cooler'));
     }
     /* ---- Drives ---- */
     const driveIds = order.filter(id => P[id] && (P[id].defId === 'ssd1' || P[id].defId === 'hdd'));
@@ -713,7 +716,13 @@ const Compat = (() => {
     const liquidCooler = coolerId && P[coolerId].hasDs && /liquide|liquid|watercooling|AIO/i.test(P[coolerId].ds.raw || '');
     const radFans = liquidCooler && P[coolerId].ds.radSize ? Math.min(3, Math.max(1, Math.round(P[coolerId].ds.radSize / 120))) : 0;
     const needCpu = coolerId ? 1 : 0; // air fan or AIO pump on CPU_FAN/AIO_PUMP
-    const needSys = chassisFanIds.length + radFans;
+    /* Daisy chains: daisy-capable chassis fans share a single SYS_FAN header. */
+    const daisyIds = chassisFanIds.filter(fid => {
+      const F = P[fid].ds, nm = P[fid].p.name || '';
+      return P[fid].hasDs && (F.daisy || /daisy[\s-]?chain/i.test(nm));
+    });
+    const plainIds = chassisFanIds.filter(fid => !daisyIds.includes(fid));
+    const needSys = plainIds.length + (daisyIds.length ? 1 : 0) + radFans;
     const cpuPillId = coolerId; // CPU_FAN pill lives on the cooler…
     const sysPillId = chassisFanIds[0] || coolerId; // …SYS_FAN pills live on the (first) case fan
     if ((sysPillId && needSys > 0) || (cpuPillId && needCpu > 0)) {
@@ -721,16 +730,27 @@ const Compat = (() => {
       else {
         const fc = P[mbId].ds.fanCpu || 0, fs = P[mbId].ds.fanSys || 0;
         if (needCpu && cpuPillId) {
-          if (fc >= needCpu) add(cpuPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), OK, L(`${fc} prise(s) CPU — ventirad/pompe sur CPU_FAN`, `${fc} CPU header(s) — cooler/pump on CPU_FAN`), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc, mbId));
+          const leftCpu = fc ? Math.max(0, fc - needCpu) : 0;
+          if (fc >= needCpu) add(cpuPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), OK, L(`${fc} prise(s) CPU — ventirad/pompe sur CPU_FAN — ${leftCpu} restante(s)`, `${fc} CPU header(s) — cooler/pump on CPU_FAN — ${leftCpu} left`), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', `${fc} (reste ${leftCpu})`, mbId));
           else add(cpuPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), WARN, L('Prises CPU_FAN CM inconnues — vérifiez', 'Unknown board CPU_FAN headers — verify'), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc || '?', mbId));
         }
         if (needSys && sysPillId) {
-          if (fs >= needSys) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) SYS_FAN — ne pas utiliser CPU_FAN`, `${needSys} fan(s) ≤ ${fs} SYS_FAN header(s) — do not use CPU_FAN`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', fs, mbId));
+          const leftSys = fs ? Math.max(0, fs - needSys) : 0;
+          const chainNote = daisyIds.length ? L(` — dont ${daisyIds.length} en série (daisy chain) sur 1 prise`, ` — incl. ${daisyIds.length} daisy-chained on 1 header`) : '';
+          if (fs >= needSys) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) SYS_FAN${chainNote} — ${leftSys} restante(s) — ne pas utiliser CPU_FAN`, `${needSys} fan(s) ≤ ${fs} SYS_FAN header(s)${chainNote} — ${leftSys} left — do not use CPU_FAN`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', `${fs} (reste ${leftSys})`, mbId));
           else if (fs) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L(`${needSys} ventilateurs pour ${fs} prise(s) SYS_FAN — splitter/hub requis`, `${needSys} fans for ${fs} SYS_FAN header(s) — splitter/hub needed`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', fs, mbId));
           else add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L('Prises SYS_FAN CM inconnues — vérifiez', 'Unknown board SYS_FAN headers — verify'), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', '?', mbId));
         }
       }
     }
+    /* Per-fan lighting from the product title (RGB/ARGB mentions). */
+    chassisFanIds.forEach(fid => {
+      if (!P[fid].hasDs) return;
+      const fnm = P[fid].p.name || '';
+      const fArgb = /(^|[^a-z])a[\s-]?rgb|adressable|addressable/i.test(fnm);
+      const fRgb = !fArgb && /\brgb\b|led/i.test(fnm);
+      if (fArgb || fRgb) rgbCheck(fid, fArgb, L('Ventilateur', 'Fan'));
+    });
     /* ---- USB devices vs backpanel ---- */
     const usbIds = order.filter(id => P[id] && isUsbDevice(P[id].p.name));
     if (usbIds.length && mbId && P[mbId].hasDs) {

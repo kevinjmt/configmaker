@@ -587,6 +587,16 @@ function renderVariantRow(id, p) {
     if ((pMax - pr) / pMax >= 0.25) return ' promo';
     return '';
   };
+  /* Price difference vs the current variant (like alternatives): +/−€ under each other model. */
+  const curPrice = curIdx >= 0 ? (Number(items[curIdx].price) || 0) : 0;
+  const diffHtml = (it, ii) => {
+    const pr = Number(it.price) || 0;
+    if (ii === curIdx || !(pr > 0) || !(curPrice > 0)) return '';
+    const d = Math.round((pr - curPrice) * 100) / 100;
+    if (!d) return '';
+    const cls = d > 0 ? 'up' : 'down';
+    return `<span class="variant-diff diff ${cls}">${d > 0 ? '+' : ''}${eur(d)}</span>`;
+  };
   const loading = !!variantLoading, pendingUrl = variantPending[id];
   const attrsLoading = variantAttrsLoading.has(id);
   const vLocked = loading || attrsLoading; // nothing selectable anywhere in the dropdown while loading
@@ -609,17 +619,17 @@ function renderVariantRow(id, p) {
     const cards = items.map((it, ii) => {
       if (!visible(it)) return '';
       const pend = pendingUrl && normTxt(it.url || '').replace(/\/$/, '') === normTxt(pendingUrl).replace(/\/$/, '');
-      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${vLocked ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span><span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
+      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${vLocked ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${vLocked ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span>${diffHtml(it, ii)}<span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
     }).join('');
     body = `<div class="variant-body">${loadHint}${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
   }
-  return `<div class="slot-variants"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"${vLocked ? ' disabled' : ''}><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
+  return `<div class="slot-variants${openVariants.has(id) ? ' open' : ''}${(loading || attrsLoading) ? ' loading' : ''}"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
 }
 async function selectVariant(slotId, url, cardPrice) {
   const s = state.slots[slotId], p = s && sel(s);
   if (!p || !url || typeof Idealo === 'undefined') return;
   if (variantLoading) { toast(lang === 'en' ? 'A variant is already loading — please wait' : 'Une variante charge déjà — patientez'); return; }
-  variantLoading = url; variantPending[slotId] = url; dsFetchStart(p); renderSlots(); // instant feedback
+  variantLoading = url; variantPending[slotId] = url; dsFetchStart(p); idealoAttempted.add(p.id); renderSlots(); // instant feedback
   showProgress(lang === 'en' ? 'Loading variant…' : 'Chargement de la variante…');
   try {
     const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
@@ -667,7 +677,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
   s.products.push(np);
   persist(); renderSlots();
   toast(lang === 'en' ? 'Alternative added — enriching…' : 'Alternative ajoutée — enrichissement…');
-  variantLoading = url; dsFetchStart(np);
+  variantLoading = url; dsFetchStart(np); idealoAttempted.add(np.id);
   try {
     const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
     const cur = s.products.find(x => x.id === np.id);
@@ -772,7 +782,10 @@ function slotCard(id) {
     slotAction(id, b.dataset.act);
   }));
   el.querySelectorAll('[data-act][role="button"]').forEach(b => b.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); }
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    if (b.closest('[disabled]')) return; // locked dropdown: keyboard must not bypass it
+    b.click();
   }));
   const alts = el.querySelector('[data-alts]');
   if (alts) renderAlts(alts, s, id);
@@ -1001,6 +1014,10 @@ async function loadIdealoList(url, mode = 'fresh') {
     } catch { /* ignore */ }
   }
   idealBusy = true; renderIdealo();
+  if (mode !== 'fresh') { // "load more" / sort variant: skeleton at the end of the existing list
+    const host = $('#idealoList');
+    if (host && !host.querySelector('.skel-more')) host.insertAdjacentHTML('beforeend', '<div class="skel skel-more"></div><div class="skel skel-more"></div>');
+  }
   const need = mode === 'fresh' || mode === 'variant' ? [idealSort] : nextVariant();
   if (mode === 'more' && !need.length && idealNextUrl && !idealFetched['next:' + idealNextUrl]) {
     const r2 = await Idealo.list(idealNextUrl);
@@ -1133,7 +1150,7 @@ function chooseIdealoItem(it) {
     setIf('#f_del', 'delivery', np.delivery ? String(np.delivery) : '');
     if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
   };
-  dsFetchStart(np);
+  dsFetchStart(np); idealoAttempted.add(np.id);
   Idealo.product(it.url).then(d => {
     dsFetchEnd(np);
     if (!d || d.error) return;
