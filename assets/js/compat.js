@@ -74,7 +74,8 @@ const Compat = (() => {
     ['format', 'form', 'form'], ['form factor', 'form', 'form'],
     ['formats de cartes mères supportés', 'caseForms', 'forms'], ['supported motherboard formats', 'caseForms', 'forms'],
     ['standards ethernet', 'lan', 'lan'], ['ethernet', 'lan', 'lan'], ['network', 'lan', 'lan'],
-    ['connecteurs vidéo', 'vid', 'vidports'], ['sorties vidéo', 'vid', 'vidports'], ['sorties video', 'vid', 'vidports'],
+    ['connecteurs vidéo', 'vid', 'vidports'], ['connecteurs vidéos', 'vid', 'vidports'], ['connecteurs video', 'vid', 'vidports'],
+    ['sorties vidéo', 'vid', 'vidports'], ['sorties vidéos', 'vid', 'vidports'], ['sorties video', 'vid', 'vidports'],
     ['entrées vidéo', 'vid', 'vidports'], ['entrees video', 'vid', 'vidports'], ['entrées', 'vid', 'vidports'],
     ['connecteur vidéo', 'vid', 'vidports'], ['ports vidéo', 'vid', 'vidports'],
     ['video inputs', 'vid', 'vidports'], ['video outputs', 'vid', 'vidports'],
@@ -193,6 +194,7 @@ const Compat = (() => {
       if (kind === 'pciegen') { const n = fnum(val); if (n) P.pcieGen = n; continue; }
       if (kind === 'usbports') {
         val.split(',').forEach(part => {
+          if (/ps\/2/i.test(part)) return; // keyboard/mouse legacy port, not USB
           const n = fnum(part);
           if (!n) return;
           if (/C\b|2x2|Type.?C/i.test(part)) P.usbBack.c += n;
@@ -399,6 +401,11 @@ const Compat = (() => {
     const mbUsbC = (mbHasDs && P[mbId].ds.usbBack) ? (P[mbId].ds.usbBack.c || 0) : 0;
     const mbBt = mbHasDs ? (P[mbId].ds.bt || '') : '';
     const mbAudio = mbHasDs ? !!P[mbId].ds.audio : false;
+    /* A discrete GPU almost always covers the neighbouring x1 slot (dual-slot coolers),
+       unless its datasheet explicitly says single-slot / low profile. */
+    const gpuRaw = (gpuId && P[gpuId].hasDs) ? (P[gpuId].ds.raw || '') : '';
+    const gpuSingle = /single[\s-]?slot|low profile|profil bas|1\s*slot\b/i.test(gpuRaw);
+    const gpuX1blocked = (gpuId && P[gpuId].hasDs && !gpuSingle) ? 1 : 0;
 
     /* ---- CPU: socket + TDP (no chipset check) ---- */
     if (cpuId) {
@@ -527,6 +534,13 @@ const Compat = (() => {
     if (gpuId && !needDs(gpuId)) {
       const G = P[gpuId].ds;
       const gl = G.length || 0;
+      if (!mbId) add(gpuId, 'slot', L('Slot', 'Slot'), NA, L('Carte mère absente', 'No motherboard'), A('Carte', 'PCIe x16'), null);
+      else if (!P[mbId].hasDs) add(gpuId, 'slot', L('Slot', 'Slot'), WARN, L('Slots CM à confirmer (datasheet manquante)', 'Confirm board slots (missing datasheet)'), A('Carte', 'PCIe x16'), null);
+      else if ((P[mbId].ds.slotX16 || 0) >= 1) {
+        const cover = gpuX1blocked ? L(' — recouvre le slot x1 voisin', ' — covers the neighbouring x1 slot') : '';
+        add(gpuId, 'slot', L('Slot', 'Slot'), OK, L(`Slot PCIe x16 disponible (${P[mbId].ds.slotX16})${cover}`, `Free PCIe x16 slot (${P[mbId].ds.slotX16})${cover}`), A('Carte', 'PCIe x16'), A('Slots x16 CM', P[mbId].ds.slotX16));
+      }
+      else add(gpuId, 'slot', L('Slot', 'Slot'), ERR, L('Aucun slot PCIe x16 sur la carte mère !', 'No PCIe x16 slot on the motherboard!'), A('Carte', 'PCIe x16'), A('Slots x16 CM', 0));
       const caseIds = byDef('case');
       if (!caseIds.length) add(gpuId, 'length', L('Longueur', 'Length'), NA, L('Boîtier absent', 'No case'), A('Longueur GPU', gl ? gl + ' mm' : '?'), null);
       else if (!P[caseIds[0]].hasDs) add(gpuId, 'length', L('Longueur', 'Length'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Longueur GPU', gl ? gl + ' mm' : '?'), null);
@@ -644,6 +658,17 @@ const Compat = (() => {
     ])];
     const isExtCard = id => /usb|thunderbolt|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
     const intCards = cardIds.filter(id => !isExtCard(id));
+    const usbNic = id => /usb|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+    const intNicIds = byDef('netcard').filter(nid => P[nid].hasDs && !usbNic(nid));
+    const intAll = [...intCards, ...intNicIds]; // every internal PCIe x1 card, GPU first
+    /* Shared x1/x16 placement: rank = position among internal cards. */
+    const x1place = (M, rank) => {
+      const x1eff = Math.max(0, (M.slotX1 || 0) - gpuX1blocked);
+      if (x1eff && rank < x1eff) return { where: 'x1', x1eff };
+      const x16used = (gpuId ? 1 : 0) + Math.max(0, rank - x1eff);
+      if ((M.slotX16 || 0) > x16used) return { where: 'x16', free: (M.slotX16 || 0) - x16used };
+      return { where: null, x1eff };
+    };
     const routerLanOf = id => {
       if (P[id].hasDs && P[id].ds.lan) return P[id].ds.lan;
       const rn = (P[id].p.name.match(/(\d+(?:[.,]\d+)?)\s*Gb/i) || [])[1];
@@ -688,16 +713,15 @@ const Compat = (() => {
       } else if (!rLan) add(id, 'ports', L('Ports', 'Ports'), WARN, L('Vitesses routeur/PC inconnues — vérifiez', 'Unknown router/PC speeds — verify'), aSw, null);
     });
     /* ---- Network card: PCIe slot (if internal) + link speed ---- */
-    const usbNic = id => /usb|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
     byDef('netcard').forEach(id => {
       if (!P[id].hasDs) { needDs(id); return; }
       if (!usbNic(id) && mbId && P[mbId].hasDs) {
         const M = P[mbId].ds;
-        const usedX1 = cardIds.filter(cid => cid !== id && !isExtCard(cid)).length;
-        const x1 = M.slotX1 || 0;
-        if (x1 && usedX1 < x1) add(id, 'slot', L('Slot', 'Slot'), OK, L(`Slot PCIe x1 libre (${usedX1 + 1}/${x1})`, `Free PCIe x1 slot (${usedX1 + 1}/${x1})`), A('Carte', 'PCIe x1'), A('Slots x1 CM', x1));
-        else if ((M.slotX16 || 0) > (gpuId ? 1 : 0) + cardIds.filter(cid => cid !== id && !isExtCard(cid) && !x1).length) add(id, 'slot', L('Slot', 'Slot'), OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16', 'libre'));
-        else if (x1 || M.slotX16) add(id, 'slot', L('Slot', 'Slot'), ERR, L('Plus de slot PCIe libre !', 'No free PCIe slot left!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
+        const rank = intAll.indexOf(id);
+        const pl = x1place(M, rank);
+        if (pl.where === 'x1') add(id, 'slot', L('Slot', 'Slot'), OK, L(`Slot PCIe x1 libre (n°${rank + 1}/${pl.x1eff}${gpuX1blocked ? ', GPU recouvre 1 slot' : ''})`, `Free PCIe x1 slot (#${rank + 1}/${pl.x1eff}${gpuX1blocked ? ', GPU covers 1 slot' : ''})`), A('Carte', 'PCIe x1'), A('Slots x1 CM', pl.x1eff));
+        else if (pl.where === 'x16') add(id, 'slot', L('Slot', 'Slot'), OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16 libres', pl.free));
+        else if (M.slotX1 || M.slotX16) add(id, 'slot', L('Slot', 'Slot'), ERR, L('Plus de slot PCIe libre !', 'No free PCIe slot left!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
         else add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slot libre à confirmer', 'Confirm free slot'), A('Carte', P[id].p.name || '?'), A('Slots CM', '?'));
       } else if (!usbNic(id)) add(id, 'slot', L('Slot', 'Slot'), WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null);
       else if (mbUsbA > 0) add(id, 'slot', L('Slot', 'Slot'), OK, L(`Carte USB — ${mbUsbA} port(s) USB-A arrière`, `USB card — ${mbUsbA} rear USB-A port(s)`), A('Carte', 'USB'), A('USB-A arrière', mbUsbA));
@@ -738,15 +762,12 @@ const Compat = (() => {
       }
       if (!mbId || !P[mbId].hasDs) { add(id, 'slot', lbl, WARN, L('Slots CM à confirmer', 'Confirm board slots'), A('Carte', P[id].p.name || '?'), null); return; }
       const M = P[mbId].ds;
-      const x1 = M.slotX1 || 0;
-      const rank = intCards.indexOf(id); // 0-based among internal cards
-      if (x1 && rank < x1) add(id, 'slot', lbl, OK, L(`Carte interne — slot PCIe x1 n°${rank + 1}/${x1} libre`, `Internal card — free PCIe x1 slot #${rank + 1}/${x1}`), A('Carte', 'PCIe x1'), A('Slots x1 CM', x1));
-      else {
-        const x16used = (gpuId ? 1 : 0) + Math.max(0, rank - x1);
-        if ((M.slotX16 || 0) > x16used) add(id, 'slot', lbl, OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16 libres', (M.slotX16 || 0) - x16used));
-        else if (x1 || M.slotX16) add(id, 'slot', lbl, ERR, L('Plus de slot PCIe libre pour cette carte !', 'No free PCIe slot left for this card!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
-        else add(id, 'slot', lbl, WARN, L('Slot libre à confirmer (GPU + carte d’extension)', 'Confirm free slot (GPU + add-in card)'), A('Carte', P[id].p.name || '?'), A('Slots CM', '?'));
-      }
+      const rank = intAll.indexOf(id); // 0-based among ALL internal x1 cards (sound/capture/NIC)
+      const pl = x1place(M, rank);
+      if (pl.where === 'x1') add(id, 'slot', lbl, OK, L(`Carte interne — slot PCIe x1 n°${rank + 1}/${pl.x1eff} libre${gpuX1blocked ? ' (GPU recouvre 1 slot)' : ''}`, `Internal card — free PCIe x1 slot #${rank + 1}/${pl.x1eff}${gpuX1blocked ? ' (GPU covers 1 slot)' : ''}`), A('Carte', 'PCIe x1'), A('Slots x1 CM', pl.x1eff));
+      else if (pl.where === 'x16') add(id, 'slot', lbl, OK, L('Carte x1 dans slot x16 libre (compatible)', 'x1 card in free x16 slot (compatible)'), A('Carte', 'PCIe x1'), A('Slots x16 libres', pl.free));
+      else if (M.slotX1 || M.slotX16) add(id, 'slot', lbl, ERR, L('Plus de slot PCIe libre pour cette carte !', 'No free PCIe slot left for this card!'), A('Carte', 'PCIe x1'), A('Slots CM', `x16:${M.slotX16 || '?'} x1:${M.slotX1 || '?'}`));
+      else add(id, 'slot', lbl, WARN, L('Slot libre à confirmer (GPU + carte d’extension)', 'Confirm free slot (GPU + add-in card)'), A('Carte', P[id].p.name || '?'), A('Slots CM', '?'));
     });
     /* ---- Screens vs video outputs (GPU, else motherboard iGPU) ---- */
     const fmtVid = v => {

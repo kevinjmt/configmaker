@@ -462,7 +462,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></button>
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i></button>
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
-      ${['mb', 'ssd1', 'soundcard', 'capture'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
+      ${['mb', 'ssd1', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
     </div>
@@ -606,6 +606,13 @@ function addSlotByDef(defId) {
     const ids = state.order.filter(x => defOf(state.slots[x]).sec === d.sec);
     const last = ids[ids.length - 1];
     state.order.splice(last ? state.order.indexOf(last) + 1 : state.order.length, 0, id);
+  }
+  if (defId === 'netcard') { // PCIe card: keep it right below the graphics card
+    const gids = state.order.filter(sid => sid !== id && state.slots[sid].defId === 'gpu');
+    if (gids.length) {
+      state.order = state.order.filter(sid => sid !== id);
+      state.order.splice(state.order.indexOf(gids[gids.length - 1]) + 1, 0, id);
+    }
   }
   persist(); refresh(); openPicker(id);
 }
@@ -993,6 +1000,7 @@ function openPcieSim() {
   if (r.matched && r.matched.ssds) m.push(`SSD ×${r.matched.ssds}`);
   if (r.matched && r.matched.captures) m.push(`Capture ×${r.matched.captures}`);
   if (r.matched && r.matched.sounds) m.push(`Son ×${r.matched.sounds}`);
+  if (r.matched && r.matched.nics) m.push(`NIC ×${r.matched.nics}`);
   if (r.fallback) {
     try {
       const txt = ['ConfigMaker', state.name, 'MB: ' + ((state.slots.mb && sel(state.slots.mb) || {}).name || '—'), 'CPU: ' + ((state.slots.cpu && sel(state.slots.cpu) || {}).name || '—')].join(' · ');
@@ -1486,7 +1494,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.49', `
+  openModal('Changelog — v2.50', `
+    <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
     <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et comparaisons de specs façon VS, bouton Vérifié (pastille vert clair,une seule coche), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110, connectique écrans/clavier/souris/casque/dock (HDMI/DP/USB-C/USB-A/Bluetooth/Jack).</p></div>
     <div class="chlog"><h3>v2.48 — Vérification de compatibilité</h3><p class="hint">Pastilles vertes/jaunes/rouges par composant (socket, chipset, format, RAM, PCIe…), boutons et résumé surlignés en cas de souci, onglet Compat avec problèmes et avertissements cliquables, champ puissance alim/onduleur.</p></div>
     <div class="chlog"><h3>v2.47 — Offres directes en pause</h3><p class="hint">Le flux d'offre directe est grisé partout avec mention du problème connu pendant la correction.</p></div>

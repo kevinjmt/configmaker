@@ -115,6 +115,25 @@ const PCIe = (() => {
     if (/pci[\s-]?e(xpress)?|\bpcie\b/i.test(`${name} ${specs}`)) return { id: 'capture_x4', generic: true };
     return null;
   }
+  /* Network card: exact catalog match (chipset), else generic PCIe x1 NIC (USB ones skipped). */
+  function matchNet(name, specs) {
+    if (!name) return null;
+    if (isUsbOnly(name, specs)) return null;
+    const devs = ((typeof PCIECAT !== 'undefined' && PCIECAT.d) || []).filter(d => d.t === 'nic');
+    const tw = normDev(name).split(' ').filter(w => w.length > 1);
+    let best = null;
+    for (const d of devs) {
+      const dn = new Set(normDev(d.n).split(' ').filter(w => w.length > 1));
+      const hit = tw.filter(w => [...dn].some(x => x === w || ((x.includes(w) || w.includes(x)) && Math.min(x.length, w.length) >= 4)));
+      if (hit.length < 2) continue;
+      const score = hit.length * 2;
+      if (!best || score > best.score) best = { id: d.i, score };
+    }
+    if (best) return { id: best.id, generic: false };
+    if (/pci[\s-]?e(xpress)?|\bpcie\b|\bpci\b/i.test(`${name} ${specs}`)) return { id: 'nic_x1', generic: true };
+    if (/2[\s.]?5\s*gb|5\s*gb|10\s*gb|ethernet|rj-?45|lan/i.test(`${name} ${specs}`)) return { id: 'nic_x1', generic: true };
+    return null;
+  }
   /* Sound card: PCIe only (USB externals skipped) → generic PCIe x1 sound. */
   function matchSound(name, specs) {
     if (!name) return null;
@@ -182,6 +201,7 @@ const PCIe = (() => {
     const ssds = productsOf('ssd1');
     const captures = productsOf('capture');
     const sounds = productsOf('soundcard');
+    const nets = productsOf('netcard');
     const board = mb && mb.name ? matchBoard(mb.name) : null;
     if (!board) return { url: BASE, matched: {}, missing: ['motherboard'], fallback: true };
     const cpuId = cpu && cpu.name ? matchCpu(cpu.name, board.o) : null;
@@ -200,7 +220,7 @@ const PCIe = (() => {
     }
     if (ssdTotal && ssdCount < ssdTotal) missing.push('SSD');
     const xslots = (board.x || []).filter(s => !used.has(s));
-    let xi = 0, capCount = 0, sndCount = 0, capTotal = captures.length, sndTotal = sounds.length;
+    let xi = 0, capCount = 0, sndCount = 0, netCount = 0, capTotal = captures.length, sndTotal = sounds.length, netTotal = nets.length;
     for (const p of captures) {
       const dev = matchCapture(p.name, p.specs);
       if (dev && xi < xslots.length) { comps[xslots[xi]] = dev.id; xi++; capCount++; }
@@ -209,12 +229,17 @@ const PCIe = (() => {
       const dev = matchSound(p.name, p.specs);
       if (dev && xi < xslots.length) { comps[xslots[xi]] = dev.id; xi++; sndCount++; }
     }
+    for (const p of nets) {
+      const dev = matchNet(p.name, p.specs);
+      if (dev && xi < xslots.length) { comps[xslots[xi]] = dev.id; xi++; netCount++; }
+    }
     if (capTotal && !capCount) missing.push('capture');
     if (sndTotal && !sndCount) missing.push('sound');
+    if (netTotal && !netCount) missing.push('NIC');
     const payload = { m: board.k };
     if (cpuId) payload.c = cpuId;
     if (Object.keys(comps).length) payload.s = comps;
-    return { url: BASE + '#cfg=' + b64url(payload), matched: { mb: board.n, cpu: cpuId, gpu: gpuId, ssds: ssdCount, captures: capCount, sounds: sndCount }, missing, fallback: false };
+    return { url: BASE + '#cfg=' + b64url(payload), matched: { mb: board.n, cpu: cpuId, gpu: gpuId, ssds: ssdCount, captures: capCount, sounds: sndCount, nics: netCount }, missing, fallback: false };
   }
 
   function open() {
@@ -223,5 +248,5 @@ const PCIe = (() => {
     return r;
   }
 
-  return { buildUrl, open, matchBoard, matchCpu, matchGpu, matchNvme, matchSsd, matchCapture, matchSound };
+  return { buildUrl, open, matchBoard, matchCpu, matchGpu, matchNvme, matchSsd, matchCapture, matchSound, matchNet };
 })();
