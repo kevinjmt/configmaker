@@ -377,10 +377,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
 .sum-totals .sum-line:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .charts-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
-.chart-card{flex:0 0 220px;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);text-align:center;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.chart-card{flex:0 0 220px;border:none;border-radius:14px;padding:12px;background:var(--surface);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px}
 .chart-card h3{margin:0 0 6px 0;font-size:.85rem;flex:0 0 100%;text-align:center}
 .chart-card svg{flex:0 0 auto}
-.chart-card .legend{flex:1;min-width:150px;display:flex;flex-direction:column;align-items:flex-start;margin-top:0}
 #sumChartsPane{display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:62vh;padding-bottom:4px}
 #sumChartsPane .chart-card{flex:none;width:100%}
 #sumChartsPane .dsec.collapsed .chart-card,#sumChartsPane .dsec.collapsed .chart-list{display:none}

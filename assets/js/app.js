@@ -158,6 +158,7 @@ function ensureVariantAttrs(slotId) {
 }
 const foldedSecs = new Set();
 const foldedCharts = new Set();
+const foldedPower = new Set();
 let prefs = load(LS.prefs, {});
 function persist() { save(LS.state, state); }
 
@@ -1459,9 +1460,16 @@ function pieSVG(items, size = 150) {
   items.forEach((it, i) => {
     const a1 = a0 + (it.v / total) * Math.PI * 2;
     const r = size / 2, cx = r, cy = r;
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const big = (a1 - a0) > Math.PI ? 1 : 0;
-    if (it.v > 0) paths += `<path data-i="${i}" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${big},1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${cols[i % cols.length]}"/>`;
+    const col = cols[i % cols.length];
+    if (it.v <= 0) { return; }
+    if ((a1 - a0) >= Math.PI * 2 - 1e-6) {
+      // single slice: explicit full circle (coincident-endpoint arcs are degenerate)
+      paths += `<circle data-i="${i}" cx="${cx}" cy="${cy}" r="${r}" fill="${col}"/>`;
+    } else {
+      const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+      const big = (a1 - a0) > Math.PI ? 1 : 0;
+      paths += `<path data-i="${i}" d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${big},1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${col}"/>`;
+    }
     a0 = a1;
   });
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img">${paths}<circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.22}" fill="var(--surface)"/></svg>`;
@@ -1483,23 +1491,39 @@ function renderSumExtra() {
     return `<div class="dsec chart-dsec${foldedCharts.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-chead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(tot)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${eur(tot)}</h3>${pieSVG(items)}</div><div class="chart-list">${rows}</div></div>`;
   }).join('');
   $('#sumChartsPane').innerHTML = chartSecs || `<p class="hint">${lang === 'en' ? 'Nothing selected yet.' : 'Rien de sélectionné.'}</p>`;
+  const budget = Number(state.budget) || 0;
+  if (budget > 0 && (T.pc + T.setup + T.others) > 0) {
+    const spent = T.pc + T.setup + T.others;
+    const rest = Math.round((budget - spent) * 100) / 100;
+    const alloc = [{ key: 'pc', label: secName('pc'), v: T.pc }, { key: 'setup', label: secName('setup'), v: T.setup }, { key: 'others', label: secName('others'), v: T.others }];
+    const allocItems = alloc.filter(a => a.v > 0);
+    const allocTot = allocItems.reduce((a, b) => a + b.v, 0);
+    if (rest >= 0) { allocItems.push({ key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }); }
+    const allocAll = rest >= 0 ? allocTot + rest : allocTot;
+    const arows = allocItems.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allocAll * 100)}%)</span></span><span class="di-price"><strong>${eur(a.v)}</strong></span></div>`).join('')
+      + (rest < 0 ? `<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Over budget' : 'Dépassement'} (${eur(-rest)})</span></span><span class="di-price"><strong style="color:var(--danger)">${eur(spent)} / ${eur(budget)}</strong></span></div>` : '');
+    $('#sumChartsPane').insertAdjacentHTML('beforeend', `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-chart-pie"></i><span>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'}</span><span class="dsec-total">${eur(budget)}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'} — ${eur(budget)}</h3>${pieSVG(allocItems.map(a => ({ v: a.v })))}</div><div class="chart-list">${arows}</div></div>`);
+  }
+  function wireChartRows(dsec) {
+    const paths = [...dsec.querySelectorAll('svg [data-i]')];
+    dsec.querySelectorAll('.chart-row[data-ci]').forEach(row => {
+      const idx = row.dataset.ci;
+      if (row.dataset.sid) row.onclick = () => focusComponent(row.dataset.sid);
+      row.onmouseenter = () => paths.forEach(p => { p.style.opacity = p.dataset.i === idx ? '1' : '.25'; });
+      row.onmouseleave = () => paths.forEach(p => { p.style.opacity = ''; });
+    });
+  }
   $('#sumChartsPane').querySelectorAll('.chart-dsec').forEach(dsec => {
     const sec = dsec.dataset.sec;
     dsec.querySelector('[data-chead]').onclick = () => {
       foldedCharts.has(sec) ? foldedCharts.delete(sec) : foldedCharts.add(sec);
       renderSumExtra();
     };
-    const paths = [...dsec.querySelectorAll('svg path[data-i]')];
-    dsec.querySelectorAll('.chart-row').forEach(row => {
-      const idx = row.dataset.ci;
-      row.onclick = () => focusComponent(row.dataset.sid);
-      row.onmouseenter = () => paths.forEach(p => { p.style.opacity = p.dataset.i === idx ? '1' : '.25'; });
-      row.onmouseleave = () => paths.forEach(p => { p.style.opacity = ''; });
-    });
+    wireChartRows(dsec);
   });
   const watts = state.order.filter(id => defOf(state.slots[id]).sec === 'pc').map(id => { const p = sel(state.slots[id]); const w = p ? (Number(p.watts) || 0) * (Number(p.qty) || 1) : 0; return { id, v: w }; }).filter(x => x.v > 0);
   const tot = watts.reduce((a, b) => a + b.v, 0) || 0;
-  let powerHtml = '', powerList = null;
+  let powerHtml = '';
   try {
     if (typeof Compat !== 'undefined' && Compat.powerBreakdown) {
       const pw = Compat.powerBreakdown({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
@@ -1507,12 +1531,35 @@ function renderSumExtra() {
       const totP = pw.psuTotal, totU = pw.upsTotal;
       const kwh = totU * pw.hoursDay * 365 / 1000;
       const eurY = kwh * pw.kwhPrice, eurM = eurY / 12;
-      const pieItems = list.filter(i => i.psu).map(i => ({ id: i.id, v: i.w }));
-      const pieTot = pieItems.reduce((a, b) => a + b.v, 0) || 1;
+      const secOf = id => { const s = state.slots[id]; return s ? defOf(s).sec : 'others'; };
+      const pwSecs = ['pc', 'setup', 'others'].map(sec => {
+        const items = list.filter(i => secOf(i.id) === sec);
+        if (!items.length) return '';
+        const tot = Math.round(items.reduce((a, b) => a + b.w, 0) * 10) / 10;
+        const rows = items.map((it, i) => {
+          const s = state.slots[it.id];
+          const color = cols[i % cols.length];
+          return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${(it.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page')}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(it.name)} (${Math.round(it.w / tot * 100)}%)${it.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${it.w} W</strong></span></div>`;
+        }).join('');
+        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${tot} W</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${tot} W</h3>${pieSVG(items.map(a => ({ v: a.w })))}</div><div class="chart-list">${rows}</div></div>`;
+      }).join('');
+      let allocHtml = '';
+      if (pw.psu.usableW > 0 && totP > 0) {
+        const used = ['pc', 'setup', 'others'].map(sec => ({ key: sec, label: secName(sec), v: Math.round(list.filter(i => secOf(i.id) === sec && i.psu).reduce((a, b) => a + b.w, 0) * 10) / 10 })).filter(a => a.v > 0);
+        const usedTot = used.reduce((a, b) => a + b.v, 0);
+        const rest = Math.round((pw.psu.usableW - usedTot) * 10) / 10;
+        const alloTitle = lang === 'en' ? 'PSU headroom' : 'Marge alim';
+        if (rest >= 0) {
+          const all = [...used, { key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }];
+          const allTot = usedTot + rest;
+          allocHtml = `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(all.map(a => ({ v: a.v })))}</div><div class="chart-list">${all.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allTot * 100)}%)</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}</div></div>`;
+        } else {
+          allocHtml = `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${-rest} W)</span></span><span class="di-price"><strong style="color:var(--danger)">${usedTot} / ${pw.psu.usableW} W</strong></span></div></div></div>`;
+        }
+      }
       powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${totP} W</strong></h3>
-      <div class="charts-row"><div class="chart-card"><h3>PC — ${totP} W</h3>${pieSVG(pieItems)}
-      <div class="legend">${pieItems.map((x, i) => `<span><i class="dot" style="background:${['#1a8744', '#2fa968', '#7ed491', '#0ca678', '#94d82d', '#1971c2', '#845ef7', '#e8890c', '#e03131', '#868e96'][i % 10]}"></i>${esc(slotName(x.id))} — ${x.v} W (${Math.round(x.v / pieTot * 100)}%)</span>`).join('')}</div></div></div>
-      <div class="power-list" data-power-list></div>
+      ${pwSecs}
+      ${allocHtml}
       <div class="sum-totals">
         <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${totP} W</span></span></div>
         <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens)' : 'Charge onduleur (PC+écrans)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${totU} W</strong></span></div>
@@ -1520,24 +1567,21 @@ function renderSumExtra() {
         <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (${pw.kwhPrice.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${eur(eurM)}/mois</span></span></div>
       </div>
       <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
-      powerList = list;
     }
   } catch { /* fall through to legacy display */ }
   if (!powerHtml) powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
     <div class="charts-row"><div class="chart-card"><h3>kWh / 4h jour ≈ ${((tot * 4 * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts)}
     <div class="legend">${watts.map((x, i) => `<span><i class="dot" style="background:${cols[i % cols.length]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
   $('#sumPowerPane').innerHTML = powerHtml;
-  const plHost = powerList && $('#sumPowerPane').querySelector('[data-power-list]');
-  if (plHost) plHost.append(...powerList.map(i => {
-    const s = state.slots[i.id];
-    const row = document.createElement('div');
-    row.className = 'ditem';
-    row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(i.id))}</span><span class="di-name">${esc(i.name)}${i.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${i.w} W</strong></span>`;
-    row.style.cursor = 'pointer';
-    row.title = (i.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page');
-    row.onclick = () => focusComponent(i.id);
-    return row;
-  }));
+  $('#sumPowerPane').querySelectorAll('.chart-dsec').forEach(dsec => {
+    const sec = dsec.dataset.sec;
+    const head = dsec.querySelector('[data-phead]');
+    if (head && sec) head.onclick = () => {
+      foldedPower.has(sec) ? foldedPower.delete(sec) : foldedPower.add(sec);
+      renderSumExtra();
+    };
+    wireChartRows(dsec);
+  });
   refreshIcons();
 }
 
