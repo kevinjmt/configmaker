@@ -748,7 +748,7 @@ async function refreshOnePrice(slotId) {
   const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
   if (!/idealo\.fr\/prix\//i.test(p.idealo || '') || typeof Idealo === 'undefined') return;
   if (editingPid && editingPid === p.id) return;
-  refreshingPids.add(p.id); renderSlots();
+  refreshingPids.add(p.id); renderSlots(); renderSummary();
   showProgress(lang === 'en' ? 'Refreshing price…' : 'Actualisation du prix…');
   try {
     const r = await Idealo.offers(p.idealo, true);
@@ -1287,7 +1287,7 @@ function renderSummary() {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
       const cst = getCompat().statusOf[id];
-      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '');
+      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
       row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${eur(unitTotal(p))}</strong></span>`;
       row.style.cursor = 'pointer';
       row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
@@ -1671,7 +1671,7 @@ async function refreshPrices() {
     });
     if (!entries.length) continue;
     entries.forEach(e => refreshingPids.add(e.pid));
-    renderSlots();
+    renderSlots(); renderSummary();
     showProgress(`${prog} (${i + 1}/${urls.length})…`);
     try {
       const r = await Idealo.offers(url, true);
