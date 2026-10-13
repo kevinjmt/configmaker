@@ -1477,9 +1477,33 @@ function renderSumExtra() {
   $('#sumChartsPane').innerHTML = `<div class="charts-row">${card(secName('pc'), secItems('pc'))}${card(secName('setup'), secItems('setup'))}${card(secName('others'), secItems('others'))}</div>`;
   const watts = state.order.filter(id => defOf(state.slots[id]).sec === 'pc').map(id => { const p = sel(state.slots[id]); const w = p ? (Number(p.watts) || 0) * (Number(p.qty) || 1) : 0; return { id, v: w }; }).filter(x => x.v > 0);
   const tot = watts.reduce((a, b) => a + b.v, 0) || 0;
-  $('#sumPowerPane').innerHTML = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
+  let powerHtml = '';
+  try {
+    if (typeof Compat !== 'undefined' && Compat.powerBreakdown) {
+      const pw = Compat.powerBreakdown({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
+      const list = pw.items.filter(i => i.w > 0);
+      const totP = pw.psuTotal, totU = pw.upsTotal;
+      const kwh = totU * pw.hoursDay * 365 / 1000;
+      const eurY = kwh * pw.kwhPrice, eurM = eurY / 12;
+      const pieItems = list.filter(i => i.psu).map(i => ({ id: i.id, v: i.w }));
+      const pieTot = pieItems.reduce((a, b) => a + b.v, 0) || 1;
+      powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${totP} W</strong></h3>
+      <div class="charts-row"><div class="chart-card"><h3>PC — ${totP} W</h3>${pieSVG(pieItems)}
+      <div class="legend">${pieItems.map((x, i) => `<span><i class="dot" style="background:${['#1a8744', '#2fa968', '#7ed491', '#0ca678', '#94d82d', '#1971c2', '#845ef7', '#e8890c', '#e03131', '#868e96'][i % 10]}"></i>${esc(slotName(x.id))} — ${x.v} W (${Math.round(x.v / pieTot * 100)}%)</span>`).join('')}</div></div></div>
+      <div class="sum-totals">
+        ${list.map(i => `<div class="sum-line"><span>${esc(slotName(i.id))} — ${esc(i.name) || ''}${i.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span><span><strong>${i.w} W</strong></span></div>`).join('')}
+        <div class="sum-line"><span><strong>Total PC</strong></span><span class="big">${totP} W</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens)' : 'Charge onduleur (PC+écrans)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span><strong>${totU} W</strong></span></div>
+        <div class="sum-line"><span>kWh / ${pw.hoursDay}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span>${eur(eurY)}/an</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (${pw.kwhPrice.toFixed(4)} €/kWh)</span><span><strong>${eur(eurM)}/mois</strong></span></div>
+      </div>
+      <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
+    }
+  } catch { /* fall through to legacy display */ }
+  if (!powerHtml) powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
     <div class="charts-row"><div class="chart-card"><h3>kWh / 4h jour ≈ ${((tot * 4 * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts)}
     <div class="legend">${watts.map((x, i) => `<span><i class="dot" style="background:${cols[i % cols.length]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
+  $('#sumPowerPane').innerHTML = powerHtml;
 }
 
 /* ---------- Price history ---------- */

@@ -10,6 +10,10 @@
 const Compat = (() => {
   const OK = 'ok', WARN = 'warn', ERR = 'err', NA = 'na', CHECKED = 'checked';
   const T = (lang, fr, en) => (lang === 'en' ? en : fr);
+  const KWH_PRICE = 0.2001; // € TTC/kWh, France Base 6kVA (CRE grid 01/08/2026)
+  const HOURS_DAY = 4;      // daily full-load hypothesis for cost display
+  const EFF80 = { titanium: .92, platinum: .90, gold: .87, silver: .85, bronze: .82, none: .75 };
+  const EFF80LBL = { titanium: 'Titanium', platinum: 'Platinum', gold: 'Gold', silver: 'Silver', bronze: 'Bronze', none: '—' };
 
   function fnum(s) {
     const m = String(s || '').replace(/\s/g, '').match(/(\d+(?:[.,]\d+)?)/);
@@ -131,6 +135,11 @@ const Compat = (() => {
     ['connecteurs pci-e (8 broches)', 'pcie8', 'num'], ['pci-e 8-pin connectors', 'pcie8', 'num'],
     ['autres connecteurs', 'otherConn', 'raw'],
     ['puissance continue', 'capW', 'num'],
+    ['certification 80 plus', 'cert80', 'raw'], ['certification 80+', 'cert80', 'raw'],
+    ['80 plus', 'cert80', 'raw'], ['80+', 'cert80', 'raw'],
+    ['efficacité', 'cert80', 'raw'], ['efficiency', 'cert80', 'raw'], ['rendement', 'cert80', 'raw'],
+    ['nombre de ventilateurs', 'fanCount', 'num'], ['number of fans', 'fanCount', 'num'],
+    ['ventilateurs préinstallés', 'fanCount', 'num'], ['preinstalled fans', 'fanCount', 'num'],
     ['type de produit', 'ddr', 'ddr'], ['product type', 'ddr', 'ddr'],
   ];
   const SORTED = [...LABELS].sort((a, b) => b[0].length - a[0].length);
@@ -307,6 +316,40 @@ const Compat = (() => {
       else if (/usb\s*2|usb2/.test(l)) usbTop = Math.max(usbTop, 0.48);
     }
     if (usbTop) P.usbTop = usbTop;
+    /* Screen energy → watts (label-agnostic): direct W > kWh/1000h > kWh/year (÷1460h) > €/year (÷0.2001€, ÷1460h). */
+    {
+      const eTest = ln => /kwh|\bwh\b|€|\beuro\b|consommation|consumption|classe|class|énergie|energy|électrique|electric|power|puissance/i.test(low(ln));
+      const eL = [];
+      for (let i = 0; i < lines.length; i++) {
+        const pair = lines[i] + ' ' + (lines[i + 1] || ''); // label and value may sit on two lines
+        if (eTest(lines[i]) || eTest(lines[i + 1] || '')) eL.push(pair);
+      }
+      let w = 0, src = '';
+      for (const ln of eL) {
+        const l = low(ln);
+        if (/kwh/.test(l)) continue;
+        const m = l.match(/(\d+(?:[.,]\d+)?)\s*w(?:atts?)?\b/);
+        if (m && /conso|consumption|énergie|energy|électrique|electric|power|puissance/i.test(l)) { w = parseFloat(m[1].replace(',', '.')); src = 'W'; break; }
+      }
+      if (!w) for (const ln of eL) {
+        const m = low(ln).match(/(\d+(?:[.,]\d+)?)\s*kwh\s*\/\s*1000\s*h/);
+        if (m) { w = parseFloat(m[1].replace(',', '.')); src = 'kWh/1000h'; break; }
+      }
+      if (!w) for (const ln of eL) {
+        const m = low(ln).match(/(\d+(?:[.,]\d+)?)\s*kwh\s*\/\s*(an|année|year)/);
+        if (m) { w = Math.round(parseFloat(m[1].replace(',', '.')) * 1000 / 1460); src = 'kWh/an'; break; }
+      }
+      if (!w) for (const ln of eL) {
+        const l = low(ln);
+        const m = l.match(/(\d+(?:[.,]\d+)?)\s*€|(\d+(?:[.,]\d+)?)\s*euro/);
+        if (m && /\/\s*(an|année|year)|par an|per year/.test(l)) {
+          const eur = parseFloat((m[1] || m[2]).replace(',', '.'));
+          if (eur > 0) { w = Math.round(eur / KWH_PRICE * 1000 / 1460); src = '€/an'; }
+          break;
+        }
+      }
+      if (w > 0) { P.screenW = w; P.screenWSrc = src; }
+    }
     /* Network + jack scan on raw lines (value-first layouts: "8 x RJ45", "SFP+", "Jack 3,5 mm"). */
     for (const ln of lines) {
       const l = low(ln);
@@ -404,12 +447,161 @@ const Compat = (() => {
     const m = `${p.name || ''}`.match(/(\d{3,4})\s*W\b/i);
     return m ? parseInt(m[1], 10) : 0;
   }
+  /* 80+ level from PSU name + datasheet text → {level, label, factor}. */
+  function psuCertLevel(p, P) {
+    const t = `${p.name || ''} ${P.cert80 || ''} ${P.raw || ''}`.toLowerCase();
+    if (/titanium|titane/.test(t)) return { level: 'titanium', label: 'Titanium' };
+    if (/platinum|platine/.test(t)) return { level: 'platinum', label: 'Platinum' };
+    if (/\bgold\b|\bor\b/.test(t)) return { level: 'gold', label: 'Gold' };
+    if (/silver|argent/.test(t)) return { level: 'silver', label: 'Silver' };
+    if (/bronze/.test(t)) return { level: 'bronze', label: 'Bronze' };
+    if (/80\s*plus|80\+/.test(t)) return { level: 'bronze', label: '80 PLUS' };
+    return { level: 'none', label: '—' };
+  }
   function upsCapW(p, P, text) {
     if (Number(p.capW) > 0) return Number(p.capW);
     if (P.capW) return P.capW;
     const m = String(text || '').match(/(\d[\d\s]*)\s*VA\b/i);
     if (m) return Math.round(fnum(m[1]) * 0.6);
     return 0;
+  }
+
+  /* ---------------- Layer 3: power calculator (bequiet-style peak methodology) ----------------
+     Single source of truth for watts: used by check() pills AND the Power pane.
+     CPU = TDP×1.35 peak · GPU = datasheet TBP (else fiche/default) · fixed per-device rules.
+     Screens excluded from PSU total, included in UPS total + plug count. */
+  function powerBreakdown(ctx) {
+    const { order, slots, sel, def, lang } = ctx;
+    const L = (fr, en) => (lang === 'en' ? en : fr);
+    const P = {};
+    order.forEach(id => {
+      const s = slots[id]; if (!s) return;
+      const p = sel(s); if (!p) return;
+      const dst = String((p.datasheet || '')).trim();
+      P[id] = { slot: s, p, defId: s.defId, hasDs: !!dst,
+        ds: dst ? parseDatasheet(dst) : null,
+        qty: Math.max(1, Number(p.qty) || 1) };
+    });
+    const byDef = want => order.filter(id => P[id] && (Array.isArray(want) ? want.includes(P[id].defId) : P[id].defId === want));
+    const defW = id => { try { const d = def ? def(P[id].slot) : null; return (d && Number(d.w)) || 0; } catch { return 0; } };
+    const items = [];
+    const push = (id, w, parts, opts) => {
+      w = Math.round((Number(w) || 0) * 10) / 10;
+      if (!(w > 0)) return null;
+      const it = { id, defId: P[id].defId, name: P[id].p.name || '', w,
+        parts: (parts || []).filter(x => x.w > 0),
+        psu: !(opts && opts.psu === false), ups: !(opts && opts.ups === false) };
+      items.push(it);
+      return it;
+    };
+    const sataTest = (nm, raw) => /SATA/i.test(String(nm || '') + ' ' + String(raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(String(nm || '') + ' ' + String(raw || ''));
+    const PC_PARTS_L = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
+    const isFanSlotL = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS_L.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));
+    const chassisFanIds = order.filter(id => isFanSlotL(id) && isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : '')));
+    const cardIds = [...new Set([
+      ...byDef('soundcard'), ...byDef('capture'),
+      ...order.filter(id => P[id] && !['soundcard', 'capture'].includes(P[id].defId) && /capture|acquisition|carte son|sound card|elgato|avermedia/i.test(P[id].p.name || '')),
+    ])];
+    const isExtCard = id => /usb|thunderbolt|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+    const intCards = cardIds.filter(id => !isExtCard(id) && P[id].hasDs);
+    const usbNicTest = id => /usb|externe|external/i.test((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+    const intNicIds = byDef('netcard').filter(nid => P[nid].hasDs && !usbNicTest(nid));
+    const uhdTest = txt => /4k|uhd|2160/i.test(String(txt || ''));
+    const usbW = txt => {
+      const t = String(txt || '');
+      if (/usb[-\s]?c|type.?c|thunderbolt|usb4/i.test(t)) return { w: 15, lbl: 'USB-C' };
+      if (/usb\s*3|usb3|gen\s*[12]|superspeed|usb\s*[35]\.\d/i.test(t)) return { w: 5, lbl: 'USB 3' };
+      return { w: 2.5, lbl: 'USB 2' };
+    };
+    const mbId = byDef('mb')[0], cpuId = byDef('cpu')[0], ramId = byDef('ram')[0],
+      coolerId = byDef('cooler')[0], gpuId = byDef('gpu')[0], psuId = byDef('psu')[0];
+    /* CPU */
+    if (cpuId) {
+      const C = P[cpuId].ds, tdp = C ? (C.tdp || 0) : 0;
+      if (tdp) push(cpuId, tdp * 1.35, [{ label: L('Pic CPU (TDP×1,35)', 'CPU peak (TDP×1.35)'), w: Math.round(tdp * 1.35) }]);
+      else push(cpuId, P[cpuId].p.watts || defW(cpuId) || 125, [{ label: L('Valeur fiche/défaut', 'Entry/default value'), w: P[cpuId].p.watts || defW(cpuId) || 125 }]);
+    }
+    /* GPU */
+    if (gpuId) {
+      const G = P[gpuId].ds, tbp = G ? (G.gpuW || 0) : 0;
+      const w = tbp || P[gpuId].p.watts || 250;
+      push(gpuId, w, [{ label: tbp ? 'TBP datasheet' : L('Estimation', 'Estimate'), w }]);
+    }
+    /* Motherboard (chipset + misc, flat) */
+    if (mbId) push(mbId, 50, [{ label: L('Chipset + divers (forfait)', 'Chipset + misc (flat)'), w: 50 }]);
+    /* RAM */
+    if (ramId) {
+      const R = P[ramId].ds;
+      const sticks = (R && R.ramSticks) || P[ramId].qty;
+      push(ramId, 5 * sticks, [{ label: L(`RAM (${sticks} barrette(s) × 5W)`, `RAM (${sticks} stick(s) × 5W)`), w: 5 * sticks }]);
+    }
+    /* Drives */
+    order.filter(id => P[id] && (P[id].defId === 'ssd1' || P[id].defId === 'hdd')).forEach(id => {
+      if (!P[id].hasDs) { push(id, 15 * P[id].qty, [{ label: L('SATA (supposé)', 'SATA (assumed)'), w: 15 * P[id].qty }]); return; }
+      const D = P[id].ds, nm = P[id].p.name || '';
+      const m2 = !sataTest(nm, D.raw) || D.driveFF === 'M2';
+      if (m2) push(id, 10 * P[id].qty, [{ label: 'M.2 NVMe (10W)', w: 10 * P[id].qty }]);
+      else push(id, 15 * P[id].qty, [{ label: L('SATA (15W)', 'SATA (15W)'), w: 15 * P[id].qty }]);
+    });
+    /* Cooler */
+    if (coolerId) {
+      const C = P[coolerId].ds;
+      const liquid = C && /liquide|liquid|watercooling|AIO/i.test(C.raw || '');
+      if (!C) push(coolerId, P[coolerId].p.watts || defW(coolerId) || 10, [{ label: L('Valeur fiche/défaut', 'Entry/default value'), w: P[coolerId].p.watts || defW(coolerId) || 10 }]);
+      else if (liquid) {
+        const rf = C.radSize ? Math.min(3, Math.max(1, Math.round(C.radSize / 120))) : 0;
+        push(coolerId, rf * 5 + 10, [
+          { label: L(`Ventilateurs rad (${rf}×5W)`, `Rad fans (${rf}×5W)`), w: rf * 5 },
+          { label: L('Pompe (10W)', 'Pump (10W)'), w: 10 },
+        ]);
+      } else {
+        const nf = C.fanCount || 1;
+        push(coolerId, nf * 5, [{ label: L(`Ventilateur(s) (${nf}×5W)`, `Fan(s) (${nf}×5W)`), w: nf * 5 }]);
+      }
+    }
+    /* Chassis fans */
+    chassisFanIds.forEach(id => push(id, 5 * P[id].qty, [{ label: L(`Ventilateur(s) (${P[id].qty}×5W)`, `Fan(s) (${P[id].qty}×5W)`), w: 5 * P[id].qty }]));
+    /* Internal PCIe cards */
+    intCards.forEach(id => {
+      const txt = (P[id].p.name || '') + ' ' + (P[id].ds.raw || '');
+      const isCap = P[id].defId === 'capture' || /capture|acquisition|elgato|avermedia/i.test(P[id].p.name || '');
+      const w = isCap ? (uhdTest(txt) ? 15 : 10) : 5;
+      push(id, w, [{ label: isCap ? (uhdTest(txt) ? L('Acquisition 4K (15W)', '4K capture (15W)') : L('Acquisition (10W)', 'Capture (10W)')) : L('Carte son (5W)', 'Sound card (5W)'), w }]);
+    });
+    /* Internal NICs */
+    intNicIds.forEach(id => {
+      const D = P[id].ds;
+      const spd = (D.portSpeed || D.lan || 0);
+      const nm = (P[id].p.name.match(/(\d+(?:[.,]\d+)?)\s*Gb/i) || [])[1];
+      const top = spd || (nm ? parseFloat(String(nm).replace(',', '.')) : 0);
+      const w = top >= 10 ? 5 : 1;
+      push(id, w, [{ label: L(`Carte réseau ${top || '?'} GbE (${w}W)`, `NIC ${top || '?'}GbE (${w}W)`), w }]);
+    });
+    /* USB-powered externals (per-connection estimate) */
+    [...byDef(['keyboard', 'mouse', 'pad', 'headset', 'speakers', 'webcam', 'graphictab', 'usbstick', 'dock', 'printer', 'extstorage', 'hub']),
+      ...cardIds.filter(id => isExtCard(id) && P[id].hasDs),
+      ...byDef('netcard').filter(nid => P[nid].hasDs && usbNicTest(nid)),
+    ].forEach(id => {
+      if (!P[id] || items.some(it => it.id === id)) return;
+      const u = usbW((P[id].p.name || '') + ' ' + (P[id].hasDs ? P[id].ds.raw || '' : ''));
+      push(id, u.w * P[id].qty, [{ label: `${u.lbl} (~${u.w}W)`, w: u.w * P[id].qty }]);
+    });
+    /* Screens: UPS only, never PSU */
+    const screenIds = byDef('screen1');
+    screenIds.forEach(id => {
+      const W = P[id].hasDs ? (P[id].ds.screenW || 0) : 0;
+      if (W > 0) push(id, W * P[id].qty, [{ label: L(`Écran (~${W}W)`, `Monitor (~${W}W)`), w: W * P[id].qty }], { psu: false });
+    });
+    const psuTotal = Math.round(items.filter(i => i.psu).reduce((s, i) => s + i.w, 0) * 10) / 10;
+    const upsTotal = Math.round(items.filter(i => i.ups).reduce((s, i) => s + i.w, 0) * 10) / 10;
+    const plugs = screenIds.length + byDef('printer').length + (psuTotal > 0 ? 1 : 0);
+    let psu = { capW: 0, cert: 'none', certLabel: '—', factor: EFF80.none, usableW: 0 };
+    if (psuId) {
+      const cap = psuCapW(P[psuId].p, P[psuId].ds || {});
+      const cert = psuCertLevel(P[psuId].p, P[psuId].ds || {});
+      psu = { capW: cap, cert: cert.level, certLabel: cert.label, factor: EFF80[cert.level] || EFF80.none, usableW: Math.round(cap * (EFF80[cert.level] || EFF80.none)) };
+    }
+    return { items, psuTotal, upsTotal, plugs, psu, kwhPrice: KWH_PRICE, hoursDay: HOURS_DAY };
   }
 
   /* ---------------- Layer 2: rules engine ----------------
@@ -476,6 +668,8 @@ const Compat = (() => {
     const gpuRaw = (gpuId && P[gpuId].hasDs) ? (P[gpuId].ds.raw || '') : '';
     const gpuSingle = /single[\s-]?slot|low profile|profil bas|1\s*slot\b/i.test(gpuRaw);
     const gpuX1blocked = (gpuId && P[gpuId].hasDs && !gpuSingle) ? 1 : 0;
+    const pw = powerBreakdown(ctx); // shared watts engine (pills + PSU/UPS)
+    const pwOf = id => pw.items.find(i => i.id === id) || null;
 
     /* ---- CPU: socket + TDP (no chipset check) ---- */
     if (cpuId) {
@@ -496,6 +690,13 @@ const Compat = (() => {
         else if (mbMax && tdp > mbMax) add(cpuId, 'tdp', 'TDP', ERR, L(`CPU ${tdp}W > max CM ${mbMax}W !`, `CPU ${tdp}W > board max ${mbMax}W!`), A('TDP CPU', tdp + ' W'), A('Max CM', mbMax + ' W', mbId));
         else if (mbMax) add(cpuId, 'tdp', 'TDP', OK, L(`CPU ${tdp}W ≤ max CM ${mbMax}W`, `CPU ${tdp}W ≤ board max ${mbMax}W`), A('TDP CPU', tdp + ' W'), A('Max CM', mbMax + ' W', mbId));
         else add(cpuId, 'tdp', 'TDP', WARN, L(`CPU ${tdp}W — dissipation (ventirad/CM) à confirmer`, `CPU ${tdp}W — confirm cooling (cooler/board)`), A('TDP CPU', tdp + ' W'), null);
+        const cw = pwOf(cpuId);
+        if (cw) {
+          const fromTdp = tdp > 0;
+          add(cpuId, 'watts', L('Conso', 'Power'), fromTdp ? OK : WARN,
+            fromTdp ? L(`Pic CPU ~${cw.w}W (TDP×1,35)`, `CPU peak ~${cw.w}W (TDP×1.35)`) : L(`~${cw.w}W (estimation — TDP inconnu)`, `~${cw.w}W (estimate — unknown TDP)`),
+            A('CPU', `~${cw.w} W`, cpuId), A('Base', tdp ? `TDP ${tdp}W` : L('estimation', 'estimate')));
+        }
       }
     }
     /* ---- MB format vs case ---- */
@@ -710,6 +911,13 @@ const Compat = (() => {
         else if (need8 && uh) add(gpuId, 'power', L('Alim', 'Power'), WARN, L('Alim 12VHPWR uniquement — adaptateur vers 2×8P (souvent fourni avec le GPU)', '12VHPWR-only PSU — adapter to 2×8P (often bundled with GPU)'), A('Connecteur GPU', pc), A('Câbles alim', '12VHPWR', psuIds[0]));
         else add(gpuId, 'power', L('Alim', 'Power'), ERR, L('Connecteurs insuffisants !', 'Insufficient connectors!'), A('Connecteur GPU', pc), A('Câbles alim', `${u8}×8P`, psuIds[0]));
       }
+      const gw = pwOf(gpuId);
+      if (gw) {
+        const fromTbp = P[gpuId].ds && P[gpuId].ds.gpuW > 0;
+        add(gpuId, 'watts', L('Conso', 'Power'), fromTbp ? OK : WARN,
+          fromTbp ? L(`TBP ~${gw.w}W (datasheet)`, `TBP ~${gw.w}W (datasheet)`) : L(`~${gw.w}W (estimation — TBP inconnu)`, `~${gw.w}W (estimate — unknown TBP)`),
+          A('GPU', `~${gw.w} W`, gpuId), A('Base', fromTbp ? `TBP ${P[gpuId].ds.gpuW}W` : L('estimation', 'estimate')));
+      }
     }
     /* ---- Case mirrors (GPU/cooler caps) ---- */
     if (caseId && !needDs(caseId)) {
@@ -734,21 +942,14 @@ const Compat = (() => {
         if (gs > 2.5) add(caseId, 'support', L('Support GPU', 'GPU support'), WARN, L(`Carte lourde (${gs} slots) — vérifiez manuellement le support anti-affaissement (card holder)`, `Heavy card (${gs} slots) — manually verify anti-sag support (card holder)`), A('Slots GPU', gs, gpuId), A('Support', '?'));
       }
     }
-    /* ---- PSU wattage vs total ---- */
+    /* ---- PSU usable power (rated × 80+ factor) vs calculated load ---- */
     if (psuId && !needDs(psuId)) {
-      const cap = psuCapW(P[psuId].p, P[psuId].ds);
-      let need = totals.watts || 0;
-      if (!need) { // estimate from datasheets when fiche watts are empty
-        const gw = (gpuId && P[gpuId].hasDs) ? (P[gpuId].ds.gpuW || P[gpuId].watts) : 0;
-        const ct = (cpuId && P[cpuId].hasDs) ? (P[cpuId].ds.tdp || 0) : 0;
-        if (gw || ct) need = Math.round(gw + ct + 120);
-      }
-      const n = byDef(['cpu', 'gpu']).reduce((s, id) => s + P[id].watts, 0);
-      const head = cap ? Math.round(cap * 0.8) : 0;
+      const cap = pw.psu.capW, usable = pw.psu.usableW, need = pw.psuTotal;
+      const certTxt = pw.psu.certLabel && pw.psu.certLabel !== '—' ? ` ${pw.psu.certLabel}` : '';
       if (!cap) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L('Puissance alim inconnue — vérifiez', 'Unknown PSU wattage — verify'), A('Alim', '?'), A('Besoin', need + ' W'));
-      else if (need && need > cap) add(psuId, 'watt', L('Puissance', 'Wattage'), ERR, L(`${need}W > ${cap}W !`, `${need}W > ${cap}W!`), A('Alim', cap + ' W'), A('Besoin', need + ' W'));
-      else if (n && n > head) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L(`CPU+GPU ${n}W proches de ${cap}W — marge faible`, `CPU+GPU ${n}W close to ${cap}W — thin margin`), A('Alim', cap + ' W'), A('CPU+GPU', n + ' W'));
-      else add(psuId, 'watt', L('Puissance', 'Wattage'), OK, L(`${cap}W suffisants`, `${cap}W sufficient`), A('Alim', cap + ' W'), A('Besoin', need + ' W'));
+      else if (need > usable) add(psuId, 'watt', L('Puissance', 'Wattage'), ERR, L(`Besoin ~${need}W > utile ~${usable}W (${cap}W${certTxt}) !`, `Load ~${need}W > usable ~${usable}W (${cap}W${certTxt})!`), A(`Alim utile`, `~${usable} W`, psuId), A('Besoin', need + ' W'));
+      else if (need > usable * 0.8) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L(`~${need}W proches des ~${usable}W utiles (${cap}W${certTxt}) — marge faible`, `~${need}W close to ~${usable}W usable (${cap}W${certTxt}) — thin margin`), A('Alim utile', `~${usable} W`, psuId), A('Besoin', need + ' W'));
+      else add(psuId, 'watt', L('Puissance', 'Wattage'), OK, L(`~${need}W ≤ ~${usable}W utiles (${cap}W${certTxt})`, `~${need}W ≤ ~${usable}W usable (${cap}W${certTxt})`), A('Alim utile', `~${usable} W`, psuId), A('Besoin', need + ' W'));
     }
     /* ---- Case fans ---- */
     const PC_PARTS = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
@@ -903,14 +1104,14 @@ const Compat = (() => {
         else add(id, 'link', L('Débit', 'Speed'), WARN, L(`Carte ${nicTop} ≤ LAN CM ${mbLan} GbE — intérêt à confirmer`, `NIC ${nicTop} ≤ board LAN ${mbLan}GbE — confirm usefulness`), A('Carte', nicTop + ' GbE'), A('LAN CM', mbLan + ' GbE', mbId));
       } else if (nicTop || swTop || mbLan) add(id, 'link', L('Débit', 'Speed'), WARN, L('Débits carte/switch/CM à confirmer', 'Confirm NIC/switch/board speeds'), A('Carte', nicTop ? nicTop + ' GbE' : '?'), A('Réseau', swTop ? swTop + ' GbE' : mbLan ? mbLan + ' GbE' : '?'));
     });
-    /* ---- UPS vs total ---- */
+    /* ---- UPS vs total (PC + screens) ---- */
     byDef('ups').forEach(id => {
       if (!needDs(id)) {
         const cap = upsCapW(P[id].p, P[id].ds, P[id].ds.raw);
-        const need = totals.watts || 0;
+        const need = Math.round(pw.upsTotal);
         if (!cap) add(id, 'load', L('Charge', 'Load'), WARN, L('Puissance onduleur inconnue — vérifiez', 'Unknown UPS capacity — verify'), A('Onduleur', '?'), A('Besoin', need + ' W'));
-        else if (need && need > cap) add(id, 'load', L('Charge', 'Load'), ERR, L(`${need}W > ~${cap}W !`, `${need}W > ~${cap}W!`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
-        else add(id, 'load', L('Charge', 'Load'), OK, L(`~${cap}W suffisants`, `~${cap}W sufficient`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
+        else if (need && need > cap) add(id, 'load', L('Charge', 'Load'), ERR, L(`${need}W (PC+écrans) > ~${cap}W !`, `${need}W (PC+screens) > ~${cap}W!`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
+        else add(id, 'load', L('Charge', 'Load'), OK, L(`~${cap}W suffisants (PC+écrans ~${need}W)`, `~${cap}W sufficient (PC+screens ~${need}W)`), A('Onduleur', '~' + cap + ' W'), A('Besoin', need + ' W'));
       }
     });
     /* ---- PCIe capture/sound cards: internal (PCIe x1) vs external (USB) ---- */
@@ -954,6 +1155,9 @@ const Compat = (() => {
     const outName = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? L('Sorties GPU', 'GPU outputs') : L('Sorties CM', 'Board outputs');
     screenIds.forEach(id => {
       if (!P[id].hasDs) { needDs(id); return; }
+      const sw = pwOf(id);
+      if (sw && sw.w > 0) add(id, 'power', L('Conso', 'Power'), OK, L(`Écran ~${sw.w}W — hors PSU, compté pour l'onduleur`, `Monitor ~${sw.w}W — not on PSU, counted for UPS`), A('Écran', `~${sw.w} W`, id), A('Prises', '1'));
+      else add(id, 'power', L('Conso', 'Power'), WARN, L('Conso écran non renseignée — hors PSU, à confirmer pour l\u2019onduleur', 'Unknown monitor draw — not on PSU, confirm for UPS'), A('Écran', '?', id), null);
       const SD = P[id].ds;
       const V = SD.vid;
       const hasIn = V && (V.hdmi || V.dp || V.usbc);
@@ -1081,5 +1285,5 @@ const Compat = (() => {
     return { capW: m ? parseInt(m[1], 10) : 0 };
   }
 
-  return { check, parseDatasheet, parse, OK, WARN, ERR, NA, CHECKED };
+  return { check, parseDatasheet, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
 })();
