@@ -1507,6 +1507,7 @@ function renderSumExtra() {
   function wireChartRows(dsec) {
     const paths = [...dsec.querySelectorAll('svg [data-i]')];
     const rows = [...dsec.querySelectorAll('.chart-row[data-ci]')];
+    const sidOf = idx => { const r = rows.find(x => x.dataset.ci === idx); return r ? (r.dataset.sid || null) : null; };
     rows.forEach(row => {
       const idx = row.dataset.ci;
       if (row.dataset.sid) { row.style.cursor = 'pointer'; row.onclick = () => focusComponent(row.dataset.sid); }
@@ -1517,12 +1518,14 @@ function renderSumExtra() {
       row.onmouseleave = () => { paths.forEach(p => { p.style.opacity = ''; }); row.classList.remove('hl'); };
     });
     paths.forEach(p => {
-      p.style.cursor = 'pointer';
+      const sid = sidOf(p.dataset.i);
+      if (sid) p.style.cursor = 'pointer';
       p.onmouseenter = () => {
         paths.forEach(q => { q.style.opacity = q === p ? '1' : '.25'; });
         rows.forEach(r => r.classList.toggle('hl', r.dataset.ci === p.dataset.i));
       };
       p.onmouseleave = () => { paths.forEach(q => { q.style.opacity = ''; }); rows.forEach(r => r.classList.remove('hl')); };
+      p.onclick = () => { if (sid) focusComponent(sid); };
     });
   }
   $('#sumChartsPane').querySelectorAll('.chart-dsec').forEach(dsec => {

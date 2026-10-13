@@ -367,7 +367,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .sum-totals{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
 .sum-totals{font-size:1rem}
 .sum-totals .big{font-size:1.45rem;font-weight:900}
-.sum-totals .sum-line>span:first-child{font-size:1.45rem;font-weight:900}
+#sumPowerPane .sum-totals .sum-line>span:first-child{font-size:1rem;font-weight:800}
+#sumDescPane .sum-totals .sum-line>span:first-child{font-size:1.45rem;font-weight:900}
 .tot-right{display:inline-flex;align-items:baseline;gap:8px}
 .diff-mini{font-size:.85rem;font-weight:800;cursor:help;white-space:nowrap}
 .diff-mini.ok{color:var(--success)}
