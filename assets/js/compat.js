@@ -124,6 +124,7 @@ const Compat = (() => {
     ['baies 3,5', 'bays35', 'num'], ['baie 2,5', 'bays25', 'num'],
     ['hauteur max. du ventilateur de processeur', 'caseCoolerMax', 'num'], ['max cpu cooler height', 'caseCoolerMax', 'num'],
     ['longueur max. de la carte graphique', 'caseGpuMax', 'num'], ['max gpu length', 'caseGpuMax', 'num'],
+    ['slots', 'caseSlots', 'num'],
     ['refroidissement par eau', 'watercool', 'flag'], ['liquid cooling', 'watercool', 'flag'], ['water cooling', 'watercool', 'flag'],
     ['radiateurs supportés', 'caseRads', 'radlist'], ['radiator support', 'caseRads', 'radlist'],
     ['emplacements radiateur', 'caseRads', 'radlist'], ['radiateur supporté', 'caseRads', 'radlist'],
@@ -373,6 +374,16 @@ const Compat = (() => {
     if (M && Array.isArray(M.pcieVers) && M.pcieVers.length) return Math.max(...M.pcieVers);
     const soc = M ? (M.sockets || []) : [];
     return socketEraGen(soc, chipsetOf(M || {}, mbName));
+  }
+  /* Slot-count from thickness when not stated: 2→40.6mm, 2.5→50.8, 3→61.0, 3.5→71.1, 4→81.3. */
+  function slotsFromMm(h) {
+    h = Number(h) || 0;
+    if (!h) return 0;
+    if (h <= 45) return 2;
+    if (h <= 55) return 2.5;
+    if (h <= 66) return 3;
+    if (h <= 76) return 3.5;
+    return 4;
   }
   function socketEraGen(sockets, chipsetText) {
     const c = String(chipsetText || '').toUpperCase();
@@ -668,6 +679,16 @@ const Compat = (() => {
       const Mb = (mbId && P[mbId].hasDs) ? P[mbId].ds : null;
       const gEra = slotGen(Mb, mbId ? P[mbId].p.name : '');
       const gg = G.pcieGen || 0;
+      /* ---- GPU thickness (slots used) vs case expansion slots ---- */
+      const gSlots = G.gpuSlots || slotsFromMm(G.depth);
+      if (!caseIds.length) add(gpuId, 'slots', L('Slots', 'Slots'), NA, L('Boîtier absent', 'No case'), A('Slots GPU', gSlots || '?'), null);
+      else if (!P[caseIds[0]].hasDs) add(gpuId, 'slots', L('Slots', 'Slots'), WARN, L('Slots du boîtier à confirmer (datasheet manquante)', 'Confirm case slots (missing datasheet)'), A('Slots GPU', gSlots || '?'), null);
+      else {
+        const CS = P[caseIds[0]].ds.caseSlots || 0;
+        if (!CS || !gSlots) add(gpuId, 'slots', L('Slots', 'Slots'), WARN, L(`GPU ${gSlots || '?'} slot(s) / boîtier ${CS || '?'} — vérifiez`, `GPU ${gSlots || '?'} slot(s) / case ${CS || '?'} — verify`), A('Slots GPU', gSlots || '?'), A('Slots boîtier', CS || '?', caseIds[0]));
+        else if (gSlots <= CS) add(gpuId, 'slots', L('Slots', 'Slots'), OK, L(`${gSlots} ≤ ${CS} slots boîtier`, `${gSlots} ≤ ${CS} case slots`), A('Slots GPU', gSlots), A('Slots boîtier', CS, caseIds[0]));
+        else add(gpuId, 'slots', L('Slots', 'Slots'), ERR, L(`${gSlots} slots GPU > ${CS} boîtier !`, `GPU ${gSlots} slots > case ${CS}!`), A('Slots GPU', gSlots), A('Slots boîtier', CS, caseIds[0]));
+      }
       if (!mbId) add(gpuId, 'pcie', L('PCIe', 'PCIe'), NA, L('Carte mère absente', 'No motherboard'), A('Gen GPU', gg || '?'), null);
       else if (!gg || !gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), WARN, L(`GPU Gen${gg || '?'} / slot Gen${gEra || '?'} — vérifiez`, `GPU Gen${gg || '?'} / slot Gen${gEra || '?'} — verify`), A('Gen GPU', gg || '?'), A('Gen slot', gEra || '?', mbId));
       else if (gg <= gEra) add(gpuId, 'pcie', L('PCIe', 'PCIe'), OK, L(`Gen${gg} ≤ Gen${gEra}`, `Gen${gg} ≤ Gen${gEra}`), A('Gen GPU', gg), A('Gen slot', gEra, mbId));
@@ -707,6 +728,11 @@ const Compat = (() => {
       }
       /* ---- Front-panel USB-C needs an internal USB-C header: always a manual check ---- */
       if (W.frontUsbC) add(caseId, 'usbc', 'USB-C', WARN, L('USB-C en façade — vérifiez manuellement le connecteur USB-C interne de la carte mère', 'Front USB-C port — manually verify the motherboard internal USB-C header'), A('Façade boîtier', 'USB-C'), A('Header interne CM', '?', mbId));
+      /* ---- Heavy GPU (>2.5 slots): manual card-holder check on the case ---- */
+      if (gpuId && P[gpuId].hasDs) {
+        const gs = P[gpuId].ds.gpuSlots || slotsFromMm(P[gpuId].ds.depth);
+        if (gs > 2.5) add(caseId, 'support', L('Support GPU', 'GPU support'), WARN, L(`Carte lourde (${gs} slots) — vérifiez manuellement le support anti-affaissement (card holder)`, `Heavy card (${gs} slots) — manually verify anti-sag support (card holder)`), A('Slots GPU', gs, gpuId), A('Support', '?'));
+      }
     }
     /* ---- PSU wattage vs total ---- */
     if (psuId && !needDs(psuId)) {

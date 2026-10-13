@@ -1017,6 +1017,9 @@ async function loadIdealoList(url, mode = 'fresh') {
   if (mode !== 'fresh') { // "load more" / sort variant: skeleton at the end of the existing list
     const host = $('#idealoList');
     if (host && !host.querySelector('.skel-more')) host.insertAdjacentHTML('beforeend', '<div class="skel skel-more"></div><div class="skel skel-more"></div>');
+    const st = $('#idealoStatus');
+    if (st) st.textContent = t('picker.loading');
+    await new Promise(r => setTimeout(r, 30)); // let the skeleton paint (cached fetches resolve within one frame)
   }
   const need = mode === 'fresh' || mode === 'variant' ? [idealSort] : nextVariant();
   if (mode === 'more' && !need.length && idealNextUrl && !idealFetched['next:' + idealNextUrl]) {
@@ -1056,7 +1059,7 @@ function idealMore() {
   const q = idealQ.trim().toLowerCase();
   const len = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q)).length;
   if (idealShown < len) { idealShown += IDEAL_PAGE; renderIdealo(); }
-  else loadIdealoList(null, 'more');
+  else if (!document.querySelector('#idealoList .skel-more')) loadIdealoList(null, 'more'); // ignore while a fetch is in flight
 }
 function renderIdealo() {
   const host = $('#idealoList'); if (!host) return;
