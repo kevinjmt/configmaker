@@ -1500,22 +1500,35 @@ function renderSumExtra() {
     const allocTot = allocItems.reduce((a, b) => a + b.v, 0);
     if (rest >= 0) { allocItems.push({ key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }); }
     const allocAll = rest >= 0 ? allocTot + rest : allocTot;
-    const arows = allocItems.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allocAll * 100)}%)</span></span><span class="di-price"><strong>${eur(a.v)}</strong></span></div>`).join('')
+    const arows = allocItems.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allocAll * 100)}%)</span></span><span class="di-price"><strong>${eur(a.v)}</strong></span></div>`).join('')
       + (rest < 0 ? `<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Over budget' : 'Dépassement'} (${eur(-rest)})</span></span><span class="di-price"><strong style="color:var(--danger)">${eur(spent)} / ${eur(budget)}</strong></span></div>` : '');
-    $('#sumChartsPane').insertAdjacentHTML('beforeend', `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-chart-pie"></i><span>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'}</span><span class="dsec-total">${eur(budget)}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'} — ${eur(budget)}</h3>${pieSVG(allocItems.map(a => ({ v: a.v })))}</div><div class="chart-list">${arows}</div></div>`);
+    $('#sumChartsPane').insertAdjacentHTML('beforeend', `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-chart-pie"></i><span>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'}</span><span class="dsec-total">${eur(budget)}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'} — ${eur(budget)}</h3>${pieSVG(allocItems.map(a => ({ v: a.v })))}</div><div class="chart-list">${arows}</div></div>`);
   }
   function wireChartRows(dsec) {
     const paths = [...dsec.querySelectorAll('svg [data-i]')];
-    dsec.querySelectorAll('.chart-row[data-ci]').forEach(row => {
+    const rows = [...dsec.querySelectorAll('.chart-row[data-ci]')];
+    rows.forEach(row => {
       const idx = row.dataset.ci;
-      if (row.dataset.sid) row.onclick = () => focusComponent(row.dataset.sid);
-      row.onmouseenter = () => paths.forEach(p => { p.style.opacity = p.dataset.i === idx ? '1' : '.25'; });
-      row.onmouseleave = () => paths.forEach(p => { p.style.opacity = ''; });
+      if (row.dataset.sid) { row.style.cursor = 'pointer'; row.onclick = () => focusComponent(row.dataset.sid); }
+      row.onmouseenter = () => {
+        paths.forEach(p => { p.style.opacity = p.dataset.i === idx ? '1' : '.25'; });
+        row.classList.add('hl');
+      };
+      row.onmouseleave = () => { paths.forEach(p => { p.style.opacity = ''; }); row.classList.remove('hl'); };
+    });
+    paths.forEach(p => {
+      p.style.cursor = 'pointer';
+      p.onmouseenter = () => {
+        paths.forEach(q => { q.style.opacity = q === p ? '1' : '.25'; });
+        rows.forEach(r => r.classList.toggle('hl', r.dataset.ci === p.dataset.i));
+      };
+      p.onmouseleave = () => { paths.forEach(q => { q.style.opacity = ''; }); rows.forEach(r => r.classList.remove('hl')); };
     });
   }
   $('#sumChartsPane').querySelectorAll('.chart-dsec').forEach(dsec => {
     const sec = dsec.dataset.sec;
-    dsec.querySelector('[data-chead]').onclick = () => {
+    const head = dsec.querySelector('[data-chead]');
+    if (head && sec) head.onclick = () => {
       foldedCharts.has(sec) ? foldedCharts.delete(sec) : foldedCharts.add(sec);
       renderSumExtra();
     };
@@ -1552,9 +1565,9 @@ function renderSumExtra() {
         if (rest >= 0) {
           const all = [...used, { key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }];
           const allTot = usedTot + rest;
-          allocHtml = `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(all.map(a => ({ v: a.v })))}</div><div class="chart-list">${all.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allTot * 100)}%)</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}</div></div>`;
+          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(all.map(a => ({ v: a.v })))}</div><div class="chart-list">${all.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allTot * 100)}%)</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}</div></div>`;
         } else {
-          allocHtml = `<div class="dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${-rest} W)</span></span><span class="di-price"><strong style="color:var(--danger)">${usedTot} / ${pw.psu.usableW} W</strong></span></div></div></div>`;
+          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${-rest} W)</span></span><span class="di-price"><strong style="color:var(--danger)">${usedTot} / ${pw.psu.usableW} W</strong></span></div></div></div>`;
         }
       }
       powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${totP} W</strong></h3>
