@@ -411,6 +411,7 @@ const Compat = (() => {
     });
     const byDef = want => order.filter(id => P[id] && (Array.isArray(want) ? want.includes(P[id].defId) : P[id].defId === want));
     const firstOf = d => byDef(d)[0] || null; // any slot id of that kind (for counterpart icons)
+    const loadingIds = new Set((ctx && ctx.dsIds) || []); // product ids with a datasheet fetch in flight
     const checks = {}; const flatIssues = [];
     const A = (label, value, slot) => ({ label, value: value == null || value === '' ? '—' : String(value), slot: slot || null });
     const add = (slot, key, label, status, tip, a, b) => {
@@ -420,6 +421,7 @@ const Compat = (() => {
     };
     const needDs = id => {
       if (P[id].hasDs) return false;
+      if (P[id].p && loadingIds.has(P[id].p.id)) return true; // fetch in flight: grey pill shown, no yellow flicker
       add(id, 'datasheet', L('Datasheet', 'Datasheet'), WARN,
         L('Fiche technique absente — re-sélectionnez ce composant via Idealo pour la charger', 'Missing datasheet — re-select this part via Idealo to load it'),
         A(L('Datasheet', 'Datasheet'), L('absente', 'missing')), null);

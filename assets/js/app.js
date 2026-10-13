@@ -174,23 +174,36 @@ let editingPid = null;
 /* ---------- Compatibility (Compat module) ---------- */
 let compatCache = null, compatFold = {};
 const variantFetching = new Set();
+const idealoAttempted = new Set(); // product ids already enriched this session: render→fetch→render loops impossible
+const dsLoading = new Set(); // product ids with a datasheet fetch in flight
+let rsScheduled = false;
+function scheduleRenderSlots() { // deferred + deduped: never re-enters renderSlots synchronously
+  if (rsScheduled) return;
+  rsScheduled = true;
+  setTimeout(() => { rsScheduled = false; try { renderSlots(); } catch { /* ignore */ } }, 0);
+}
+function dsFetchStart(p) { if (p && p.id && !dsLoading.has(p.id)) { dsLoading.add(p.id); scheduleRenderSlots(); } }
+function dsFetchEnd(p) { if (p && p.id && dsLoading.delete(p.id)) scheduleRenderSlots(); }
 function ensureVariants(slotId) { // background: old fiches have an Idealo URL but no variants yet
   const s = state.slots[slotId], p = s && sel(s);
   if (!p || p.variants || !p.idealo || typeof Idealo === 'undefined') return;
-  if (variantFetching.has(p.idealo)) return;
+  if (idealoAttempted.has(p.id) || variantFetching.has(p.idealo)) return;
+  idealoAttempted.add(p.id);
   variantFetching.add(p.idealo);
+  dsFetchStart(p);
   Idealo.product(p.idealo).then(d => {
     variantFetching.delete(p.idealo);
+    dsFetchEnd(p);
     if (!d || d.error || !d.variants || !d.variants.items || !d.variants.items.length) return;
     const cur = s.products.find(x => x.id === p.id);
     if (!cur) return;
     cur.variants = d.variants;
     persist(); renderSlots();
-  }).catch(() => variantFetching.delete(p.idealo));
+  }).catch(() => { variantFetching.delete(p.idealo); dsFetchEnd(p); });
 }
 function getCompat() {
   if (!compatCache && typeof Compat !== 'undefined') {
-    try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang }); }
+    try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang, dsIds: [...dsLoading] }); }
     catch { compatCache = { checks: {}, issues: { err: [], warn: [] }, statusOf: {} }; }
   }
   return compatCache || { checks: {}, issues: { err: [], warn: [] }, statusOf: {} };
@@ -515,7 +528,7 @@ async function selectVariant(slotId, url, cardPrice) {
   const s = state.slots[slotId], p = s && sel(s);
   if (!p || !url || typeof Idealo === 'undefined') return;
   if (variantLoading) { toast(lang === 'en' ? 'A variant is already loading — please wait' : 'Une variante charge déjà — patientez'); return; }
-  variantLoading = url; variantPending[slotId] = url; renderSlots(); // instant feedback
+  variantLoading = url; variantPending[slotId] = url; dsFetchStart(p); renderSlots(); // instant feedback
   showProgress(lang === 'en' ? 'Loading variant…' : 'Chargement de la variante…');
   try {
     const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
@@ -542,7 +555,7 @@ async function selectVariant(slotId, url, cardPrice) {
     toast(lang === 'en' ? 'Variant loaded — prices and compatibility updated' : 'Variante chargée — prix et compatibilité actualisés');
   } catch {
     toast(lang === 'en' ? 'Variant unavailable — retry later' : 'Variante indisponible — réessayez plus tard');
-  } finally { variantLoading = null; delete variantPending[slotId]; hideProgress(); }
+  } finally { variantLoading = null; delete variantPending[slotId]; dsFetchEnd(p); hideProgress(); }
 }
 async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
   const s = state.slots[slotId], p = s && sel(s);
@@ -562,7 +575,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
   s.products.push(np);
   persist(); renderSlots();
   toast(lang === 'en' ? 'Alternative added — enriching…' : 'Alternative ajoutée — enrichissement…');
-  variantLoading = url;
+  variantLoading = url; dsFetchStart(np);
   try {
     const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
     const cur = s.products.find(x => x.id === np.id);
@@ -584,7 +597,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
       if (o.promo) cur.promo = true;
     }
     persist(); compatCache = null; refresh();
-  } catch { /* keep card-level fiche */ } finally { variantLoading = null; }
+  } catch { /* keep card-level fiche */ } finally { variantLoading = null; dsFetchEnd(np); }
 }
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
@@ -631,7 +644,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${cks.length ? `<div class="slot-compat">${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button></div>` : ''}
+    ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat${isRefreshing ? ' refreshing-sel' : ''}">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions${isRefreshing ? ' refreshing-sel' : ''}">
       <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i></button>
@@ -1024,7 +1037,9 @@ function chooseIdealoItem(it) {
     setIf('#f_del', 'delivery', np.delivery ? String(np.delivery) : '');
     if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
   };
+  dsFetchStart(np);
   Idealo.product(it.url).then(d => {
+    dsFetchEnd(np);
     if (!d || d.error) return;
     if (d.specs) np.specs = d.specs;
     if (d.datasheet) np.datasheet = d.datasheet;
@@ -1033,7 +1048,7 @@ function chooseIdealoItem(it) {
     if (d.img && !np.image) np.image = d.img;
     if (d.name && !before.name) np.name = d.name;
     syncEnrich();
-  });
+  }).catch(() => dsFetchEnd(np));
   Idealo.offers(it.url).then(r => {
     if (!r || r.error || !r.offers.length) {
       if (!$('#modalOverlay').classList.contains('hidden')) {

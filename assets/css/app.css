@@ -117,12 +117,15 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .slot-side.stale-side{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .slot-stale-row{display:flex;align-items:center;gap:8px}
 /* compatibility */
-.slot-compat{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px 84px}
+.slot-compat{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px 84px;position:relative;overflow:hidden}
+.slot-compat.refreshing-sel::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgba(128,128,128,.22) 50%,transparent 80%);background-size:200% 100%;animation:sk 1.2s infinite}
 .compat-badge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:900;padding:3px 9px;border-radius:999px;cursor:help;letter-spacing:.02em}
 .compat-badge.ok{background:rgba(12,166,120,.13);color:var(--success);border:1px solid rgba(12,166,120,.35)}
 .compat-badge.warn{background:rgba(245,159,0,.14);color:#b97a0c;border:1px solid rgba(245,159,0,.42)}
 .compat-badge.err{background:rgba(224,49,49,.12);color:var(--danger);border:1px solid rgba(224,49,49,.42)}
 .compat-badge.na{background:var(--bg-soft);color:var(--muted-2);border:1px solid var(--line)}
+.compat-badge.loading{background:var(--bg-soft);color:var(--muted-2);border:1px solid var(--line)}
+.compat-badge.loading i{font-size:.72rem}
 .compat-badge.checked{background:rgba(150,230,180,.28);color:#b97a0c;border:1px solid rgba(60,180,110,.5)}
 .compat-more{font-weight:900;letter-spacing:.1em}
 @keyframes pillIn{from{opacity:0;transform:translateY(5px) scale(.9)}to{opacity:1;transform:none}}
