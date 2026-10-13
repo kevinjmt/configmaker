@@ -231,6 +231,60 @@ function ensureVariants(slotId) { // background: old fiches have an Idealo URL b
     persist(); renderSlots();
   }).catch(() => { variantFetching.delete(p.idealo); dsFetchEnd(p); });
 }
+const altAttempted = new Set(); // alternative fiche ids enriched this session
+let altEnrichChain = Promise.resolve(); // serialize alternative enrichment across slots
+function queueAlternativeData(slotId) { // fire-and-forget, never called from render
+  altEnrichChain = altEnrichChain.catch(() => {}).then(() => ensureAlternativeData(slotId));
+  return altEnrichChain;
+}
+async function ensureAlternativeData(slotId) {
+  // Ordered per non-selected fiche: offers (price) first, then product (datasheet).
+  // Missing fields only, session-once per fiche. Loading states reuse
+  // refreshingPids (row shimmer) and dsLoading (grey datasheet pill).
+  const s = state.slots[slotId];
+  if (!s || typeof Idealo === 'undefined') return;
+  const targets = (s.products || []).filter(x => x.id !== s.selectedId
+    && /idealo\.fr\/prix\//i.test(x.idealo || '')
+    && (!x.price || !x.datasheet)
+    && !(editingPid && editingPid === x.id));
+  for (const t of targets) {
+    const cur = s.products.find(x => x.id === t.id);
+    if (!cur || altAttempted.has(cur.id)) continue;
+    altAttempted.add(cur.id);
+    if (!cur.price) {
+      refreshingPids.add(cur.id); renderSlots();
+      try {
+        const r = await Idealo.offers(cur.idealo, true);
+        const c2 = s.products.find(x => x.id === cur.id);
+        if (c2 && r && !r.error && r.offers.length) {
+          const o = r.offers[0];
+          if (o.merchant && !c2.vendor) c2.vendor = o.merchant;
+          if (o.price) c2.price = o.price;
+          if (o.delivered > 0 && o.price) c2.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+          if (o.url && !c2.store) c2.store = o.url;
+          refreshFailed.delete(cur.id);
+        } else refreshFailed.add(cur.id);
+      } catch { refreshFailed.add(cur.id); }
+      refreshingPids.delete(cur.id);
+      persist(); renderSlots();
+    }
+    if (!cur.datasheet) {
+      dsFetchStart(cur);
+      try {
+        const d = await Idealo.product(cur.idealo);
+        dsFetchEnd(cur);
+        const c3 = s.products.find(x => x.id === cur.id);
+        if (c3 && d && !d.error) {
+          if (d.datasheet) c3.datasheet = d.datasheet;
+          if (d.specs && !c3.specs) c3.specs = d.specs;
+          if (d.img && !c3.image) c3.image = d.img;
+          if (d.variants && d.variants.items && d.variants.items.length && !c3.variants) c3.variants = d.variants;
+          persist(); compatCache = null; refresh();
+        }
+      } catch { dsFetchEnd(cur); }
+    }
+  }
+}
 function getCompat() {
   if (!compatCache && typeof Compat !== 'undefined') {
     try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang, dsIds: [...dsLoading] }); }
@@ -535,6 +589,7 @@ function renderVariantRow(id, p) {
   };
   const loading = !!variantLoading, pendingUrl = variantPending[id];
   const attrsLoading = variantAttrsLoading.has(id);
+  const vLocked = loading || attrsLoading; // nothing selectable anywhere in the dropdown while loading
   const visible = it => filters.every((f, fi) => {
     if (active[fi] < 0) return true;
     const av = it.attrs && it.attrs[f.label];
@@ -545,7 +600,7 @@ function renderVariantRow(id, p) {
     const dims = filters.map((f, fi) => {
       const chips = (f.values || []).map((val, vi) => {
         const n = matchCount({ ...active, [fi]: vi });
-        const dis = attrsLoading || n === 0;
+        const dis = vLocked || n === 0;
         return `<button class="mini-btn vchip${active[fi] === vi ? ' sel' : ''}" data-act="variantchip" data-f="${fi}" data-v="${vi}"${dis ? ' disabled' : ''} title="${n} ${lang === 'en' ? 'model(s)' : 'modèle(s)'}">${esc(val)}</button>`;
       }).join('');
       return `<div class="variant-dim"><span class="variant-dim-lbl">${esc(f.label)} :</span>${chips}</div>`;
@@ -554,11 +609,11 @@ function renderVariantRow(id, p) {
     const cards = items.map((it, ii) => {
       if (!visible(it)) return '';
       const pend = pendingUrl && normTxt(it.url || '').replace(/\/$/, '') === normTxt(pendingUrl).replace(/\/$/, '');
-      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${loading ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span><span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
+      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${vLocked ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span><span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
     }).join('');
     body = `<div class="variant-body">${loadHint}${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
   }
-  return `<div class="slot-variants"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
+  return `<div class="slot-variants"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"${vLocked ? ' disabled' : ''}><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
 }
 async function selectVariant(slotId, url, cardPrice) {
   const s = state.slots[slotId], p = s && sel(s);
@@ -589,6 +644,7 @@ async function selectVariant(slotId, url, cardPrice) {
     cur.verified = [];
     persist(); compatCache = null; refresh();
     toast(lang === 'en' ? 'Variant loaded — prices and compatibility updated' : 'Variante chargée — prix et compatibilité actualisés');
+    queueAlternativeData(slotId);
   } catch {
     toast(lang === 'en' ? 'Variant unavailable — retry later' : 'Variante indisponible — réessayez plus tard');
   } finally { variantLoading = null; delete variantPending[slotId]; dsFetchEnd(p); hideProgress(); }
@@ -634,6 +690,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
     }
     persist(); compatCache = null; refresh();
   } catch { /* keep card-level fiche */ } finally { variantLoading = null; dsFetchEnd(np); }
+  queueAlternativeData(slotId);
 }
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
@@ -699,7 +756,7 @@ function slotCard(id) {
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    if (b.dataset.act === 'alts') { openAlts.has(id) ? openAlts.delete(id) : openAlts.add(id); renderSlots(); return; }
+    if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
     if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); if (openVariants.has(id)) ensureVariantAttrs(id); renderSlots(); return; }
     if (b.dataset.act === 'variantchip') {
@@ -732,7 +789,7 @@ function renderAlts(host, s, slotId) {
     const row = document.createElement('div');
     const rowSpin = refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
     row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
-    row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong> · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
+    row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
     row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
     const acts = document.createElement('div');
@@ -1046,6 +1103,7 @@ function renderIdealo() {
 }
 function chooseIdealoItem(it) {
   if (!activeSlot) return;
+  const enrichSlot = activeSlot; // captured: activeSlot may change before fetches settle
   const np = blankProduct();
   np.name = it.name; np.image = it.img; np.idealo = it.url;
   np.price = it.price || 0; np.specs = it.specs; np.vendor = it.vendor || '';
@@ -1104,6 +1162,7 @@ function chooseIdealoItem(it) {
     if (o.promo) np.promo = true;
     np.isBest = o.price <= (it.price || o.price);
     syncEnrich();
+    queueAlternativeData(enrichSlot);
   });
 }
 let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
@@ -1727,6 +1786,7 @@ async function refreshPrices() {
   refreshingPids.clear();
   persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
+  for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
   toast(updated
     ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
     : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));

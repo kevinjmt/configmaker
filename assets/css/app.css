@@ -190,12 +190,13 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 #compatCount{font-weight:900}
 .di-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* Idealo-like variants on slot cards */
-.slot-variants{padding:0 14px 10px 84px}
-.variant-toggle{width:100%;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-weight:800;font-size:.8rem;color:var(--ink-2);cursor:pointer}
-.variant-toggle:hover{border-color:var(--brand);color:var(--brand-ink)}
-.variant-cur{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-variants{border-top:1px dashed var(--line);padding:0;background:rgba(26,135,68,.05)}
+.variant-toggle{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:none;padding:9px 12px;font-weight:800;font-size:.78rem;color:var(--muted);cursor:pointer}
+.variant-toggle:hover{color:var(--brand-ink)}
+.variant-toggle:disabled{opacity:.55;cursor:not-allowed}
+.variant-cur{flex:0 1 auto;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .variant-count{font-size:.7rem;font-weight:900;background:var(--bg-soft);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-.variant-body{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.variant-body{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .variant-dim{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.76rem}
 .variant-dim-lbl{font-weight:900;color:var(--muted)}
 .variant-vals{color:var(--muted);font-weight:700}
@@ -309,6 +310,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-item .diff{font-weight:900;white-space:nowrap}
 .alt-item .grow{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .alt-item .mini-btn{padding:10px 11px;font-size:.78rem}
+.alt-ds-spin{color:var(--muted-2);font-size:.75rem;margin-left:4px}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
 .delivery-tag{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 10px 84px}
 .hidden{display:none!important}
