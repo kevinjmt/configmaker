@@ -694,6 +694,12 @@ async function loadIdealoList(url, mode = 'fresh') {
   if (mode === 'fresh') {
     idealBase = url; idealUrl = url;
     idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE; idealErr = ''; idealCached = false;
+    try { // remember last listing per category: extra slots reopen the same page as the base slot
+      if (url && currentCatKey) {
+        const all = load(LS.prefs, {});
+        save(LS.prefs, { ...all, idealLastByCat: { ...(all.idealLastByCat || {}), [currentCatKey]: url } });
+      }
+    } catch { /* ignore */ }
   }
   idealBusy = true; renderIdealo();
   const need = mode === 'fresh' || mode === 'variant' ? [idealSort] : nextVariant();
@@ -863,8 +869,17 @@ function openPicker(id, mode = 'replace') {
   const baseLabel = (SLOT_NAMES[lang] && SLOT_NAMES[lang][s.defId]) || SLOT_NAMES.fr[s.defId] || s.defId;
   $('#idealoQuery').value = (cur && cur.name) || `${baseLabel} ${d.q || ''}`.trim();
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
-  const url = (IDEALO_CATS.find(x => x.key === slotCatKey(id)) || IDEALO_CATS[0]).url;
-  loadCategory(slotCatKey(id));
+  const key = slotCatKey(id);
+  const remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
+  const url = remembered || (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url;
+  loadCategory(key);
+  if (remembered) { // same Idealo page as the base slot (e.g. internal SSDs, not portable ones)
+    currentIdealoUrl = remembered;
+    const a = $('#pickerIdealoSearch'); if (a) a.href = remembered;
+    const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(remembered, '_blank', 'noopener');
+    const mq = remembered.match(/prechcat\.html\?q=([^&]*)/);
+    if (mq) { try { $('#idealoQuery').value = decodeURIComponent(mq[1]); } catch { /* ignore */ } }
+  }
   $('#pickerPanel').classList.remove('hidden');
   $('#summaryPanel').classList.add('hidden');
   renderSlots(); renderPicker();

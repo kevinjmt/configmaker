@@ -62,6 +62,8 @@ const Compat = (() => {
     ['configuration', 'ramConfig', 'raw'],
     ['hauteur', 'height', 'num'], ['height', 'height', 'num'],
     ['tension', null, null], ['voltage', null, null],
+    ['puissance de refroidissement max', 'tdp', 'num'], ['capacité de refroidissement', 'tdp', 'num'],
+    ['cooling capacity', 'tdp', 'num'], ['puissance frigorifique', 'tdp', 'num'],
     ['connecteurs de disque', null, null],
     ['nombre de ports sata', 'sataCount', 'num'], ['sata ports', 'sataCount', 'num'],
     ['nombre de ports m.2', 'm2count', 'num'], ['nombre de ports m2', 'm2count', 'num'], ['m.2 ports', 'm2count', 'num'],
@@ -73,7 +75,10 @@ const Compat = (() => {
     ['internal usb', null, null],
     ['format', 'form', 'form'], ['form factor', 'form', 'form'],
     ['formats de cartes mères supportés', 'caseForms', 'forms'], ['supported motherboard formats', 'caseForms', 'forms'],
-    ['standards ethernet', 'lan', 'lan'], ['ethernet', 'lan', 'lan'], ['network', 'lan', 'lan'],
+    ['standards ethernet', 'lan', 'lan'], ['standard ethernet', 'lan', 'lan'], ['standard lan', 'lan', 'lan'],
+    ['ethernet standard', 'lan', 'lan'], ['ethernet', 'lan', 'lan'], ['network', 'lan', 'lan'],
+    ['standard wi-fi', 'wifiStd', 'raw'], ['standard wifi', 'wifiStd', 'raw'],
+    ['norme wi-fi', 'wifiStd', 'raw'], ['norme wifi', 'wifiStd', 'raw'],
     ['connecteurs vidéo', 'vid', 'vidports'], ['connecteurs vidéos', 'vid', 'vidports'], ['connecteurs video', 'vid', 'vidports'],
     ['sorties vidéo', 'vid', 'vidports'], ['sorties vidéos', 'vid', 'vidports'], ['sorties video', 'vid', 'vidports'],
     ['entrées vidéo', 'vid', 'vidports'], ['entrees video', 'vid', 'vidports'], ['entrées', 'vid', 'vidports'],
@@ -120,6 +125,8 @@ const Compat = (() => {
     ['hauteur max. du ventilateur de processeur', 'caseCoolerMax', 'num'], ['max cpu cooler height', 'caseCoolerMax', 'num'],
     ['longueur max. de la carte graphique', 'caseGpuMax', 'num'], ['max gpu length', 'caseGpuMax', 'num'],
     ['refroidissement par eau', 'watercool', 'flag'], ['liquid cooling', 'watercool', 'flag'], ['water cooling', 'watercool', 'flag'],
+    ['radiateurs supportés', 'caseRads', 'radlist'], ['radiator support', 'caseRads', 'radlist'],
+    ['emplacements radiateur', 'caseRads', 'radlist'], ['radiateur supporté', 'caseRads', 'radlist'],
     ['connecteurs pci-e (8 broches)', 'pcie8', 'num'], ['pci-e 8-pin connectors', 'pcie8', 'num'],
     ['autres connecteurs', 'otherConn', 'raw'],
     ['puissance continue', 'capW', 'num'],
@@ -161,9 +168,11 @@ const Compat = (() => {
       if (kind === 'num') {
         const nums = ints(val, 0, 1000000);
         if (field === 'ramSpeedMax' || field === 'readSpeed') P[field] = nums.length ? Math.max(...nums) : 0;
+        else if (field === 'height') P[field] = nums.length ? Math.max(P[field] || 0, nums[0]) : (P[field] || 0); // tallest (with fans) wins
         else P[field] = nums.length ? nums[0] : 0;
         continue;
       }
+      if (kind === 'radlist') { P.caseRads = [...new Set([...(P.caseRads || []), ...ints(val, 120, 480)])]; continue; }
       if (kind === 'numlist') { P[field] = ints(val, 1, 9); continue; }
       if (kind === 'sockets') {
         const ss = (val.match(/\b(AM5|AM4|1700|1851|1200|1151)\b/gi) || []).map(s => s.toUpperCase());
@@ -296,6 +305,12 @@ const Compat = (() => {
     /* Network + jack scan on raw lines (value-first layouts: "8 x RJ45", "SFP+", "Jack 3,5 mm"). */
     for (const ln of lines) {
       const l = low(ln);
+      /* Drive form factor: M.2 (unambiguous keywords) or 2.5"/3.5" (needs size words). */
+      if (/m\.?\s?2|2280|2260|2242|2230|22110|\bnvme\b|\bpcie\b/.test(l) && /pouces|inch|format|facteur|dimensions?|taille|largeur|width|hauteur|height|longueur|length|profondeur|depth|épaisseur|thickness|baie|bay|interface|protocole|bus|disque|drive|hdd|ssd|stockage|storage/.test(l)) P.driveFF = 'M2';
+      else if ((/2[.,]5/.test(l) || /3[.,]5/.test(l)) && /pouces|inch|"|disque|drive|hdd|ssd|stockage|storage|baie|bay/.test(l)) {
+        if (/2[.,]5/.test(l)) P.driveFF = P.driveFF || '2.5';
+        else P.driveFF = P.driveFF || '3.5';
+      }
       if (/rj-?45|base-?t|\bethernet\b/.test(l)) {
         const cm = l.match(/(\d+)\s*(?:x\s*)?(?:ports?\s*)?rj-?45/i);
         if (cm) P.rj45 = Math.max(P.rj45 || 0, parseInt(cm[1], 10));
@@ -312,7 +327,22 @@ const Compat = (() => {
         const wm = l.match(/wi-?fi\s*(\d)/i);
         if (wm) { P.wifiGen = Math.max(P.wifiGen || 0, parseInt(wm[1], 10)); if (/6e/i.test(l)) P.wifiE = true; }
       }
+      if (!P.wifiGen && P.wifiStd) {
+        const wm = String(P.wifiStd).match(/(\d)/);
+        if (wm) { P.wifiGen = parseInt(wm[1], 10); if (/6e/i.test(P.wifiStd)) P.wifiE = true; }
+      }
       if (/connect|entrées|entrees|audio|jack|casque/.test(l) && /jack|3[.,]5\s?mm/.test(l)) P.jack = true;
+      /* RGB headers (3-pin ARGB vs 4-pin RGB) — only header-worded lines with counts. */
+      if (/rgb/.test(l) && (/connecteur|header|prise|broche|pin|embase/i.test(ln) || /(\d+)\s*x\s*.rgb/i.test(l))) {
+        const parts = l.split(/[,;+]/);
+        parts.forEach(part => {
+          let n = 1;
+          const m = part.match(/(\d+)\s*x\b/i);
+          if (m) n = parseInt(m[1], 10);
+          if (/a-?rgb|adressable|3\s*broches|3\s*pin|5v/i.test(part)) P.argb = (P.argb || 0) + n;
+          else if (/rgb|led/i.test(part)) P.rgb4 = (P.rgb4 || 0) + n;
+        });
+      }
     }
     P.raw = String(dsText || '').slice(0, 6000); // keyword fallback (liquid cooling, SATA…)
     return P;
@@ -479,8 +509,14 @@ const Compat = (() => {
       if (liquid) {
         if (!caseIds.length || !P[caseIds[0]].hasDs) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), WARN, L('Watercooling : support boîtier à confirmer', 'Watercooling: confirm case support'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
         else {
-          const w = P[caseIds[0]].ds.watercool;
-          if (w === true || /oui|yes/i.test(String(w))) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), OK, L('Boîtier compatible watercooling', 'Watercooling-ready case'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
+          const CW = P[caseIds[0]].ds;
+          const rads = CW.caseRads || [];
+          const rs = C.radSize || 0;
+          if (rs && rads.length) {
+            if (rads.includes(rs)) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), OK, L(`Radiateur ${rs} mm supporté (${rads.join('/')})`, `${rs}mm radiator supported (${rads.join('/')})`), A('Radiateur', rs + ' mm'), A('Radiateurs boîtier', rads.join('/')));
+            else add(coolerId, 'radiator', L('Radiateur', 'Radiator'), WARN, L(`Radiateur ${rs} mm non listé (${rads.join('/')}) — vérifiez l'emplacement`, `${rs}mm radiator not listed (${rads.join('/')}) — verify mount point`), A('Radiateur', rs + ' mm'), A('Radiateurs boîtier', rads.join('/')));
+          }
+          else if (CW.watercool === true || /oui|yes/i.test(String(CW.watercool || ''))) add(coolerId, 'radiator', L('Radiateur', 'Radiator'), OK, L('Boîtier compatible watercooling', 'Watercooling-ready case'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
           else add(coolerId, 'radiator', L('Radiateur', 'Radiator'), WARN, L('Support watercooling du boîtier à confirmer', 'Confirm case watercooling support'), A('Radiateur', (C.radSize || '?') + ' mm'), null);
         }
       } else if (!caseIds.length) add(coolerId, 'height', L('Hauteur', 'Height'), NA, L('Boîtier absent', 'No case'), A('Hauteur', (C.height || '?') + ' mm'), null);
@@ -491,9 +527,36 @@ const Compat = (() => {
         else if (h <= H) add(coolerId, 'height', L('Hauteur', 'Height'), OK, L(`${h} ≤ ${H} mm`, `${h} ≤ ${H} mm`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm'));
         else add(coolerId, 'height', L('Hauteur', 'Height'), ERR, L(`${h} mm > max ${H} mm !`, `${h} mm > max ${H} mm!`), A('Hauteur', h + ' mm'), A('Max boîtier', H + ' mm'));
       }
+      /* ---- Cooler lighting: ARGB (3-pin 5V) vs RGB (4-pin 12V) vs board headers ---- */
+      const cName = P[coolerId].p.name || '';
+      const argbNeed = /a-?rgb|adressable/i.test(cName + ' ' + (C.raw || ''));
+      const rgbNeed = !argbNeed && /\brgb\b|led/i.test(cName + ' ' + (C.raw || ''));
+      if (argbNeed || rgbNeed) {
+        if (!mbId || !P[mbId].hasDs) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prises RGB CM à confirmer', 'Confirm board RGB headers'), A('Ventirad', argbNeed ? 'ARGB' : 'RGB'), null);
+        else {
+          const mA = P[mbId].ds.argb || 0, mR = P[mbId].ds.rgb4 || 0;
+          if (argbNeed) {
+            if (mA > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), OK, L(`ARGB vers ${mA} prise(s) 3-pin 5V`, `ARGB to ${mA} 3-pin 5V header(s)`), A('Ventirad', 'ARGB'), A('Prises ARGB CM', mA));
+            else if (mR > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('ARGB incompatible 4-pin 12V — contrôleur/hub requis', 'ARGB incompatible with 4-pin 12V — controller/hub needed'), A('Ventirad', 'ARGB'), A('Prises RGB CM', mR + '× 4-pin'));
+            else add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Aucune prise ARGB détectée — vérifiez le manuel (contrôleur ?)', 'No ARGB header detected — check manual (controller?)'), A('Ventirad', 'ARGB'), A('Prises ARGB CM', '?'));
+          } else {
+            if (mR > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), OK, L(`RGB vers ${mR} prise(s) 4-pin 12V`, `RGB to ${mR} 4-pin 12V header(s)`), A('Ventirad', 'RGB'), A('Prises RGB CM', mR));
+            else if (mA > 0) add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prise ARGB 3-pin uniquement — adaptateur/contrôleur requis', 'ARGB 3-pin header only — adapter/controller needed'), A('Ventirad', 'RGB'), A('Prises ARGB CM', mA));
+            else add(coolerId, 'rgb', L('Éclairage', 'Lighting'), WARN, L('Prises RGB CM non renseignées — vérifiez le manuel', 'Board RGB headers unknown — check manual'), A('Ventirad', 'RGB'), A('Prises RGB CM', '?'));
+          }
+        }
+      }
     }
     /* ---- Drives ---- */
     const driveIds = order.filter(id => P[id] && (P[id].defId === 'ssd1' || P[id].defId === 'hdd'));
+    const ffOf = did => {
+      if (!P[did] || !P[did].hasDs) return null;
+      const dd = P[did].ds, nn = P[did].p.name || '';
+      if (!(/SATA/i.test(nn + ' ' + (dd.raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(nn + ' ' + (dd.raw || '')))) return 'M2';
+      return dd.driveFF || (P[did].defId === 'hdd' ? '3.5' : null);
+    };
+    const need35 = driveIds.filter(did => ffOf(did) === '3.5');
+    const need25 = driveIds.filter(did => ffOf(did) === '2.5');
     const nvmeIds = driveIds.filter(id => {
       const D = P[id].ds, nm = P[id].p.name || '';
       return P[id].hasDs && !(/SATA/i.test(nm + ' ' + (D.raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(nm + ' ' + (D.raw || '')));
@@ -504,12 +567,24 @@ const Compat = (() => {
       const sataOnly = /SATA/i.test(nm + ' ' + (D.raw || '')) && !/NVMe|M\.?\s?2|PCIe/i.test(nm + ' ' + (D.raw || ''));
       if (sataOnly) {
         add(id, 'iface', L('Interface', 'Interface'), OK, L('SATA — ports standards', 'SATA — standard ports'), A('Interface', 'SATA'), null);
-        if (/3[.,]5/.test(nm)) {
-          const caseIds = byDef('case');
-          if (!caseIds.length) add(id, 'bays', L('Baies', 'Bays'), NA, L('Boîtier absent', 'No case'), A('Format', '3,5"'), null);
-          else if (!P[caseIds[0]].hasDs) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Format', '3,5"'), null);
-          else if (!P[caseIds[0]].ds.bays35) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Baies 3,5" du boîtier inconnues — vérifiez', 'Unknown case 3.5" bays — verify'), A('Format', '3,5"'), null);
-          else add(id, 'bays', L('Baies', 'Bays'), OK, L('Baie 3,5" disponible', '3.5" bay available'), A('Format', '3,5"'), null);
+        const ff = ffOf(id);
+        const caseIds = byDef('case');
+        if (!ff || (ff !== '3.5' && ff !== '2.5')) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Format du disque non détecté — vérifiez (2,5" ?)', 'Unknown drive size — verify (2.5"?)'), A('Format', '?'), null);
+        else if (!caseIds.length) add(id, 'bays', L('Baies', 'Bays'), NA, L('Boîtier absent', 'No case'), A('Format', ff + '"'), null);
+        else if (!P[caseIds[0]].hasDs) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Datasheet boîtier absente — vérifiez', 'Missing case datasheet — verify'), A('Format', ff + '"'), null);
+        else {
+          const b35 = P[caseIds[0]].ds.bays35 || 0, b25 = P[caseIds[0]].ds.bays25 || 0;
+          const rank = (ff === '3.5' ? need35 : need25).indexOf(id) + 1;
+          const total = ff === '3.5' ? need35.length : need25.length;
+          if (!b35 && !b25) add(id, 'bays', L('Baies', 'Bays'), WARN, L('Baies du boîtier inconnues — vérifiez', 'Unknown case bays — verify'), A('Disques ' + ff + '"', total), A('Baies', '?'));
+          else if (ff === '3.5') {
+            if (rank <= b35) add(id, 'bays', L('Baies', 'Bays'), OK, L(`Disque 3,5" n°${rank}/${total} ≤ ${b35} baie(s)`, `3.5" drive #${rank}/${total} ≤ ${b35} bay(s)`), A('Disques 3,5"', total), A('Baies 3,5"', b35));
+            else add(id, 'bays', L('Baies', 'Bays'), ERR, L(`Disque 3,5" n°${rank} — seulement ${b35} baie(s) !`, `3.5" drive #${rank} — only ${b35} bay(s)!`), A('Disques 3,5"', total), A('Baies 3,5"', b35));
+          } else {
+            if (rank <= b25) add(id, 'bays', L('Baies', 'Bays'), OK, L(`SSD 2,5" n°${rank}/${total} ≤ ${b25} baie(s)`, `2.5" SSD #${rank}/${total} ≤ ${b25} bay(s)`), A('SSD 2,5"', total), A('Baies 2,5"', b25));
+            else if (rank <= b25 + b35) add(id, 'bays', L('Baies', 'Bays'), WARN, L(`SSD 2,5" n°${rank} en baie 3,5" — cadre/adaptateur requis`, `2.5" SSD #${rank} in 3.5" bay — bracket/adapter needed`), A('SSD 2,5"', total), A('Baies 2,5"+3,5"', `${b25}+${b35}`));
+            else add(id, 'bays', L('Baies', 'Bays'), ERR, L(`SSD 2,5" n°${rank} — seulement ${b25 + b35} baie(s) !`, `2.5" SSD #${rank} — only ${b25 + b35} bay(s)!`), A('SSD 2,5"', total), A('Baies 2,5"+3,5"', `${b25}+${b35}`));
+          }
         }
         return;
       }
@@ -612,27 +687,29 @@ const Compat = (() => {
     const isFanSlot = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));
     const chassisFanIds = order.filter(id => isFanSlot(id) && isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : '')));
     chassisFanIds.forEach(id => {
-      if (!caseId || !P[caseId].hasDs) { add(id, 'mount', L('Montage', 'Mount'), WARN, L('Boîtier/datasheet à confirmer', 'Confirm case/datasheet'), A('Ventilateur', P[id].p.name || '?'), null); return; }
-      add(id, 'mount', L('Montage', 'Mount'), OK, L('Ventilateur boîtier standard', 'Standard case fan'), A('Ventilateur', P[id].p.name || '?'), null);
+      /* Fan slots are never listed on Idealo: always a manual check. */
+      const cn = caseId && P[caseId] ? (P[caseId].p.name || '') : '';
+      add(id, 'mount', L('Montage', 'Mount'), WARN, L(`Emplacements ventilateurs à vérifier manuellement${cn ? ` (boîtier ${cn})` : ''} — non renseignés sur Idealo`, `Manually verify case fan slots${cn ? ` (${cn})` : ''} — not listed on Idealo`), A('Ventilateur', P[id].p.name || '?'), A('Emplacements boîtier', '?'));
     });
     /* ---- Fan headers on motherboard vs fans + cooler ---- */
     const liquidCooler = coolerId && P[coolerId].hasDs && /liquide|liquid|watercooling|AIO/i.test(P[coolerId].ds.raw || '');
     const radFans = liquidCooler && P[coolerId].ds.radSize ? Math.min(3, Math.max(1, Math.round(P[coolerId].ds.radSize / 120))) : 0;
     const needCpu = coolerId ? 1 : 0; // air fan or AIO pump on CPU_FAN/AIO_PUMP
     const needSys = chassisFanIds.length + radFans;
-    const fanPillId = chassisFanIds[0] || coolerId;
-    if (fanPillId && needSys + needCpu > 0) {
-      if (!mbId || !P[mbId].hasDs) add(fanPillId, 'headers', L('Prises ventilateurs', 'Fan headers'), WARN, L('Prises ventilateurs CM inconnues — vérifiez', 'Unknown board fan headers — verify'), A('Ventilateurs', `${needSys} châssis${needCpu ? ' + ventirad' : ''}`), null);
+    const cpuPillId = coolerId; // CPU_FAN pill lives on the cooler…
+    const sysPillId = chassisFanIds[0] || coolerId; // …SYS_FAN pills live on the (first) case fan
+    if ((sysPillId && needSys > 0) || (cpuPillId && needCpu > 0)) {
+      if (!mbId || !P[mbId].hasDs) add(sysPillId || cpuPillId, 'headers', L('Prises ventilateurs', 'Fan headers'), WARN, L('Prises ventilateurs CM inconnues — vérifiez', 'Unknown board fan headers — verify'), A('Ventilateurs', `${needSys} châssis${needCpu ? ' + ventirad' : ''}`), null);
       else {
         const fc = P[mbId].ds.fanCpu || 0, fs = P[mbId].ds.fanSys || 0;
-        if (needCpu) {
-          if (fc >= needCpu) add(fanPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), OK, L(`${fc} prise(s) CPU — ventirad branché`, `${fc} CPU header(s) — cooler connected`), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc));
-          else add(fanPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), WARN, L('Prises CPU_FAN CM inconnues — vérifiez', 'Unknown board CPU_FAN headers — verify'), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc || '?'));
+        if (needCpu && cpuPillId) {
+          if (fc >= needCpu) add(cpuPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), OK, L(`${fc} prise(s) CPU — ventirad/pompe sur CPU_FAN`, `${fc} CPU header(s) — cooler/pump on CPU_FAN`), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc));
+          else add(cpuPillId, 'cpuheader', L('Prise CPU_FAN', 'CPU_FAN header'), WARN, L('Prises CPU_FAN CM inconnues — vérifiez', 'Unknown board CPU_FAN headers — verify'), A('Ventirad', '1× CPU_FAN'), A('Prises CPU CM', fc || '?'));
         }
-        if (needSys) {
-          if (fs >= needSys) add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) châssis`, `${needSys} fan(s) ≤ ${fs} chassis header(s)`), A('Ventilateurs', needSys), A('Prises châssis CM', fs));
-          else if (fs) add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), WARN, L(`${needSys} ventilateurs pour ${fs} prise(s) — splitter/hub requis`, `${needSys} fans for ${fs} header(s) — splitter/hub needed`), A('Ventilateurs', needSys), A('Prises châssis CM', fs));
-          else add(fanPillId, 'sysheaders', L('Prises châssis', 'Chassis headers'), WARN, L('Prises châssis CM inconnues — vérifiez', 'Unknown board chassis headers — verify'), A('Ventilateurs', needSys), A('Prises châssis CM', '?'));
+        if (needSys && sysPillId) {
+          if (fs >= needSys) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) SYS_FAN — ne pas utiliser CPU_FAN`, `${needSys} fan(s) ≤ ${fs} SYS_FAN header(s) — do not use CPU_FAN`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', fs));
+          else if (fs) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L(`${needSys} ventilateurs pour ${fs} prise(s) SYS_FAN — splitter/hub requis`, `${needSys} fans for ${fs} SYS_FAN header(s) — splitter/hub needed`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', fs));
+          else add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L('Prises SYS_FAN CM inconnues — vérifiez', 'Unknown board SYS_FAN headers — verify'), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', '?'));
         }
       }
     }
