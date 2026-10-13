@@ -200,6 +200,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .variant-dim-lbl{font-weight:900;color:var(--muted)}
 .variant-vals{color:var(--muted);font-weight:700}
 .vchip.sel{border-color:var(--brand);color:var(--brand-ink);background:rgba(26,135,68,.10)}
+.vchip:disabled{opacity:.45;cursor:not-allowed}
+.variant-loading{display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:700;color:var(--muted)}
 .variant-models{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .variant-card{flex:0 0 118px;display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:8px 6px;cursor:pointer;color:var(--ink);font:inherit;position:relative;overflow:hidden}
 .variant-card:hover{border-color:var(--brand)}

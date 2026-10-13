@@ -287,6 +287,36 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
+  /* Normalized attribute comparison for variant filtering ("2.970 MHz" === "2 970 MHz"). */
+  function variantNorm(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s.,]/g, '');
+  }
+  /* Read variant-filter attributes from a variant's own datasheet: for each filter
+     dimension of the parent page, take the value of the datasheet line starting
+     with that label ("Couleur Blanc", "Fréquence du chip boost 3 010 MHz").
+     Returns {label: rawValue} (only dimensions found). */
+  function matchVariantAttrs(dsText, filters) {
+    const out = {};
+    const lines = String(dsText || '').split('\n').map(ln => {
+      let s = String(ln || '').trim();
+      if (/^\|.*\|$/.test(s)) s = s.replace(/^\||\|$/g, '').split('|').map(x => x.trim()).filter(Boolean).join(' ');
+      return s.replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+    (filters || []).forEach(f => {
+      const lab = String(f.label || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+      if (!lab) return;
+      for (const ln of lines) {
+        const l = ln.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+        if (l === lab || l.startsWith(lab + ' ') || l.startsWith(lab + ':')) {
+          const val = ln.slice(f.label.length).replace(/^[\s:|\-–]+/, '').trim().slice(0, 80);
+          if (val) out[f.label] = val;
+          return;
+        }
+      }
+    });
+    return out;
+  }
+
   /* Variants ("## 5 Variantes à partir de 858,00€"): filter dimensions
      (**Label:** + value lines) and model cards, each with its own /prix/ page.
      Returns null when the page has no variant section. */
@@ -527,5 +557,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, parseOffers, sortUrl };
+  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl };
 })();

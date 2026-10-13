@@ -125,7 +125,37 @@ const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
 const variantFilters = {}; // slotId -> {dimIdx: valIdx} (-1 = all)
 const variantPending = {}; // slotId -> url being loaded (optimistic selected state)
+const variantAttrsLoading = new Set(); // slotIds whose variant attributes are being fetched
+const variantAttrsFetching = new Set(); // fiche urls with attribute fetch in flight
 let variantLoading = null; // global lock: one variant fetch at a time (Idealo rate limit)
+/* Fetch missing variant attributes from each model's own /prix/ datasheet
+   (serialized through Idealo.product's queue + 6h cache). */
+function ensureVariantAttrs(slotId) {
+  const s = state.slots[slotId], p = s && sel(s);
+  const v = p && p.variants;
+  if (!v || !v.items || !v.items.length || typeof Idealo === 'undefined' || !Idealo.matchVariantAttrs) return;
+  const missing = v.items.filter(it => !it.attrs);
+  if (!missing.length || variantAttrsFetching.has(slotId)) return;
+  variantAttrsFetching.add(slotId);
+  variantAttrsLoading.add(slotId);
+  renderSlots();
+  (async () => {
+    try {
+      for (const it of missing) {
+        try {
+          const d = await Idealo.product(it.url);
+          if (d && !d.error && d.datasheet) it.attrs = Idealo.matchVariantAttrs(d.datasheet, v.filters || []);
+        } catch { /* keep unknown */ }
+      }
+      const cur = s.products.find(x => x.id === p.id);
+      if (cur && cur.variants) persist();
+    } finally {
+      variantAttrsFetching.delete(slotId);
+      variantAttrsLoading.delete(slotId);
+      persist(); renderSlots();
+    }
+  })();
+}
 const foldedSecs = new Set();
 let prefs = load(LS.prefs, {});
 function persist() { save(LS.state, state); }
@@ -457,24 +487,14 @@ function buyUrlFor(p) {
 }
 /* ---------- Idealo variants on slot cards ---------- */
 const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const COLOR_SYN = { white: ['blanc', 'white', 'weiss', 'bianco'], black: ['noir', 'black', 'schwarz', 'nero', 'dark', 'sombre'], grey: ['gris', 'gray', 'grey', 'grau'], red: ['rouge', 'red', 'rot'], blue: ['bleu', 'blue', 'blau'], green: ['vert', 'green', 'grun'], pink: ['rose', 'pink'], purple: ['violet', 'purple', 'lila'], orange: ['orange'], yellow: ['jaune', 'yellow', 'gelb'], silver: ['argent', 'silver', 'silber'], gold: ['or', 'gold'], titanium: ['titane', 'titanium', 'titan'] };
-function variantValueKeys(val) {
-  const t = normTxt(val).replace(/[.,]/g, '');
-  const keys = new Set();
-  for (const [canon, words] of Object.entries(COLOR_SYN)) {
-    const hit = words.filter(w => t.includes(w));
-    if (hit.length || t.includes(canon)) { keys.add(canon); hit.forEach(w => keys.add(w)); }
+/* Variant attribute equality (delegates to Idealo.variantNorm when available). */
+function variantAttrEq(a, b) {
+  if (typeof Idealo !== 'undefined' && Idealo.variantNorm) {
+    const x = Idealo.variantNorm(a), y = Idealo.variantNorm(b);
+    return !!x && x === y;
   }
-  const digits = (t.match(/\d+/g) || []).join('');
-  if (digits) keys.add(digits);
-  if (!keys.size && t.trim()) keys.add(t.trim());
-  return keys;
-}
-const variantModelText = it => normTxt((it.name || '') + ' ' + (it.url || ''));
-function variantValMatches(val, modelText) {
-  const vk = variantValueKeys(val), mk = variantValueKeys(modelText);
-  for (const k of vk) if (k && mk.has(k)) return true;
-  return false;
+  const sa = String(a ?? '').trim(), sb = String(b ?? '').trim();
+  return sa !== '' && sa === sb;
 }
 function variantCurIdx(p) {
   const items = (p.variants && p.variants.items) || [];
@@ -486,17 +506,23 @@ function variantCurIdx(p) {
 function renderVariantRow(id, p) {
   const v = p.variants;
   if (!v || !v.items || !v.items.length) return '';
-  const items = v.items, texts = items.map(variantModelText);
+  const items = v.items;
   const curIdx = variantCurIdx(p);
   const curLbl = curIdx >= 0 ? items[curIdx].name : `${v.count || items.length} ${lang === 'en' ? 'variants' : 'variantes'}`;
   const fsel = variantFilters[id] || {};
   const filters = v.filters || [];
-  const matchable = filters.map(f => (f.values || []).some(val => texts.some(t => variantValMatches(val, t))));
-  const active = filters.map((f, fi) => {
-    if (!matchable[fi]) return -1;
+  const active = {}; // dimIdx -> valIdx or -1 (single-select per dimension, like Idealo)
+  filters.forEach((f, fi) => {
     const vi = fsel[fi];
-    return (vi >= 0 && vi < f.values.length) ? vi : -1;
+    active[fi] = (vi >= 0 && vi < (f.values || []).length) ? vi : -1;
   });
+  /* Models matching all active dimensions (unknown attribute never matches a selection). */
+  const matchCount = over => items.filter(it => filters.every((f, fi) => {
+    const vi = (over && over[fi] !== undefined) ? over[fi] : active[fi];
+    if (vi < 0) return true;
+    const av = it.attrs && it.attrs[f.label];
+    return !!av && variantAttrEq(av, f.values[vi]);
+  })).length;
   /* Price colors: black by default, lowest green, ≥25% below max orange (huge promotion). */
   const vprices = items.map(it => Number(it.price) || 0).filter(Boolean);
   const pMin = vprices.length ? Math.min(...vprices) : 0;
@@ -508,19 +534,29 @@ function renderVariantRow(id, p) {
     return '';
   };
   const loading = !!variantLoading, pendingUrl = variantPending[id];
+  const attrsLoading = variantAttrsLoading.has(id);
+  const visible = it => filters.every((f, fi) => {
+    if (active[fi] < 0) return true;
+    const av = it.attrs && it.attrs[f.label];
+    return !!av && variantAttrEq(av, f.values[active[fi]]);
+  });
   let body = '';
   if (openVariants.has(id)) {
     const dims = filters.map((f, fi) => {
-      if (!matchable[fi]) return `<div class="variant-dim"><span class="variant-dim-lbl">${esc(f.label)} :</span><span class="variant-vals">${esc(f.values.join(' · '))}</span></div>`;
-      const chips = f.values.map((val, vi) => `<button class="mini-btn vchip${active[fi] === vi ? ' sel' : ''}" data-act="variantchip" data-f="${fi}" data-v="${vi}">${esc(val)}</button>`).join('');
+      const chips = (f.values || []).map((val, vi) => {
+        const n = matchCount({ ...active, [fi]: vi });
+        const dis = attrsLoading || n === 0;
+        return `<button class="mini-btn vchip${active[fi] === vi ? ' sel' : ''}" data-act="variantchip" data-f="${fi}" data-v="${vi}"${dis ? ' disabled' : ''} title="${n} ${lang === 'en' ? 'model(s)' : 'modèle(s)'}">${esc(val)}</button>`;
+      }).join('');
       return `<div class="variant-dim"><span class="variant-dim-lbl">${esc(f.label)} :</span>${chips}</div>`;
     }).join('');
+    const loadHint = attrsLoading ? `<div class="variant-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Loading options…' : 'Chargement des options…'}</div>` : '';
     const cards = items.map((it, ii) => {
-      if (!active.every((vi, fi) => vi < 0 || variantValMatches(filters[fi].values[vi], texts[ii]))) return '';
+      if (!visible(it)) return '';
       const pend = pendingUrl && normTxt(it.url || '').replace(/\/$/, '') === normTxt(pendingUrl).replace(/\/$/, '');
       return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${loading ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span><span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
     }).join('');
-    body = `<div class="variant-body">${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
+    body = `<div class="variant-body">${loadHint}${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
   }
   return `<div class="slot-variants"><button class="variant-toggle" data-act="variants" title="${lang === 'en' ? 'Choose a variant' : 'Choisir une variante'}"><i class="fa-solid fa-shuffle"></i><span class="variant-cur">${esc(curLbl)}</span><span class="variant-count">${items.length}</span><i class="fa-solid fa-chevron-${openVariants.has(id) ? 'up' : 'down'}"></i></button>${body}</div>`;
 }
@@ -665,7 +701,7 @@ function slotCard(id) {
     e.stopPropagation();
     if (b.dataset.act === 'alts') { openAlts.has(id) ? openAlts.delete(id) : openAlts.add(id); renderSlots(); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
-    if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); renderSlots(); return; }
+    if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); if (openVariants.has(id)) ensureVariantAttrs(id); renderSlots(); return; }
     if (b.dataset.act === 'variantchip') {
       const f = parseInt(b.dataset.f, 10), v = parseInt(b.dataset.v, 10);
       const cur = (variantFilters[id] || {})[f];
