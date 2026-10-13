@@ -189,7 +189,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 #compatCount{font-weight:900}
 .di-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* Idealo-like variants on slot cards */
-.slot-variants{padding:0 14px 10px 84px}
+.slot-variants{padding:0 14px 10px 84px;position:relative;overflow:hidden}
+.slot-variants.refreshing-sel::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 20%,rgba(128,128,128,.22) 50%,transparent 80%);background-size:200% 100%;animation:sk 1.2s infinite}
 .variant-toggle{width:100%;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:9px 12px;font-weight:800;font-size:.8rem;color:var(--ink-2);cursor:pointer}
 .variant-toggle:hover{border-color:var(--brand);color:var(--brand-ink)}
 .variant-cur{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
