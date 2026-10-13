@@ -982,7 +982,7 @@ const IDEALO_CATS = [
 ];
 const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', switch: 'switch', router: 'router', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
-let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0;
+let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0, idealLoadingMore = false;
 function slotCatKey(slotId) {
   if (slotId.startsWith('ssd_')) return 'ssd';
   if (slotId.startsWith('screen_')) return 'screen';
@@ -1013,14 +1013,10 @@ async function loadIdealoList(url, mode = 'fresh') {
       }
     } catch { /* ignore */ }
   }
-  idealBusy = true; renderIdealo();
-  if (mode !== 'fresh') { // "load more" / sort variant: skeleton at the end of the existing list
-    const host = $('#idealoList');
-    if (host && !host.querySelector('.skel-more')) host.insertAdjacentHTML('beforeend', '<div class="skel skel-more"></div><div class="skel skel-more"></div>');
-    const st = $('#idealoStatus');
-    if (st) st.textContent = t('picker.loading');
-    await new Promise(r => setTimeout(r, 30)); // let the skeleton paint (cached fetches resolve within one frame)
-  }
+  idealBusy = true;
+  idealLoadingMore = (mode !== 'fresh'); // trailing skeletons + greyed button until new content arrives
+  renderIdealo();
+  if (idealLoadingMore) await new Promise(r => setTimeout(r, 30)); // let the skeleton paint (cached fetches resolve within one frame)
   const need = mode === 'fresh' || mode === 'variant' ? [idealSort] : nextVariant();
   if (mode === 'more' && !need.length && idealNextUrl && !idealFetched['next:' + idealNextUrl]) {
     const r2 = await Idealo.list(idealNextUrl);
@@ -1034,6 +1030,7 @@ async function loadIdealoList(url, mode = 'fresh') {
       if (r2.cached) idealCached = true;
     }
     renderIdealo();
+    idealLoadingMore = false;
     return;
   }
   for (const v of need) {
@@ -1049,6 +1046,7 @@ async function loadIdealoList(url, mode = 'fresh') {
     }
   }
   idealBusy = false;
+  idealLoadingMore = false;
   renderIdealo();
 }
 function nextVariant() {
@@ -1059,7 +1057,7 @@ function idealMore() {
   const q = idealQ.trim().toLowerCase();
   const len = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q)).length;
   if (idealShown < len) { idealShown += IDEAL_PAGE; renderIdealo(); }
-  else if (!document.querySelector('#idealoList .skel-more')) loadIdealoList(null, 'more'); // ignore while a fetch is in flight
+  else if (!idealLoadingMore) loadIdealoList(null, 'more'); // ignore while a fetch is in flight
 }
 function renderIdealo() {
   const host = $('#idealoList'); if (!host) return;
@@ -1081,7 +1079,8 @@ function renderIdealo() {
     host.innerHTML = `<p class="hint">${lang === 'en' ? 'No results.' : 'Aucun résultat.'}</p>`;
     if (st) st.textContent = '';
   } else {
-    if (st) st.textContent = `${currentCatLabel} · ${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
+    if (st) st.textContent = idealLoadingMore ? t('picker.loading') : `${currentCatLabel} · ${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
+    if (idealLoadingMore) host.insertAdjacentHTML('beforeend', '<div class="skel"></div><div class="skel"></div>');
   }
   const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
   shown.forEach(it => {
@@ -1116,9 +1115,17 @@ function renderIdealo() {
   const more = $('#idealoMore');
   if (more) {
     const canMore = moreLeft > 0 || (nextVariant().length > 0 && !idealBusy);
-    more.classList.toggle('hidden', !canMore);
+    more.classList.toggle('hidden', !canMore && !idealLoadingMore); // stay visible while loading
+    more.disabled = idealLoadingMore; // greyed out + unclickable until new content arrives
     const lbl = more.querySelector('span');
-    if (lbl) lbl.textContent = moreLeft > 0 ? `${t('picker.more')} (+${Math.min(moreLeft, IDEAL_PAGE)})` : t('picker.more');
+    const ico = more.querySelector('i');
+    if (idealLoadingMore) {
+      if (lbl) lbl.textContent = lang === 'en' ? 'Loading more items…' : 'Chargement de plus d’éléments…';
+      if (ico) ico.className = 'fa-solid fa-circle-notch fa-spin';
+    } else {
+      if (lbl) lbl.textContent = moreLeft > 0 ? `${t('picker.more')} (+${Math.min(moreLeft, IDEAL_PAGE)})` : t('picker.more');
+      if (ico) ico.className = 'fa-solid fa-plus';
+    }
   }
 }
 function chooseIdealoItem(it) {
