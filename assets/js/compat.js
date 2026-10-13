@@ -99,6 +99,9 @@ const Compat = (() => {
     ['taux de rafraîchissement', 'refresh', 'num'], ['taux de rafraichissement', 'refresh', 'num'],
     ['refresh rate', 'refresh', 'num'], ['taux de rafraîssement', 'refresh', 'num'],
     ['total board power', 'gpuW', 'num'], ['puissance totale', 'gpuW', 'num'], ['consommation (jeu)', 'gpuW', 'num'],
+    ['tbp', 'gpuW', 'num'], ['board power', 'gpuW', 'num'], ['power draw', 'gpuW', 'num'],
+    ['consommation électrique', 'gpuW', 'num'], ['puissance carte', 'gpuW', 'num'],
+    ['leistungsaufnahme', 'gpuW', 'num'], ['graphics power', 'gpuW', 'num'],
     ['profondeur', 'depth', 'num'], ['épaisseur', 'depth', 'num'], ['thickness', 'depth', 'num'], ['depth', 'depth', 'num'],
     ['nombre de slots', 'gpuSlots', 'num'], ['slot d’extension', 'gpuSlots', 'raw'], ["slot d'extension", 'gpuSlots', 'raw'],
     ['connecteurs', 'vid', 'vidports'], ['connectique', 'vid', 'vidports'],
@@ -447,6 +450,21 @@ const Compat = (() => {
     const m = `${p.name || ''}`.match(/(\d{3,4})\s*W\b/i);
     return m ? parseInt(m[1], 10) : 0;
   }
+  /* CPU peak factor by brand/segment (bequiet-style peak methodology, local model).
+     AMD PPT is officially ~1.35×TDP; Intel mobile runs near base; Intel desktop
+     turbos ~1.5× (unlocked K/KF/KS/X ~2×). Detection order matters (HX before K). */
+  function cpuPeakFactor(name) {
+    const t = String(name || '');
+    if (/amd|ryzen|epyc|threadripper|athlon/i.test(t)) return { factor: 1.35, key: 'AMD' };
+    if (/intel|core [iu]|xeon|pentium|celeron/i.test(t)) {
+      const m = t.match(/(\d{3,5})\s?([A-Z]{1,3})\b/);
+      const suf = m ? m[2].toUpperCase() : '';
+      if (['U', 'H', 'HX', 'P', 'N', 'Y', 'G7', 'G4', 'G1', 'M', 'E', 'HK', 'HQ'].includes(suf)) return { factor: 1.0, key: 'laptop' };
+      if (['K', 'KF', 'KS', 'X', 'XE'].includes(suf)) return { factor: 2.0, key: 'K' };
+      return { factor: 1.5, key: 'Intel' };
+    }
+    return { factor: 1.35, key: '×1,35' };
+  }
   /* 80+ level from PSU name + datasheet text → {level, label, factor}. */
   function psuCertLevel(p, P) {
     const t = `${p.name || ''} ${P.cert80 || ''} ${P.raw || ''}`.toLowerCase();
@@ -518,12 +536,17 @@ const Compat = (() => {
     /* CPU */
     if (cpuId) {
       const C = P[cpuId].ds, tdp = C ? (C.tdp || 0) : 0;
-      if (tdp) push(cpuId, tdp * 1.35, [{ label: L('Pic CPU (TDP×1,35)', 'CPU peak (TDP×1.35)'), w: Math.round(tdp * 1.35) }]);
+      if (tdp) {
+        const pf = cpuPeakFactor(P[cpuId].p.name);
+        const peak = Math.round(tdp * pf.factor);
+        const fs = String(pf.factor).replace('.', ',');
+        push(cpuId, peak, [{ label: L(`Pic CPU (TDP×${fs} ${pf.key})`, `CPU peak (TDP×${pf.factor} ${pf.key})`), w: peak }]);
+      }
       else push(cpuId, P[cpuId].p.watts || defW(cpuId) || 125, [{ label: L('Valeur fiche/défaut', 'Entry/default value'), w: P[cpuId].p.watts || defW(cpuId) || 125 }]);
     }
     /* GPU */
     if (gpuId) {
-      const G = P[gpuId].ds, tbp = G ? (G.gpuW || 0) : 0;
+      const G = P[gpuId].ds, tbp = G ? (G.gpuW || G.tdp || 0) : 0;
       const w = tbp || P[gpuId].p.watts || 250;
       push(gpuId, w, [{ label: tbp ? 'TBP datasheet' : L('Estimation', 'Estimate'), w }]);
     }
@@ -693,8 +716,10 @@ const Compat = (() => {
         const cw = pwOf(cpuId);
         if (cw) {
           const fromTdp = tdp > 0;
+          const pf = cpuPeakFactor(P[cpuId].p.name);
+          const fs = String(pf.factor).replace('.', ',');
           add(cpuId, 'watts', L('Conso', 'Power'), fromTdp ? OK : WARN,
-            fromTdp ? L(`Pic CPU ~${cw.w}W (TDP×1,35)`, `CPU peak ~${cw.w}W (TDP×1.35)`) : L(`~${cw.w}W (estimation — TDP inconnu)`, `~${cw.w}W (estimate — unknown TDP)`),
+            fromTdp ? L(`Pic CPU ~${cw.w}W (TDP×${fs} ${pf.key})`, `CPU peak ~${cw.w}W (TDP×${pf.factor} ${pf.key})`) : L(`~${cw.w}W (estimation — TDP inconnu)`, `~${cw.w}W (estimate — unknown TDP)`),
             A('CPU', `~${cw.w} W`, cpuId), A('Base', tdp ? `TDP ${tdp}W` : L('estimation', 'estimate')));
         }
       }
@@ -913,10 +938,11 @@ const Compat = (() => {
       }
       const gw = pwOf(gpuId);
       if (gw) {
-        const fromTbp = P[gpuId].ds && P[gpuId].ds.gpuW > 0;
+        const gtbp = P[gpuId].ds ? (P[gpuId].ds.gpuW || P[gpuId].ds.tdp || 0) : 0;
+        const fromTbp = gtbp > 0;
         add(gpuId, 'watts', L('Conso', 'Power'), fromTbp ? OK : WARN,
           fromTbp ? L(`TBP ~${gw.w}W (datasheet)`, `TBP ~${gw.w}W (datasheet)`) : L(`~${gw.w}W (estimation — TBP inconnu)`, `~${gw.w}W (estimate — unknown TBP)`),
-          A('GPU', `~${gw.w} W`, gpuId), A('Base', fromTbp ? `TBP ${P[gpuId].ds.gpuW}W` : L('estimation', 'estimate')));
+          A('GPU', `~${gw.w} W`, gpuId), A('Base', fromTbp ? `TBP ${gtbp}W` : L('estimation', 'estimate')));
       }
     }
     /* ---- Case mirrors (GPU/cooler caps) ---- */
