@@ -218,10 +218,14 @@ const Compat = (() => {
       }
       if (kind === 'fanports') {
         const v = String(val);
-        let m = v.match(/(\d+)\s*(?:x\s*)?ventilateurs?\s*processeur|(\d+)\s*(?:x\s*)?cpu\s*fans?/i);
-        if (m) P.fanCpu = Math.max(P.fanCpu || 0, parseInt(m[1] || m[2], 10));
-        m = v.match(/(\d+)\s*(?:x\s*)?(?:bo[iî]tiers?\s*de\s*ventilation|ventilateurs?\s*(?:bo[iî]tier|ch[aâ]ssis)|system\s*fans?|chassis\s*fans?|case\s*fans?)/i);
+        let m = v.match(/(\d+)\s*(?:x\s*)?ventilateurs?\s*processeur|(\d+)\s*(?:x\s*)?cpu\s*fans?|(\d+)\s*(?:x\s*)?cpu[_\s-]?fan\b|(\d+)\s*(?:x\s*)?cpu[_\s-]?opt/i);
+        if (m) P.fanCpu = Math.max(P.fanCpu || 0, parseInt(m[1] || m[2] || m[3] || m[4], 10));
+        m = v.match(/(\d+)\s*(?:x\s*)?(?:bo[iî]tiers?\s*de\s*ventilation|ventilateurs?\s*(?:bo[iî]tier|ch[aâ]ssis)|system\s*fans?|chassis\s*fans?|case\s*fans?|cha[_\s-]?fan|sys[_\s-]?fan|case[_\s-]?fan)/i);
         if (m) P.fanSys = Math.max(P.fanSys || 0, parseInt(m[1], 10));
+        m = v.match(/(\d+)\s*(?:x\s*)?(?:aio[_\s-]?pump|pump[_\s-]?fan|w[_\s-]?pump)/i);
+        if (m) P.pump = Math.max(P.pump || 0, parseInt(m[1], 10));
+        m = v.match(/(\d+)\s*(?:x\s*)?cpu[_\s-]?opt/i);
+        if (m) P.cpuOpt = Math.max(P.cpuOpt || 0, parseInt(m[1], 10));
         continue;
       }
       if (kind === 'vidports') {
@@ -344,6 +348,11 @@ const Compat = (() => {
           else if (/rgb|led/i.test(part)) P.rgb4 = (P.rgb4 || 0) + n;
         });
       }
+    }
+    /* Front-panel USB-C (single line or split across two lines) needs an internal header. */
+    for (let li = 0; li < lines.length; li++) {
+      const pair = lines[li] + ' ' + (lines[li + 1] || '');
+      if (/façade|facade|front|avant/i.test(pair) && /usb[-\s]?c|type.?c|thunderbolt/i.test(pair)) { P.frontUsbC = true; break; }
     }
     P.raw = String(dsText || '').slice(0, 6000); // keyword fallback (liquid cooling, SATA…)
     return P;
@@ -552,6 +561,16 @@ const Compat = (() => {
       const argbNeed = /(^|[^a-z])a[\s-]?rgb|adressable|addressable/i.test(cName + ' ' + (C.raw || ''));
       const rgbNeed = !argbNeed && /\brgb\b|led/i.test(cName + ' ' + (C.raw || ''));
       if (argbNeed || rgbNeed) rgbCheck(coolerId, argbNeed, L('Ventirad', 'Cooler'));
+      /* ---- AIO pump header (liquid only): AIO_PUMP preferred, CPU_OPT fallback, else manual check ---- */
+      if (liquid) {
+        if (!mbId || !P[mbId].hasDs) add(coolerId, 'pump', L('Pompe', 'Pump'), WARN, L('Prise pompe CM à confirmer (AIO_PUMP / CPU_OPT)', 'Confirm board pump header (AIO_PUMP / CPU_OPT)'), A('Pompe AIO', '1×'), null);
+        else {
+          const pu = P[mbId].ds.pump || 0, co = P[mbId].ds.cpuOpt || 0;
+          if (pu > 0) add(coolerId, 'pump', L('Pompe', 'Pump'), OK, L(`Pompe sur prise AIO_PUMP (${pu} détectée(s))`, `Pump on AIO_PUMP header (${pu} detected)`), A('Pompe AIO', '1× AIO_PUMP'), A('Prises pompe CM', pu, mbId));
+          else if (co > 0) add(coolerId, 'pump', L('Pompe', 'Pump'), WARN, L(`Pas de prise AIO_PUMP — vérifiez manuellement : CPU_OPT (${co}) ou CPU_FAN à 100%`, `No AIO_PUMP header — manually verify: CPU_OPT (${co}) or CPU_FAN at 100%`), A('Pompe AIO', '1×'), A('Prises pompe CM', `AIO_PUMP:0 CPU_OPT:${co}`, mbId));
+          else add(coolerId, 'pump', L('Pompe', 'Pump'), WARN, L('Vérifiez manuellement la prise pompe (AIO_PUMP / CPU_OPT) — non renseignée sur Idealo', 'Manually verify the pump header (AIO_PUMP / CPU_OPT) — not listed on Idealo'), A('Pompe AIO', '1×'), A('Prises pompe CM', '?', mbId));
+        }
+      }
     }
     /* ---- Drives ---- */
     const driveIds = order.filter(id => P[id] && (P[id].defId === 'ssd1' || P[id].defId === 'hdd'));
@@ -686,6 +705,8 @@ const Compat = (() => {
         else if (h <= Mx) add(caseId, 'cooler', L('Ventirad max', 'Max cooler'), OK, L(`${Mx} ≥ ${h} mm`, `${Mx} ≥ ${h} mm`), A('Max boîtier', Mx + ' mm'), A('Hauteur', h + ' mm', coolerId));
         else add(caseId, 'cooler', L('Ventirad max', 'Max cooler'), ERR, L(`${Mx} < ${h} mm !`, `${Mx} < ${h} mm!`), A('Max boîtier', Mx + ' mm'), A('Hauteur', h + ' mm', coolerId));
       }
+      /* ---- Front-panel USB-C needs an internal USB-C header: always a manual check ---- */
+      if (W.frontUsbC) add(caseId, 'usbc', 'USB-C', WARN, L('USB-C en façade — vérifiez manuellement le connecteur USB-C interne de la carte mère', 'Front USB-C port — manually verify the motherboard internal USB-C header'), A('Façade boîtier', 'USB-C'), A('Header interne CM', '?', mbId));
     }
     /* ---- PSU wattage vs total ---- */
     if (psuId && !needDs(psuId)) {
@@ -722,7 +743,9 @@ const Compat = (() => {
       return P[fid].hasDs && (F.daisy || /daisy[\s-]?chain/i.test(nm));
     });
     const plainIds = chassisFanIds.filter(fid => !daisyIds.includes(fid));
-    const needSys = plainIds.length + (daisyIds.length ? 1 : 0) + radFans;
+    /* Daisy chain on: one chained fan is deduced (shares its header with the chain). */
+    const daisyNeed = daisyIds.length ? Math.max(1, daisyIds.length - 1) : 0;
+    const needSys = plainIds.length + daisyNeed + radFans;
     const cpuPillId = coolerId; // CPU_FAN pill lives on the cooler…
     const sysPillId = chassisFanIds[0] || coolerId; // …SYS_FAN pills live on the (first) case fan
     if ((sysPillId && needSys > 0) || (cpuPillId && needCpu > 0)) {
@@ -736,7 +759,7 @@ const Compat = (() => {
         }
         if (needSys && sysPillId) {
           const leftSys = fs ? Math.max(0, fs - needSys) : 0;
-          const chainNote = daisyIds.length ? L(` — dont ${daisyIds.length} en série (daisy chain) sur 1 prise`, ` — incl. ${daisyIds.length} daisy-chained on 1 header`) : '';
+          const chainNote = daisyIds.length ? L(` — dont ${daisyIds.length} en série (daisy chain, −1 prise)`, ` — incl. ${daisyIds.length} daisy-chained (−1 header)`) : '';
           if (fs >= needSys) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), OK, L(`${needSys} ventilateur(s) ≤ ${fs} prise(s) SYS_FAN${chainNote} — ${leftSys} restante(s) — ne pas utiliser CPU_FAN`, `${needSys} fan(s) ≤ ${fs} SYS_FAN header(s)${chainNote} — ${leftSys} left — do not use CPU_FAN`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', `${fs} (reste ${leftSys})`, mbId));
           else if (fs) add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L(`${needSys} ventilateurs pour ${fs} prise(s) SYS_FAN — splitter/hub requis`, `${needSys} fans for ${fs} SYS_FAN header(s) — splitter/hub needed`), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', fs, mbId));
           else add(sysPillId, 'sysheaders', L('Prises SYS_FAN', 'SYS_FAN headers'), WARN, L('Prises SYS_FAN CM inconnues — vérifiez', 'Unknown board SYS_FAN headers — verify'), A('Ventilateurs', needSys), A('Prises SYS_FAN CM', '?', mbId));
