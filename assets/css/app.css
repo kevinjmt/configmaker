@@ -213,6 +213,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .variant-price{font-size:.74rem;font-weight:900;color:var(--ink)}
 .variant-price.best{color:var(--success)}
 .variant-price.promo{color:#d97a06}
+.variant-acts{display:flex;gap:4px;justify-content:center;margin-top:2px}
+.vact{padding:5px 8px;font-size:.7rem}
 @media (prefers-reduced-motion:reduce){.variant-card,.variant-toggle{transition:none}}
 /* stale: keep button default color, price text goes yellow */
 .slot.stale{background:var(--surface)}

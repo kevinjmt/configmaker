@@ -505,7 +505,7 @@ function renderVariantRow(id, p) {
     const cards = items.map((it, ii) => {
       if (!active.every((vi, fi) => vi < 0 || variantValMatches(filters[fi].values[vi], texts[ii]))) return '';
       const pend = pendingUrl && normTxt(it.url || '').replace(/\/$/, '') === normTxt(pendingUrl).replace(/\/$/, '');
-      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${loading ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span></button>`;
+      return `<button class="variant-card${ii === curIdx ? ' sel' : ''}${pend ? ' pending' : ''}${loading ? ' loading' : ''}" data-act="variantpick" data-url="${esc(it.url)}" data-price="${it.price || 0}" title="${esc(it.name)} — ${eur(it.price)}"${loading ? ' disabled' : ''}>${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="variant-noimg"><i class="fa-solid fa-microchip"></i></span>`}<span class="variant-name">${esc(it.name)}</span><span class="variant-price${priceCls(it.price)}">${eur(it.price)}</span><span class="variant-acts"><span class="mini-btn vact" role="button" tabindex="0" data-act="variantopen" data-url="${esc(it.url)}" title="${lang === 'en' ? 'Open in Idealo' : 'Ouvrir dans Idealo'}"><i class="fa-solid fa-arrow-up-right-from-square"></i></span><span class="mini-btn vact" role="button" tabindex="0" data-act="variantadd" data-url="${esc(it.url)}" data-price="${it.price || 0}" data-name="${esc(it.name)}" data-img="${esc(it.img || '')}" title="${lang === 'en' ? 'Add as alternative' : 'Ajouter en alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span></span></span></button>`;
     }).join('');
     body = `<div class="variant-body">${dims}<div class="variant-models">${cards || `<p class="hint">${lang === 'en' ? 'No model matches these filters.' : 'Aucun modèle pour ces filtres.'}</p>`}</div></div>`;
   }
@@ -543,6 +543,48 @@ async function selectVariant(slotId, url, cardPrice) {
   } catch {
     toast(lang === 'en' ? 'Variant unavailable — retry later' : 'Variante indisponible — réessayez plus tard');
   } finally { variantLoading = null; delete variantPending[slotId]; hideProgress(); }
+}
+async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!s || !url || typeof Idealo === 'undefined') return;
+  if (variantLoading) { toast(lang === 'en' ? 'A variant is already loading — please wait' : 'Une variante charge déjà — patientez'); return; }
+  const norm = u => normTxt(u || '').replace(/\/$/, '');
+  if (s.products.some(x => norm(x.idealo) === norm(url))) {
+    toast(lang === 'en' ? 'Already in alternatives' : 'Déjà dans les alternatives');
+    openAlts.add(slotId); renderSlots(); return;
+  }
+  const np = blankProduct();
+  np.name = cardName || (lang === 'en' ? 'Variant' : 'Variante');
+  np.image = cardImg || '';
+  np.idealo = url;
+  np.price = cardPrice || 0;
+  if (p && p.variants && p.variants.items && p.variants.items.length) np.variants = p.variants;
+  s.products.push(np);
+  persist(); renderSlots();
+  toast(lang === 'en' ? 'Alternative added — enriching…' : 'Alternative ajoutée — enrichissement…');
+  variantLoading = url;
+  try {
+    const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
+    const cur = s.products.find(x => x.id === np.id);
+    if (!cur) return;
+    if (d && !d.error) {
+      if (d.name) cur.name = d.name;
+      if (d.img && !cur.image) cur.image = d.img;
+      if (d.specs) cur.specs = d.specs;
+      if (d.datasheet) cur.datasheet = d.datasheet;
+      if (d.variants && d.variants.items && d.variants.items.length) cur.variants = d.variants;
+      if (d.price && !cur.price) cur.price = d.price;
+    }
+    if (r && !r.error && r.offers.length) {
+      const o = r.offers[0];
+      if (o.merchant) cur.vendor = o.merchant;
+      if (o.price) cur.price = o.price;
+      if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+      if (o.url) cur.store = o.url;
+      if (o.promo) cur.promo = true;
+    }
+    persist(); compatCache = null; refresh();
+  } catch { /* keep card-level fiche */ } finally { variantLoading = null; }
 }
 function slotCard(id) {
   const s = state.slots[id], d = defOf(s), p = sel(s);
@@ -617,7 +659,12 @@ function slotCard(id) {
       renderSlots(); return;
     }
     if (b.dataset.act === 'variantpick') { selectVariant(id, b.dataset.url, parseFloat(b.dataset.price) || 0); return; }
+    if (b.dataset.act === 'variantopen') { if (b.dataset.url) window.open(b.dataset.url, '_blank', 'noopener'); return; }
+    if (b.dataset.act === 'variantadd') { addVariantAsAlt(id, b.dataset.url, parseFloat(b.dataset.price) || 0, b.dataset.name || '', b.dataset.img || ''); return; }
     slotAction(id, b.dataset.act);
+  }));
+  el.querySelectorAll('[data-act][role="button"]').forEach(b => b.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); }
   }));
   const alts = el.querySelector('[data-alts]');
   if (alts) renderAlts(alts, s, id);
