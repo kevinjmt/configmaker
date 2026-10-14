@@ -402,6 +402,13 @@ const Compat = (() => {
       if (/façade|facade|front|avant/i.test(pair) && /usb[-\s]?c|type.?c|thunderbolt/i.test(pair)) { P.frontUsbC = true; break; }
     }
     P.raw = String(dsText || '').slice(0, 6000); // keyword fallback (liquid cooling, SATA…)
+    /* Standalone "Bluetooth X" lines land in P.bt, not wireless: merge them. */
+    if (P.bt && !(P.wireless && P.wireless.bt)) {
+      P.wireless = P.wireless || {};
+      P.wireless.bt = true;
+      const bmv = String(P.bt).match(/(\d+(?:[.,]\d+)?)/);
+      if (bmv && !P.wireless.btVer) P.wireless.btVer = bmv[1];
+    }
     return P;
   }
 
@@ -601,7 +608,7 @@ const Compat = (() => {
       push(id, w, [{ label: L(`Carte réseau ${top || '?'} GbE (${w}W)`, `NIC ${top || '?'}GbE (${w}W)`), w }]);
     });
     /* USB-powered externals (per-connection estimate) */
-    [...byDef(['keyboard', 'mouse', 'pad', 'headset', 'speakers', 'webcam', 'graphictab', 'usbstick', 'dock', 'printer', 'extstorage', 'hub']),
+    [...byDef(['keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'speakers', 'webcam', 'graphictab', 'usbstick', 'dock', 'printer', 'extstorage', 'hub']),
       ...cardIds.filter(id => isExtCard(id) && P[id].hasDs),
       ...byDef('netcard').filter(nid => P[nid].hasDs && usbNicTest(nid)),
     ].forEach(id => {
@@ -1130,6 +1137,31 @@ const Compat = (() => {
         else add(id, 'link', L('Débit', 'Speed'), WARN, L(`Carte ${nicTop} ≤ LAN CM ${mbLan} GbE — intérêt à confirmer`, `NIC ${nicTop} ≤ board LAN ${mbLan}GbE — confirm usefulness`), A('Carte', nicTop + ' GbE'), A('LAN CM', mbLan + ' GbE', mbId));
       } else if (nicTop || swTop || mbLan) add(id, 'link', L('Débit', 'Speed'), WARN, L('Débits carte/switch/CM à confirmer', 'Confirm NIC/switch/board speeds'), A('Carte', nicTop ? nicTop + ' GbE' : '?'), A('Réseau', swTop ? swTop + ' GbE' : mbLan ? mbLan + ' GbE' : '?'));
     });
+    /* ---- NAS vs switch / router link ---- */
+    byDef('nas').forEach(id => {
+      if (!P[id].hasDs) { needDs(id); return; }
+      const D = P[id].ds;
+      const nasTop = D.portSpeed || D.lan || 0;
+      const nasSfp = D.sfp || 0;
+      const aNas = A('NAS', nasTop ? nasTop + ' GbE' : (nasSfp ? 'SFP+' : '?'));
+      const swIds = byDef('switch').filter(sid => P[sid].hasDs);
+      const swTop = Math.max(0, ...swIds.map(sid => P[sid].ds.portSpeed || (P[sid].ds.rj45 ? 1 : 0)));
+      const swSfp = swIds.some(sid => P[sid].ds.sfp);
+      const rIds = routerIds.filter(rid => P[rid].hasDs);
+      const rLan = rIds.length ? Math.max(...rIds.map(rid => routerLanOf(rid))) : 0;
+      const rSfp = rIds.some(rid => P[rid].ds.sfp);
+      if (!swIds.length && !rIds.length) { add(id, 'link', L('Liaison', 'Uplink'), NA, L('Ni switch ni routeur — liaison à confirmer', 'No switch or router — confirm link'), aNas, null); return; }
+      if (nasSfp && (swSfp || rSfp)) { add(id, 'link', L('Liaison', 'Uplink'), OK, L('SFP+ des deux côtés — liaison 10G+ possible', 'SFP+ on both ends — 10G+ uplink possible'), A('NAS', `${nasSfp}×SFP+`), A('Pair', 'SFP+')); return; }
+      if (swIds.length) {
+        if (!nasTop || !swTop) add(id, 'link', L('Liaison', 'Uplink'), WARN, L('Débits NAS/switch à confirmer', 'Confirm NAS/switch speeds'), aNas, A('Switch', swTop ? swTop + ' GbE' : '?', firstOf('switch')));
+        else if (nasTop <= swTop) add(id, 'link', L('Liaison', 'Uplink'), OK, L(`NAS ${nasTop} ≤ switch ${swTop} GbE`, `NAS ${nasTop} ≤ switch ${swTop}GbE`), aNas, A('Switch', swTop + ' GbE', firstOf('switch')));
+        else add(id, 'link', L('Liaison', 'Uplink'), WARN, L(`NAS ${nasTop} > switch ${swTop} GbE — bridé`, `NAS ${nasTop} > switch ${swTop}GbE — capped`), aNas, A('Switch', swTop + ' GbE', firstOf('switch')));
+        return;
+      }
+      if (!nasTop || !rLan) add(id, 'link', L('Liaison', 'Uplink'), WARN, L('Débits NAS/routeur à confirmer', 'Confirm NAS/router speeds'), aNas, A('Routeur', rLan ? rLan + ' GbE' : '?', firstOf('router')));
+      else if (nasTop <= rLan) add(id, 'link', L('Liaison', 'Uplink'), OK, L(`NAS ${nasTop} ≤ routeur ${rLan} GbE`, `NAS ${nasTop} ≤ router ${rLan}GbE`), aNas, A('Routeur', rLan + ' GbE', firstOf('router')));
+      else add(id, 'link', L('Liaison', 'Uplink'), WARN, L(`NAS ${nasTop} > routeur ${rLan} GbE — bridé`, `NAS ${nasTop} > router ${rLan}GbE — capped`), aNas, A('Routeur', rLan + ' GbE', firstOf('router')));
+    });
     /* ---- UPS vs total (PC + screens) ---- */
     byDef('ups').forEach(id => {
       if (!needDs(id)) {
@@ -1228,7 +1260,7 @@ const Compat = (() => {
       }
     });
     /* ---- USB / wireless / audio peripherals vs motherboard ---- */
-    const usbPeripherals = ['keyboard', 'mouse', 'pad', 'headset', 'speakers', 'webcam', 'graphictab', 'usbstick', 'extstorage'];
+    const usbPeripherals = ['keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'speakers', 'webcam', 'graphictab', 'usbstick', 'extstorage'];
     usbPeripherals.forEach(defId => {
       byDef(defId).forEach(id => {
         if (!P[id].hasDs) { needDs(id); return; }
