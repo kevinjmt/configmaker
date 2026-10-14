@@ -167,24 +167,28 @@
     <h2><i class="fa-solid fa-gauge-high"></i> <span data-i18n="bench.title">Benchmarks</span></h2>
     <p class="hint" id="benchQuery">—</p>
     <section class="dsec" id="bsecBrief"><div class="dsec-head"><i class="fa-solid fa-clipboard-list"></i><span data-i18n="bench.brief">Résumé d'usage</span><span class="dsec-total" id="briefScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="briefBody"></div></section>
+    <div class="bench-grid2">
     <section class="dsec" id="bsecGame"><div class="dsec-head"><i class="fa-solid fa-gamepad"></i><span data-i18n="bench.gaming">Jeu (FPS iobit)</span><span class="dsec-total" id="gameScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body">
       <div class="bench-gamerow"><label class="fld-label" for="benchGame">Jeu</label><select id="benchGame" class="bench-select"></select></div>
       <div id="gameBody"></div>
       <div id="gameBars"></div>
       <p class="hint" id="gameCredit"></p>
     </div></section>
-    <section class="dsec" id="bsecPro"><div class="dsec-head"><i class="fa-solid fa-compass-drafting"></i><span data-i18n="bench.pro">Charges lourdes</span><span class="dsec-total" id="proScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="proBody"></div></section>
-    <section class="dsec" id="bsecGb"><div class="dsec-head"><i class="fa-solid fa-server"></i><span>Geekbench</span><span class="dsec-total" id="gbScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="gbBody"></div></section>
-    <section class="dsec" id="bsec3d"><div class="dsec-head"><i class="fa-solid fa-microchip"></i><span>3DMark Time Spy</span><span class="dsec-total" id="tsScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="tsBody"></div></section>
     <section class="dsec" id="bsecYt"><div class="dsec-head"><i class="fa-brands fa-youtube"></i><span data-i18n="bench.videos">Vidéos</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body">
       <div class="btn-row">
         <a id="benchOpen" class="btn btn-primary" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.open">Voir sur YouTube</span></a>
         <button id="benchCopy" class="btn"><i class="fa-solid fa-copy"></i> <span data-i18n="bench.copy">Copier la recherche</span></button>
       </div>
       <div class="search-row mini yt-extra"><input id="benchExtra" data-i18n-ph="bench.extraPh" placeholder="Préciser la recherche… (ex : ray tracing, undervolt)"><button id="benchExtraGo" class="mini-btn"><i class="fa-solid fa-magnifying-glass"></i> <span data-i18n="bench.search">Chercher</span></button></div>
-      <div class="video-grid" id="benchGrid"></div>
+      <div class="video-grid bench-scroll" id="benchGrid"></div>
       <p class="hint" id="benchStatus"></p>
     </div></section>
+    </div>
+    <div class="bench-grid3">
+    <section class="dsec" id="bsecPro"><div class="dsec-head"><i class="fa-solid fa-compass-drafting"></i><span data-i18n="bench.pro">Charges lourdes</span><span class="dsec-total" id="proScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="proBody"></div></section>
+    <section class="dsec" id="bsecGb"><div class="dsec-head"><i class="fa-solid fa-server"></i><span>Geekbench</span><span class="dsec-total" id="gbScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="gbBody"></div></section>
+    <section class="dsec" id="bsec3d"><div class="dsec-head"><i class="fa-solid fa-microchip"></i><span>3DMark Time Spy</span><span class="dsec-total" id="tsScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="tsBody"></div></section>
+    </div>
   </main>
 
   <main id="page-prices" class="glass panel hidden">

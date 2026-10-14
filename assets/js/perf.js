@@ -51,14 +51,17 @@ const Perf = (() => {
     const v = parseFloat(m[1].replace(',', '.'));
     return /t/i.test(m[2]) ? Math.round(v * 1000) : Math.round(v);
   }
-  function diskType(name) {
-    const s = String(name || '');
-    if (/hdd|disque dur|hard\s*disk|barracuda|ironwolf/i.test(s)) return 'hdd';
-    if (/nvme|m\.?\s?2|pci.?e\s*(gen|x pressing)?/i.test(s) && !/sata/i.test(s)) {
-      if (/nvme|m\.?\s?2/i.test(s)) return 'nvme';
-    }
+  /* type disque : nom + datasheet (ex. "Interface : SATA") + slot d'origine.
+     ssd1/addMore-ssd = SSD NVMe par defaut (query du slot), hdd = HDD. */
+  function diskType(name, ds, slotId) {
+    const s = String(name || '') + ' ' + String(ds || '');
+    const slot = String(slotId || '');
+    if (/hdd|disque dur|hard\s*disk/i.test(s) && !/ssd|nvme|m\.?\s?2/i.test(s)) return 'hdd';
+    if (/^hdd/.test(slot)) return 'hdd';
     if (/nvme/i.test(s)) return 'nvme';
-    if (/sata|2[.,]5\s?("?|pouces|inch)|samsung 8(6|7)0|mx500|bx500/i.test(s)) return 'sata';
+    if (/m\.?\s?2|pcie\s*(gen|\d|x)/i.test(s) && !/sata/i.test(s)) return 'nvme';
+    if (/sata|2[.,]5\s?(pouces|inch|"|')|samsung 8[67]0|8[67]0\s*(evo|qvo|pro)|mx500|bx500|su6[35]0|su800|a400|kc600|sandisk\s*(ssd\s*plus|ultra)/i.test(s)) return 'sata';
+    if (/^ssd/.test(slot)) return 'nvme';
     if (/ssd/i.test(s)) return 'sata'; // SSD sans precision -> prudent : SATA
     return null;
   }
@@ -289,6 +292,26 @@ const Perf = (() => {
   const tsCache = {};
   let tsChain = Promise.resolve();
   function tsQueued(fn) { const p = tsChain.catch(() => {}).then(fn); tsChain = p.catch(() => {}); return p; }
+  function tryParseJson(txt) {
+    // Jina enveloppe les API JSON ("Markdown Content:" + payload).
+    // Le payload peut etre un objet {...} ou un tableau [...] : on garde
+    // le plus long candidat valide (objet pour les buckets, tableau pour l'autocomplete).
+    try { return JSON.parse(txt); } catch { /* enveloppe — voir ci-dessous */ }
+    let best = null;
+    const spans = [];
+    const a1 = txt.indexOf('['), b1 = txt.lastIndexOf(']');
+    const a2 = txt.indexOf('{'), b2 = txt.lastIndexOf('}');
+    if (a1 >= 0 && b1 > a1) spans.push(txt.slice(a1, b1 + 1));
+    if (a2 >= 0 && b2 > a2) spans.push(txt.slice(a2, b2 + 1));
+    for (const sp of spans) {
+      try {
+        const o = JSON.parse(sp);
+        if (!best || JSON.stringify(o).length > JSON.stringify(best).length) best = o;
+      } catch { /* candidat invalide */ }
+    }
+    if (best != null) return best;
+    throw new Error('bad-json');
+  }
   async function tsFetchJson(url) {
     return tsQueued(async () => {
       const ctl = new AbortController();
@@ -296,11 +319,7 @@ const Perf = (() => {
       try {
         const res = await fetch(TS_READER + url, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const txt = await res.text();
-        try { return JSON.parse(txt); } catch { /* enveloppe Jina */ }
-        const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-        if (a >= 0 && b > a) return JSON.parse(txt.slice(a, b + 1));
-        throw new Error('bad-json');
+        return tryParseJson(await res.text());
       } finally { clearTimeout(to); }
     });
   }
@@ -330,8 +349,13 @@ const Perf = (() => {
     const arr = j && (j.gpus || j.cpus);
     if (!Array.isArray(arr) || !arr.length) return null;
     const core = q.replace(/[^0-9A-Z]/gi, '');
-    const best = (core && arr.find(x => String(x.label || '').replace(/[^0-9A-Z]/gi, '').includes(core))) || arr[0];
-    const v = { id: best.value, label: best.label };
+    // Plusieurs variantes contiennent le token ("RTX 4070" ⊂ "RTX 4070 Ti") :
+    // on prend le libelle le plus court qui le contient (le modele de base).
+    const cands = core ? arr.filter(x => String(x.label || '').replace(/[^0-9A-Z]/gi, '').includes(core)) : [];
+    cands.sort((a, b) => String(a.label || '').length - String(b.label || '').length);
+    const best = cands[0] || arr[0];
+    // NOTE: l'autocomplete renvoie {id, label, value=label} : l'identifiant est `id`.
+    const v = { id: best.id != null ? best.id : best.value, label: best.label };
     tsCache[ck] = v;
     return v;
   }
@@ -409,7 +433,7 @@ const Perf = (() => {
   return {
     setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, gpuRank, tierRank,
     dailyCriteria, diskRow, proCriteria, matchCpu, matchGpu, ramMult, fpsFor,
-    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, gbScores,
+    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, gbScores, tryParseJson,
   };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Perf;

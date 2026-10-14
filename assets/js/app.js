@@ -1718,13 +1718,20 @@ let bench3d = null, bench3dKey = '', benchGb = null, benchGbKey = '';
 const tipReg = {}; let tipSeq = 0;
 
 function benchProd(id) { const s = state.slots[id]; return (s && sel(s)) || null; }
+function benchSlotProd(id) { const s = state.slots[id]; const p = s && sel(s); return p ? { p, defId: s.defId } : null; }
 function benchScan(prefix) {
   for (const sid of state.order) { const sl = state.slots[sid]; if (sl && sl.defId.indexOf(prefix) === 0) { const p = sel(sl); if (p) return p; } }
   return null;
 }
+function benchScanSlot(prefix) {
+  for (const sid of state.order) { const sl = state.slots[sid]; if (sl && sl.defId.indexOf(prefix) === 0) { const p = sel(sl); if (p) return { p, defId: sl.defId }; } }
+  return null;
+}
 function benchFacts() {
   const cpuP = benchProd('cpu'), gpuP = benchProd('gpu'), ramP = benchProd('ram');
-  const storP = benchProd('ssd1') || benchProd('hdd') || benchScan('ssd') || benchScan('hdd');
+  const stor = benchSlotProd('ssd1') || benchSlotProd('hdd') || benchScanSlot('ssd') || benchScanSlot('hdd');
+  const storP = stor ? stor.p : null;
+  const storDef = stor ? stor.defId : '';
   const scrP = benchProd('screen1') || benchScan('screen');
   const threads = (cpuP && (Perf.threadsFromDatasheet(cpuP.datasheet) || Perf.specsThreads(cpuP.specs))) || null;
   const ramGB = ramP ? Perf.ramGB(ramP.name) : null;
@@ -1735,7 +1742,7 @@ function benchFacts() {
   const res = screenH >= 2000 ? '4k' : screenH >= 1300 ? 1440 : screenH >= 900 ? 1080 : 720;
   return {
     cpuP, gpuP, ramP, storP, scrP, threads, ramGB, vramGB, cpuEntry, gpuEntry, screenH, res,
-    diskType: storP ? Perf.diskType(storP.name) : null, diskGB: storP ? Perf.diskGB(storP.name) : null,
+    diskType: storP ? Perf.diskType(storP.name, storP.datasheet, storDef) : null, diskGB: storP ? Perf.diskGB(storP.name) : null,
     gRank: gpuP ? Perf.gpuRank(gpuP.name, gpuEntry ? gpuEntry[3] : null) : null,
   };
 }
@@ -1928,7 +1935,7 @@ async function loadBench3d(f) {
     if (run !== benchRun) return;
     bench3d.gpuOnly = g; bench3d.cpuOnly = c;
     render3d();
-  } catch { if (run === benchRun) { $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}</p>`; $('#tsScore').textContent = '—'; } }
+  } catch (e) { if (run === benchRun) { $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}<br><small>${esc(String((e && e.message) || e))}</small></p>`; $('#tsScore').textContent = '—'; } }
 }
 function render3d() {
   if (!bench3d) return;
