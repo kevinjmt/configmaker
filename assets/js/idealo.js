@@ -31,6 +31,14 @@ const Idealo = (() => {
       try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; localStorage.setItem(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
     }
   }
+  /* Drop oldest cached pages, keep newest N (called when storage quota bites). */
+  function pruneCache(keep = 3) {
+    try {
+      const ks = Object.keys(cache).sort((a, b) => ((cache[a] && cache[a].t) || 0) - ((cache[b] && cache[b].t) || 0));
+      while (ks.length > keep) { const k = ks.shift(); delete cache[k]; }
+      persist();
+    } catch { /* ignore */ }
+  }
 
   function parsePrice(s) {
     if (!s) return 0;
@@ -557,5 +565,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl };
+  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache };
 })();

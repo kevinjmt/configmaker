@@ -6,7 +6,12 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
 const load = (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+/* save() reports quota failures instead of swallowing them (callers must check). */
+const save = (k, v) => {
+  try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch (e) { return { quota: true, err: e }; }
+};
+const isQuotaErr = r => !!(r && typeof r === 'object' && r.quota);
 const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -160,7 +165,25 @@ const foldedSecs = new Set();
 const foldedCharts = new Set();
 const foldedPower = new Set();
 let prefs = load(LS.prefs, {});
-function persist() { save(LS.state, state); }
+function persist() { return save(LS.state, state) === true; }
+/* Free space for user data when the quota bites: shrink volatile caches first
+   (Idealo pages, price history tail) — never configs or the draft itself. */
+function freeStorageForState() {
+  try {
+    if (typeof Idealo !== 'undefined' && Idealo.pruneCache) Idealo.pruneCache(3);
+  } catch { /* ignore */ }
+  try {
+    const h = load(LS.hist, {});
+    let changed = false;
+    Object.keys(h).forEach(k => { if (Array.isArray(h[k]) && h[k].length > 200) { h[k] = h[k].slice(-200); changed = true; } });
+    if (changed) save(LS.hist, h);
+  } catch { /* ignore */ }
+}
+function persistRetry() {
+  if (persist()) return true;
+  freeStorageForState();
+  return persist();
+}
 
 /* ---------- Helpers ---------- */
 function defOf(slot) { return SLOT_DEFS.find(d => d.id === slot.defId) || { icon: 'fa-solid fa-box', sec: 'others', q: '' }; }
@@ -1610,6 +1633,7 @@ function pushHistPoint() {
   const k = state.name || 'Ma Config';
   h[k] = h[k] || [];
   h[k].push({ t: Date.now(), total: T.total, deliv: T.total });
+  if (h[k].length > 200) h[k] = h[k].slice(-200); // bound price history per config
   save(LS.hist, h);
 }
 function drawPrices() {
@@ -1733,13 +1757,26 @@ function openBenchPopup() {
 
 /* ---------- Save / load / history / share / export ---------- */
 function doSave() {
+  state.name = String(state.name || '').trim() || 'Ma Config';
+  const nameInput = $('#configName'); if (nameInput) nameInput.value = state.name;
   state.version = stampVersion();
   $('#versionChip').textContent = 'v' + state.version;
-  persist(); pushHistPoint();
+  if (!persistRetry()) {
+    toast(lang === 'en' ? 'Storage full — config NOT saved (export JSON as backup)' : 'Stockage plein — config NON sauvegardée (exportez en JSON)');
+    try { download(state.name + '.configmaker.json', JSON.stringify({ state, exportedAt: new Date().toISOString() }, null, 2), 'application/json'); } catch { /* ignore */ }
+    return;
+  }
+  pushHistPoint();
   const cfgs = load(LS.configs, {});
   cfgs[state.name] = cfgs[state.name] || [];
+  if (cfgs[state.name].length >= 100) cfgs[state.name] = cfgs[state.name].slice(-99); // bound per-config history
   cfgs[state.name].push({ version: state.version, savedAt: Date.now(), name: state.name, budget: state.budget, total: totals().total, snapshot: JSON.parse(JSON.stringify(state)) });
-  save(LS.configs, cfgs);
+  if (save(LS.configs, cfgs) !== true) {
+    toast(lang === 'en' ? 'Storage full — snapshot NOT saved (draft is safe)' : 'Stockage plein — instantané NON sauvegardé (brouillon à jour)');
+    try { download(state.name + '.configmaker.json', JSON.stringify({ state, exportedAt: new Date().toISOString() }, null, 2), 'application/json'); } catch { /* ignore */ }
+    refresh(); drawPrices();
+    return;
+  }
   lastSavedJson = JSON.stringify(state);
   refresh(); drawPrices();
   toast((lang === 'en' ? 'Saved — v' : 'Enregistré — v') + state.version);
@@ -1829,9 +1866,27 @@ function decodeShare(s) {
   return JSON.parse(decodeURIComponent(escape(atob(code))));
 }
 function importConfig(obj) {
-  if (!obj || !obj.slots) throw new Error('bad');
-  state = obj; if (!state.order) state.order = Object.keys(state.slots);
-  persist(); lastSavedJson = JSON.stringify(state); refresh();
+  const st = (obj && obj.slots) ? obj : (obj && obj.state && obj.state.slots ? obj.state : null);
+  if (!st) throw new Error('bad');
+  state = st;
+  if (!state.order) state.order = Object.keys(state.slots);
+  if (!state.name) state.name = 'Ma Config';
+  if (typeof state.budget !== 'number') state.budget = parseFloat(state.budget) || 0;
+  Object.values(state.slots).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    if (!Array.isArray(s.products)) s.products = [];
+    if (!(s.selectedId && s.products.some(p => p.id === s.selectedId))) s.selectedId = s.products[0]?.id || null;
+  });
+  try { openAlts.clear(); } catch { /* ignore */ }
+  try { openVariants.clear(); } catch { /* ignore */ }
+  compatCache = null;
+  if (persistRetry()) {
+    lastSavedJson = JSON.stringify(state);
+    toast(lang === 'en' ? 'Config imported and saved' : 'Config importée et sauvegardée');
+  } else {
+    toast(lang === 'en' ? 'Config loaded in memory but storage full — export JSON!' : 'Config chargée en mémoire mais stockage plein — exportez en JSON !');
+  }
+  refresh();
   schedulePriceRefresh();
 }
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
