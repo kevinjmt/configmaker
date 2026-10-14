@@ -413,7 +413,7 @@ const Compat = (() => {
     return /châssis|chassis|boîtiers?|boitiers?|\bPC\b|RGB|ARGB|\b120\b|\b140\b|\b200\b|fan/i.test(t);
   }
   function isUsbDevice(text) { return /\bUSB\b/i.test(String(text || '')); }
-  function isUsbCDevice(text) { return /USB[-\s]?C|Type.?C/i.test(String(text || '')); }
+  function isUsbCDevice(text) { return /USB[-\s]?C(?![a-z])|Type[-\s]?C(?![a-z])|thunderbolt/i.test(String(text || '')); }
   /* Slot generation, datasheet-first: the board's own "Versions PCIe" list,
      with socket/chipset-era guessing only as fallback. */
   function slotGen(M, mbName) {
@@ -1145,7 +1145,7 @@ const Compat = (() => {
       if (!P[id].hasDs) { needDs(id); return; }
       const lbl = L('Slot', 'Slot');
       if (isExtCard(id)) {
-        const cType = /usb[-\s]?c|thunderbolt/i.test((P[id].p.name || '') + ' ' + (P[id].ds.raw || '')) ? 'C' : 'A';
+        const cType = isUsbCDevice((P[id].p.name || '') + ' ' + (P[id].ds.raw || '')) ? 'C' : 'A';
         const have = cType === 'C' ? mbUsbC : mbUsbA;
         if (!mbId || !P[mbId].hasDs) add(id, 'slot', lbl, WARN, L('Carte externe — ports USB CM à confirmer', 'External card — confirm board USB ports'), A('Carte', P[id].p.name || '?'), null);
         else if (have > 0) add(id, 'slot', lbl, OK, L(`Carte externe USB-${cType} — ${have} port(s) arrière`, `External USB-${cType} card — ${have} rear port(s)`), A('Carte', 'USB-' + cType), A(`USB-${cType} arrière`, have));
@@ -1234,7 +1234,10 @@ const Compat = (() => {
         if (!P[id].hasDs) { needDs(id); return; }
         const D = P[id].ds, W = D.wireless || {};
         const lbl = L('Connexion', 'Connection');
-        const forceUsb = defId === 'pad' || defId === 'usbstick' || defId === 'extstorage';
+        /* Pad: USB check only when a USB connection cable is mentioned (same line). */
+        const padUsb = defId === 'pad' && String((P[id].p.name || '') + '\n' + (D.raw || '')).split('\n').some(ln => /c[aâ]ble|cable|cord|cordon/i.test(ln) && /usb/i.test(ln));
+        if (defId === 'pad' && !padUsb) return; // plain pad: nothing to check
+        const forceUsb = padUsb || defId === 'usbstick' || defId === 'extstorage';
         const needsUsb = forceUsb || W.rf || W.wired || (!W.bt && !W.wl && !D.jack && /usb/i.test(D.raw || ''));
         if (D.jack && (defId === 'headset' || defId === 'speakers')) {
           if (mbAudio) add(id, 'audio', lbl, OK, L('Jack 3,5 mm — audio CM intégrée', '3.5mm jack — onboard board audio'), A('Casque/enceintes', 'Jack 3,5 mm'), A('Audio CM', String(P[mbId].ds.audio || 'intégré'), mbId));
@@ -1247,6 +1250,16 @@ const Compat = (() => {
           return;
         }
         if (needsUsb || W.wl) {
+          const txt = (P[id].p.name || '') + ' ' + (D.raw || '');
+          /* USB-C cable (not a 2.4GHz dongle): check USB-C on board rear or case front. */
+          if (isUsbCDevice(txt) && !W.rf) {
+            const whatC = L('USB-C (câble)', 'USB-C (cable)');
+            const caseC = (caseId && P[caseId].hasDs && P[caseId].ds.frontUsbC) ? 1 : 0;
+            if (!mbId || !P[mbId].hasDs) add(id, 'usb', lbl, WARN, L('Ports USB-C CM inconnus — vérifiez', 'Unknown board USB-C ports — verify'), A('Périphérique', whatC), null);
+            else if (mbUsbC > 0) add(id, 'usb', lbl, OK, L(`USB-C — ${mbUsbC} port(s) USB-C à l’arrière`, `USB-C — ${mbUsbC} rear USB-C port(s)`), A('Périphérique', whatC), A('USB-C arrière', mbUsbC, mbId));
+            else if (caseC) add(id, 'usb', lbl, OK, L('USB-C en façade du boîtier', 'Front-panel case USB-C'), A('Périphérique', whatC), A('USB-C façade', L('oui', 'yes'), caseId));
+            else add(id, 'usb', lbl, WARN, L('Pas d’USB-C détecté (CM/boîtier) — vérifiez manuellement (adaptateur ?)', 'No USB-C found (board/case) — verify manually (adapter?)'), A('Périphérique', whatC), A('USB-C', '?'));
+          } else {
           const what = W.rf ? L('Dongle 2,4 GHz (USB-A)', '2.4GHz dongle (USB-A)') : L('USB filaire (USB-A)', 'Wired USB (USB-A)');
           if (!mbId || !P[mbId].hasDs) add(id, 'usb', lbl, WARN, L('Ports USB arrière CM inconnus — vérifiez', 'Unknown board rear USB ports — verify'), A('Périphérique', what), null);
           else if (mbUsbA > 0) add(id, 'usb', lbl, OK, L(`${what} — ${mbUsbA} port(s) USB-A à l’arrière`, `${what} — ${mbUsbA} rear USB-A port(s)`), A('Périphérique', what), A('USB-A arrière', mbUsbA, mbId));
@@ -1260,6 +1273,7 @@ const Compat = (() => {
             if (!mbTop) add(id, 'speed', L('Débit', 'Speed'), WARN, L(`Débit USB arrière CM inconnu — ${defId === 'extstorage' ? 'vérifiez (5-20 Gbps)' : uhd ? '4K exige ~5 Gbps' : 'vérifiez'}`, `Unknown board rear USB speed — ${defId === 'extstorage' ? 'verify (5-20 Gbps)' : uhd ? '4K needs ~5 Gbps' : 'verify'}`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', '?'));
             else if (mbTop >= needSpd) add(id, 'speed', L('Débit', 'Speed'), OK, L(`USB arrière ~${mbTop} Gbps — suffisant`, `Rear USB ~${mbTop} Gbps — enough`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', `~${mbTop} Gbps`));
             else add(id, 'speed', L('Débit', 'Speed'), WARN, L(`USB arrière ~${mbTop} Gbps < ~${Math.round(needSpd * 10) / 10} requis — bridé`, `Rear USB ~${mbTop} Gbps < ~${Math.round(needSpd * 10) / 10} needed — capped`), A(defId === 'extstorage' ? 'Stockage' : 'Webcam', devLbl), A('USB CM', `~${mbTop} Gbps`));
+          }
           }
           return;
         }
