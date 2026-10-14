@@ -66,7 +66,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
-    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir cette page', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative",
+    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative",
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
     'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
     'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
@@ -87,7 +87,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
-    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this page', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative',
+    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative',
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
     'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
     'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
@@ -1130,7 +1130,7 @@ function renderIdealo() {
     }
   }
 }
-function chooseIdealoItem(it) {
+function chooseIdealoItem(it, opts = {}) {
   if (!activeSlot) return;
   const enrichSlot = activeSlot; // captured: activeSlot may change before fetches settle
   const np = blankProduct();
@@ -1163,7 +1163,8 @@ function chooseIdealoItem(it) {
     if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
   };
   dsFetchStart(np); idealoAttempted.add(np.id);
-  Idealo.product(it.url).then(d => {
+  const enrichments = [];
+  enrichments.push(Idealo.product(it.url).then(d => {
     dsFetchEnd(np);
     if (!d || d.error) return;
     if (d.specs) np.specs = d.specs;
@@ -1173,8 +1174,8 @@ function chooseIdealoItem(it) {
     if (d.img && !np.image) np.image = d.img;
     if (d.name && !before.name) np.name = d.name;
     syncEnrich();
-  }).catch(() => dsFetchEnd(np));
-  Idealo.offers(it.url).then(r => {
+  }).catch(() => dsFetchEnd(np)));
+  enrichments.push(Idealo.offers(it.url).then(r => {
     if (!r || r.error || !r.offers.length) {
       if (!$('#modalOverlay').classList.contains('hidden')) {
         const fn = $('#f_name');
@@ -1192,7 +1193,8 @@ function chooseIdealoItem(it) {
     np.isBest = o.price <= (it.price || o.price);
     syncEnrich();
     queueAlternativeData(enrichSlot);
-  });
+  }));
+  Promise.allSettled(enrichments).then(() => { try { if (opts.onDone) opts.onDone(); } catch { /* ignore */ } });
 }
 let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
 function openPicker(id, mode = 'replace') {
@@ -2119,17 +2121,61 @@ function bind() {
   });
   $('#idealoMore').onclick = () => idealMore();
   $('#idealoRetry').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh');
-  $('#idealoChoose').onclick = () => {
+  $('#idealoChoose').onclick = async () => {
     if (!activeSlot) return;
     const url = $('#idealoUrl').value.trim();
     if (!url || !/idealo\.fr\/prix\//i.test(url)) { toast(lang === 'en' ? 'Paste an exact /prix/ listing URL' : 'Collez une URL exacte de fiche /prix/'); return; }
+    const slotId = activeSlot, addOnly = pickerMode === 'add';
+    const btn = $('#idealoChoose');
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>${lang === 'en' ? 'Adding item…' : 'Ajout de l’élément…'}</span>`;
     const np = blankProduct();
     np.idealo = url;
+    dsFetchStart(np); idealoAttempted.add(np.id);
     try {
-      const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
-      np.name = slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
-    } catch { np.name = ''; }
-    openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
+      const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
+      if ((!d || d.error) && (!r || r.error || !r.offers.length)) {
+        toast(lang === 'en' ? 'Idealo page unreachable — retry later' : 'Page Idealo injoignable — réessayez plus tard');
+        return;
+      }
+      if (d && !d.error) {
+        if (d.name) np.name = d.name;
+        if (d.img) np.image = d.img;
+        if (d.specs) np.specs = d.specs;
+        if (d.datasheet) np.datasheet = d.datasheet;
+        if (d.variants && d.variants.items && d.variants.items.length) np.variants = d.variants;
+        if (d.price && !np.price) np.price = d.price;
+      }
+      if (r && !r.error && r.offers.length) {
+        const o = r.offers[0]; // cheapest first
+        if (o.merchant && !np.vendor) np.vendor = o.merchant;
+        if (o.price) np.price = o.price;
+        if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+        if (o.url && !np.store) np.store = o.url;
+        if (o.promo) np.promo = true;
+      }
+      if (!np.name) { // fallback: prettified URL slug
+        try {
+          const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
+          np.name = slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+        } catch { /* ignore */ }
+      }
+      if (!np.name) { toast(lang === 'en' ? 'Could not read this page' : 'Lecture de la page impossible'); return; }
+      const s = state.slots[slotId];
+      if (!s) return;
+      const prevSelected = s.selectedId;
+      s.products.push(np);
+      if (!addOnly || !s.selectedId) s.selectedId = np.id;
+      if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected); // replace mode
+      persist(); compatCache = null; refresh(); renderPicker();
+      queueAlternativeData(slotId);
+      toast(lang === 'en' ? 'Component imported from Idealo' : 'Composant importé depuis Idealo');
+    } finally {
+      dsFetchEnd(np);
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
   };
   $('#phTotal').onclick = () => { phMode = 'total'; $('#phTotal').classList.add('active'); $('#phPer').classList.remove('active'); drawPrices(); };
   $('#phPer').onclick = () => { phMode = 'per'; $('#phPer').classList.add('active'); $('#phTotal').classList.remove('active'); drawPrices(); };
