@@ -87,7 +87,7 @@ const I18N = {
     'bench.loading': 'Chargement des vidéos…', 'bench.play': 'Lire',
     'bench.err': 'Vidéos non chargeables pour le moment (limite de requêtes). Utilisez les liens ci-dessous.',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
-    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.',
+    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
     'nav.exportAll': 'Export data', 'nav.install': 'Install',
@@ -108,7 +108,7 @@ const I18N = {
     'bench.loading': 'Loading videos…', 'bench.play': 'Play',
     'bench.err': 'Videos unavailable right now (rate limit). Use the links below.',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
-    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.',
+    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
 };
 const SLOT_NAMES = {
@@ -2245,6 +2245,23 @@ function bind() {
   $('#langBtn').onclick = () => { lang = lang === 'fr' ? 'en' : 'fr'; save(LS.prefs, { ...load(LS.prefs, {}), lang, theme: prefs.theme }); applyLang(); refresh(); };
   $('#installBtn').onclick = openInstall;
   $('#modalClose').onclick = closeModal;
+  const aiPop = $('#aiPopup'), aiInput = $('#aiInput');
+  const aiToggle = () => { if (aiPop) { aiPop.classList.toggle('hidden'); if (!aiPop.classList.contains('hidden') && aiInput) setTimeout(() => aiInput.focus(), 50); } };
+  const aiSend = () => {
+    const q = (aiInput && aiInput.value.trim()) || '';
+    if (!q) { if (aiInput) aiInput.focus(); return; }
+    window.open('https://www.perplexity.ai/search?q=' + encodeURIComponent(q), '_blank', 'noopener');
+  };
+  const aiBubble = $('#aiBubble');
+  if (aiBubble) {
+    aiBubble.onclick = aiToggle;
+    aiBubble.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aiToggle(); } };
+  }
+  const aiClose = $('#aiClose');
+  if (aiClose) aiClose.onclick = () => aiPop && aiPop.classList.add('hidden');
+  const aiSendBtn = $('#aiSend');
+  if (aiSendBtn) aiSendBtn.onclick = aiSend;
+  if (aiInput) aiInput.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') aiSend(); });
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
   const burger = $('#burger'), menu = $('#menu');
