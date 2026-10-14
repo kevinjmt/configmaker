@@ -70,6 +70,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .budget-input{border:none;background:none;color:var(--ink);font:inherit;width:100%;outline:none}
 .ver-chip{font-size:.75rem;font-weight:800;color:var(--brand-ink);background:rgba(26,135,68,.10);border:1px solid rgba(26,135,68,.2);padding:8px 12px;border-radius:var(--radius-pill);white-space:nowrap}
 .pill-row{display:flex;justify-content:center}
+.pill-row.around{justify-content:space-around;gap:10px;flex-wrap:wrap}
 .pill{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-pill);padding:6px;box-shadow:var(--shadow-sm);max-width:100%}
 .pill button{display:inline-flex;align-items:center;gap:8px;border:none;background:transparent;color:var(--muted);font-weight:800;font-size:.85rem;padding:10px 14px;border-radius:var(--radius-pill);cursor:pointer;white-space:nowrap}
 .pill button:hover{background:rgba(26,135,68,.10);color:var(--ink)}
@@ -458,6 +459,31 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .footer-bottom{width:min(var(--max),calc(100% - 40px));margin:0 auto;padding:16px 0 20px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:.82rem}
 /* video */
 .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
+/* Benchmarks : criteres colores + tooltip flottant + barres presets (scope page-bench) */
+#page-bench .dsec{margin-bottom:12px}
+#page-bench .dsec.collapsed .dsec-body{display:none}
+.pcrit{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:800;border-radius:10px;padding:3px 9px;margin:2px 4px 2px 0;border:1px solid;cursor:help}
+.pcrit.st-ok{color:#1e7e46;border-color:rgba(30,126,70,.4);background:rgba(30,126,70,.08)}
+.pcrit.st-warn{color:#b97a0c;border-color:rgba(245,159,0,.45);background:rgba(245,159,0,.10)}
+.pcrit.st-err{color:var(--danger);border-color:rgba(224,49,49,.45);background:rgba(224,49,49,.08)}
+.dot-ok{color:#1e7e46}.dot-warn{color:#e8a100}.dot-err{color:var(--danger)}
+.fps-r{color:var(--danger);font-weight:900}.fps-y{color:#b97a0c;font-weight:900}.fps-g{color:#1e7e46;font-weight:900}.fps-b{color:#1971c2;font-weight:900}
+.perf-tip{position:fixed;z-index:9999;max-width:300px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-lg);padding:10px 12px;pointer-events:none}
+.ptip-row{display:flex;gap:8px;align-items:flex-start;font-size:.8rem;padding:3px 0}
+.ptip-row.st-ok i{color:#1e7e46}.ptip-row.st-warn i{color:#b97a0c}.ptip-row.st-err i{color:var(--danger)}
+.ptip-row small{color:var(--muted)}
+.preset-bars{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.pbar{display:flex;align-items:center;gap:8px;font-size:.8rem}
+.pbar-lbl{flex:0 0 64px;font-weight:800;color:var(--muted)}
+.pbar-track{flex:1;height:12px;border-radius:7px;background:var(--bg-soft);border:1px solid var(--line);overflow:hidden}
+.pbar-fill{display:block;height:100%;border-radius:7px}
+.fpsbg-r{background:#e03131}.fpsbg-y{background:#f59f00}.fpsbg-g{background:#2f9e44}.fpsbg-b{background:#1971c2}
+.pbar-val{flex:0 0 52px;text-align:right}
+.bench-gamerow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bench-select{flex:1;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem}
+.yt-extra{margin:12px 0 4px 0}
+.bench-sub{display:block;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.bench-cat{cursor:pointer}
 /* v2.5 — benchmark video cards */
 .video-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
 .vthumb{position:relative;border:none;background:#000;cursor:pointer;padding:0;display:block;width:100%}

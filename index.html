@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=70">
+<link rel="stylesheet" href="./assets/css/app.css?v=71">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -67,15 +67,16 @@
         <div class="budget-row"><input id="budgetInput" class="budget-input" type="number" min="0" step="1" value="1500"><span>€</span></div>
       </div>
     </div>
-    <div class="pill-row">
+    <div class="pill-row around">
       <div class="pill" role="toolbar" aria-label="Actions config">
         <button id="newBtn"><i class="fa-solid fa-file-circle-plus"></i><span data-i18n="hero.new">Nouveau</span></button>
         <button id="loadBtn"><i class="fa-solid fa-folder-open"></i><span data-i18n="hero.load">Charger</span></button>
         <button id="saveBtn"><i class="fa-solid fa-floppy-disk"></i><span data-i18n="hero.save">Sauver</span></button>
         <button id="historyBtn"><i class="fa-solid fa-clock-rotate-left"></i><span data-i18n="hero.history">Historique</span></button>
+      </div>
+      <div class="pill" role="toolbar" aria-label="Partage">
         <button id="shareBtn"><i class="fa-solid fa-share-nodes"></i><span data-i18n="hero.share">Partager</span></button>
         <button id="exportBtn"><i class="fa-solid fa-file-arrow-down"></i><span data-i18n="hero.export">Exporter</span></button>
-        <button id="benchBtn" disabled title=""><i class="fa-brands fa-youtube"></i><span data-i18n="hero.bench">Benchmarks</span></button>
       </div>
     </div>
     <div class="pill-row">
@@ -163,14 +164,27 @@
   </main>
 
   <main id="page-bench" class="glass panel hidden">
-    <h2><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.title">Benchmarks YouTube</span></h2>
+    <h2><i class="fa-solid fa-gauge-high"></i> <span data-i18n="bench.title">Benchmarks</span></h2>
     <p class="hint" id="benchQuery">—</p>
-    <div class="btn-row">
-      <a id="benchOpen" class="btn btn-primary" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.open">Voir sur YouTube</span></a>
-      <button id="benchCopy" class="btn"><i class="fa-solid fa-copy"></i> <span data-i18n="bench.copy">Copier la recherche</span></button>
-    </div>
-    <div class="video-grid" id="benchGrid"></div>
-    <p class="hint" id="benchStatus"></p>
+    <section class="dsec" id="bsecBrief"><div class="dsec-head"><i class="fa-solid fa-clipboard-list"></i><span data-i18n="bench.brief">Résumé d'usage</span><span class="dsec-total" id="briefScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="briefBody"></div></section>
+    <section class="dsec" id="bsecGame"><div class="dsec-head"><i class="fa-solid fa-gamepad"></i><span data-i18n="bench.gaming">Jeu (FPS iobit)</span><span class="dsec-total" id="gameScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body">
+      <div class="bench-gamerow"><label class="fld-label" for="benchGame">Jeu</label><select id="benchGame" class="bench-select"></select></div>
+      <div id="gameBody"></div>
+      <div id="gameBars"></div>
+      <p class="hint" id="gameCredit"></p>
+    </div></section>
+    <section class="dsec" id="bsecPro"><div class="dsec-head"><i class="fa-solid fa-compass-drafting"></i><span data-i18n="bench.pro">Charges lourdes</span><span class="dsec-total" id="proScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="proBody"></div></section>
+    <section class="dsec" id="bsecGb"><div class="dsec-head"><i class="fa-solid fa-server"></i><span>Geekbench</span><span class="dsec-total" id="gbScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="gbBody"></div></section>
+    <section class="dsec" id="bsec3d"><div class="dsec-head"><i class="fa-solid fa-microchip"></i><span>3DMark Time Spy</span><span class="dsec-total" id="tsScore"></span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body" id="tsBody"></div></section>
+    <section class="dsec" id="bsecYt"><div class="dsec-head"><i class="fa-brands fa-youtube"></i><span data-i18n="bench.videos">Vidéos</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-body">
+      <div class="btn-row">
+        <a id="benchOpen" class="btn btn-primary" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> <span data-i18n="bench.open">Voir sur YouTube</span></a>
+        <button id="benchCopy" class="btn"><i class="fa-solid fa-copy"></i> <span data-i18n="bench.copy">Copier la recherche</span></button>
+      </div>
+      <div class="search-row mini yt-extra"><input id="benchExtra" data-i18n-ph="bench.extraPh" placeholder="Préciser la recherche… (ex : ray tracing, undervolt)"><button id="benchExtraGo" class="mini-btn"><i class="fa-solid fa-magnifying-glass"></i> <span data-i18n="bench.search">Chercher</span></button></div>
+      <div class="video-grid" id="benchGrid"></div>
+      <p class="hint" id="benchStatus"></p>
+    </div></section>
   </main>
 
   <main id="page-prices" class="glass panel hidden">
@@ -227,7 +241,9 @@
 <script src="./assets/js/pcie-catalog.js?v=12"></script>
 <script src="./assets/js/pcie.js?v=12"></script>
 <script src="./assets/js/tube.js?v=71"></script>
-<script src="./assets/js/app.js?v=72"></script>
+<script src="./assets/js/fpsdb.js?v=1"></script>
+<script src="./assets/js/perf.js?v=1"></script>
+<script src="./assets/js/app.js?v=73"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
