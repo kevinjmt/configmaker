@@ -485,15 +485,25 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .bench-sub{display:block;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .bench-cat{cursor:pointer}
 /* bench layout : brief haut, 2 colonnes jeu/videos, 3 colonnes pro/geekbench/3dmark */
-.bench-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;margin-bottom:12px}
-.bench-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start}
+.bench-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;margin-bottom:14px}
+.bench-grid3{display:grid;grid-template-columns:3fr 2fr 2fr;gap:12px;align-items:start}
 #page-bench .bench-grid2 .dsec,#page-bench .bench-grid3 .dsec{margin-bottom:0}
 .bench-scroll{max-height:560px;overflow-y:auto;padding-right:4px}
-/* geekbench + 3dmark : lignes en cartes (sans affordance clic) */
-#gbBody .ditem,#tsBody .ditem{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px 12px;margin-bottom:8px;box-shadow:var(--shadow-sm)}
-#gbBody .ditem:hover,#tsBody .ditem:hover{background:var(--surface);transform:none;box-shadow:var(--shadow-sm)}
+/* bench : cartes horizontales + grilles (brief 3 col, iobit 2 puis 3, bas 3/7-2/7-2/7) */
+#bsecBrief{margin-bottom:14px}
+#briefBody{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);align-items:start}
+#gbBody,#tsBody,#proBody{display:grid;gap:10px;grid-template-columns:1fr;align-items:start}
+.iobit-grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-bottom:10px}
+.iobit-grid3{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:10px}
+#page-bench .bench-cat,
+#page-bench #gameBody .ditem,
+#page-bench #gbBody .ditem,
+#page-bench #tsBody .ditem{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);padding:12px 14px;margin-bottom:0;box-shadow:var(--shadow-md)}
+#page-bench #gameBody .ditem:hover,
+#page-bench #gbBody .ditem:hover,
+#page-bench #tsBody .ditem:hover{background:var(--surface);transform:none;box-shadow:var(--shadow-md)}
 @media (max-width:1200px){.bench-grid3{grid-template-columns:1fr 1fr}}
-@media (max-width:960px){.bench-grid2{grid-template-columns:1fr}.bench-grid3{grid-template-columns:1fr}.bench-scroll{max-height:none;overflow:visible}}
+@media (max-width:960px){.bench-grid2{grid-template-columns:1fr}.bench-grid3{grid-template-columns:1fr}.bench-scroll{max-height:none;overflow:visible}#briefBody{grid-template-columns:1fr}.iobit-grid2{grid-template-columns:1fr}}
 /* v2.5 — benchmark video cards */
 .video-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
 .vthumb{position:relative;border:none;background:#000;cursor:pointer;padding:0;display:block;width:100%}

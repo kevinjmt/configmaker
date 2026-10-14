@@ -387,7 +387,8 @@ const Perf = (() => {
     if (!h) return { median: null, n: 0, hw: h };
     const ck = kind + ':' + h.id;
     if (tsCache[ck]) return { ...tsCache[ck], hw: h };
-    const arr = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpus' : 'cpus') + '/spy/P/' + h.id + '/999999?minScore=0', 60, 2);
+    // NOTE : les paniers solo sont au singulier (/search2/gpu|/cpu/), pas gpus/cpus (404).
+    const arr = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpu' : 'cpu') + '/spy/P/' + h.id + '/999999?minScore=0', 60, 2);
     const v = { median: tsMedian(arr), n: arr.length };
     tsCache[ck] = v;
     return { ...v, hw: h };
