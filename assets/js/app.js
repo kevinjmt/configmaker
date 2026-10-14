@@ -5,11 +5,13 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
-const load = (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } };
+const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
-  try { localStorage.setItem(k, JSON.stringify(v)); return true; }
-  catch (e) { return { quota: true, err: e }; }
+  try {
+    if (typeof StoreDB !== 'undefined') return StoreDB.putRaw(k, JSON.stringify(v));
+    localStorage.setItem(k, JSON.stringify(v)); return true;
+  } catch (e) { return { quota: true, err: e }; }
 };
 const isQuotaErr = r => !!(r && typeof r === 'object' && r.quota);
 const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2253,14 +2255,21 @@ function bind() {
 }
 
 /* ---------- Init ---------- */
-(function init() {
+(async function init() {
+  try { // adopt IndexedDB data when strictly newer, then read prefs/lang fresh
+    const r = await Promise.race([
+      (typeof StoreDB !== 'undefined' ? StoreDB.ready : Promise.resolve(null)),
+      new Promise(res => setTimeout(() => res(null), 2000)),
+    ]);
+    if (r && r.adopted) state = load(LS.state, null) || state;
+  } catch { /* LS seed already rendered below */ }
   prefs = { theme: load(LS.prefs, {}).theme || 'system', lang };
   lang = load(LS.prefs, {}).lang || 'fr';
   // load from share link
   if (location.hash.includes('#c=')) {
     try { importConfig(decodeShare(location.hash)); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ }
   } else baselineSaved(); // draft restored as-is; dirty iff different from last save
-  window.addEventListener('beforeunload', () => persist()); // belt & braces: draft always restorable
+  window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
   applyTheme(); applyLang(); bind(); refresh(); showBench();
   schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();

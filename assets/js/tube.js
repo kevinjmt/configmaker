@@ -11,12 +11,12 @@ const Tube = (() => {
   const TIMEOUT_MS = 30000;
   let lastT = 0, chain = Promise.resolve();
 
-  const cache = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } })();
+  const lsGet = k => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); } catch { return null; } };
+  const lsSet = (k, v) => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.putRaw(k, v) : (localStorage.setItem(k, v), true)); } catch { return false; } };
+  const cache = (() => { try { return JSON.parse(lsGet(LS_KEY)) || {}; } catch { return {}; } })();
   function persist() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); }
-    catch {
-      try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; localStorage.setItem(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
-    }
+    if (lsSet(LS_KEY, JSON.stringify(cache)) === true) return;
+    try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; lsSet(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
   }
 
   /* Video entries look like: ### [TITLE](https://www.youtube.com/watch?v=ID[&…]) */

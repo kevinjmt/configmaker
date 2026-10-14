@@ -24,12 +24,12 @@ const Idealo = (() => {
     return base + (base.includes('?') ? '&' : '?') + s.param.slice(1);
   }
 
-  const cache = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } })();
+  const lsGet = k => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); } catch { return null; } };
+  const lsSet = (k, v) => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.putRaw(k, v) : (localStorage.setItem(k, v), true)); } catch { return false; } };
+  const cache = (() => { try { return JSON.parse(lsGet(LS_KEY)) || {}; } catch { return {}; } })();
   function persist() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(cache)); }
-    catch {
-      try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; localStorage.setItem(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
-    }
+    if (lsSet(LS_KEY, JSON.stringify(cache)) === true) return;
+    try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; lsSet(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
   }
   /* Drop oldest cached pages, keep newest N (called when storage quota bites). */
   function pruneCache(keep = 3) {
@@ -512,12 +512,10 @@ const Idealo = (() => {
      redirects straight to the merchant offer. Cached 24h (small map). */
   const PTOK_KEY = 'cmv2.ptokens';
   const PTOK_TTL = 10 * 60 * 1000; // offer tokens may be short-lived: always refetch, cache only dedupes quick repeats
-  const ptokCache = (() => { try { return JSON.parse(localStorage.getItem(PTOK_KEY)) || {}; } catch { return {}; } })();
+  const ptokCache = (() => { try { return JSON.parse(lsGet(PTOK_KEY)) || {}; } catch { return {}; } })();
   function ptokPersist() {
-    try { localStorage.setItem(PTOK_KEY, JSON.stringify(ptokCache)); }
-    catch {
-      try { const ks = Object.keys(ptokCache); if (ks.length) { delete ptokCache[ks[0]]; localStorage.setItem(PTOK_KEY, JSON.stringify(ptokCache)); } } catch { /* ignore */ }
-    }
+    if (lsSet(PTOK_KEY, JSON.stringify(ptokCache)) === true) return;
+    try { const ks = Object.keys(ptokCache); if (ks.length) { delete ptokCache[ks[0]]; lsSet(PTOK_KEY, JSON.stringify(ptokCache)); } } catch { /* ignore */ }
   }
   function parseOfferTokens(html) {
     const out = [];
