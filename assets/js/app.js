@@ -1789,15 +1789,7 @@ function bindPerfTip() {
   document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
   document.addEventListener('mouseout', e => { if (e.target.closest && e.target.closest('[data-tip]')) hide(); });
 }
-function bindBenchFold() {
-  ['bsecBrief', 'bsecGame', 'bsecPro', 'bsecGb', 'bsec3d', 'bsecYt'].forEach(id => {
-    const sec = document.getElementById(id);
-    if (!sec || sec.dataset.bound) return;
-    sec.dataset.bound = '1';
-    if (benchFold[id]) sec.classList.add('collapsed');
-    sec.querySelector('.dsec-head').onclick = () => { benchFold[id] = !benchFold[id]; sec.classList.toggle('collapsed', benchFold[id]); };
-  });
-}
+function bindBenchFold() { /* pliage supprime : sections bench toujours ouvertes */ }
 /* ----- brief ----- */
 function briefCatHtml(id, icon, title, color, value, rows) {
   const open = benchOpenRows.has(id);
@@ -1938,7 +1930,8 @@ function renderGb() {
   if (!benchGb) return;
   if (benchGb.single == null && benchGb.multi == null) {
     $('#gbScore').textContent = '—';
-    $('#gbBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))}</p>`;
+    $('#gbBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))}</p><div class="btn-row"><button class="mini-btn" id="gbRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button></div>`;
+    bindGbRetry();
     return;
   }
   const loc = n => n == null ? '—' : n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
@@ -1970,6 +1963,10 @@ async function loadBench3d(f) {
     bench3d.gpuOnly = g; bench3d.cpuOnly = c;
     render3d();
   } catch { if (run === benchRun && bench3d) { bench3d.singlesErr = true; render3d(); } }
+}
+function bindGbRetry() {
+  const rb = $('#gbRetry');
+  if (rb) rb.onclick = () => { Perf.gbClear(); benchGbKey = ''; benchGb = null; loadBenchGb(benchFacts()); };
 }
 function bindTsRetry() {
   const rb = $('#tsRetry');

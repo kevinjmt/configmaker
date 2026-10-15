@@ -413,6 +413,7 @@ const Perf = (() => {
   }
   /* ---------- Geekbench via Jina (verifie live) : medians single/multi ---------- */
   const gbCache = {};
+  function gbClear() { for (const k of Object.keys(gbCache)) delete gbCache[k]; }
   async function gbScores(cpuName) {
     const q = String(cpuName || '').trim();
     if (!q) return { single: null, multi: null, n: 0, version: '?' };
@@ -441,7 +442,7 @@ const Perf = (() => {
   return {
     setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, gpuRank, tierRank,
     dailyCriteria, diskRow, proCriteria, matchCpu, matchGpu, ramMult, fpsFor,
-    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, tsHwId, tsClear, gbScores, tryParseJson,
+    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, tsHwId, tsClear, gbScores, gbClear, tryParseJson,
   };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Perf;
