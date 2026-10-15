@@ -515,7 +515,13 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 #page-bench .bench-grid2 .dsec,#page-bench .bench-grid3 .dsec{margin-bottom:0}
 /* bench : cartes horizontales + grilles (brief 3 col, iobit 2 puis 3, bas 3/7-2/7-2/7) */
 #bsecBrief{margin-bottom:14px}
-#briefBody{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);align-items:start}
+#briefBody{display:grid;gap:10px;grid-template-columns:repeat(5,1fr);align-items:stretch}
+.brief-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);padding:16px 10px;box-shadow:var(--shadow-md);cursor:help;min-width:0;min-height:150px}
+.bt-icon{font-size:1.6rem;color:var(--muted)}
+.bt-title{font-weight:800;font-size:.85rem}
+.bt-status{font-weight:900;font-size:1.05rem}
+.bt-res{font-size:.78rem;color:var(--muted)}
+.bt-fps{font-size:1.5rem}
 #gbBody,#tsBody,#proBody{display:grid;gap:10px;grid-template-columns:1fr;align-items:start}
 .iobit-grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-bottom:10px}
 .iobit-grid3{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:10px}
@@ -528,7 +534,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 #page-bench #gbBody .ditem:hover,
 #page-bench #tsBody .ditem:hover{background:var(--surface);transform:none;box-shadow:var(--shadow-md)}
 @media (max-width:1200px){.bench-grid3{grid-template-columns:1fr 1fr}}
-@media (max-width:960px){.bench-grid2{grid-template-columns:1fr}.bench-grid3{grid-template-columns:1fr}#briefBody{grid-template-columns:1fr}.iobit-grid2{grid-template-columns:1fr}}
+@media (max-width:960px){.bench-grid2{grid-template-columns:1fr}.bench-grid3{grid-template-columns:1fr}#briefBody{grid-template-columns:repeat(2,1fr)}.iobit-grid2{grid-template-columns:1fr}}
 /* v2.5 — benchmark video cards */
 .video-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
 .vthumb{position:relative;border:none;background:#000;cursor:pointer;padding:0;display:block;width:100%}

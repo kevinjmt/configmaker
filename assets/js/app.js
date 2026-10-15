@@ -99,6 +99,7 @@ const I18N = {
     'bench.iobit': 'Ouvrir le calculateur iobit', 'bench.retry': 'Réessayer', 'bench.typErr': 'Typiques indisponibles pour le moment.',
     'bench.estSrc': 'iobit, estimations', 'bench.tsOpen': 'Voir sur 3DMark', 'bench.gbOpen': 'Voir sur Geekbench',
     'bench.copied': 'Noms CPU/GPU/jeu copiés — collez-les dans le calculateur iobit',
+    'bench.stOk': 'Bon', 'bench.stWarn': 'Moyen', 'bench.stErr': 'Mauvais',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
@@ -133,6 +134,7 @@ const I18N = {
     'bench.iobit': 'Open the iobit calculator', 'bench.retry': 'Retry', 'bench.typErr': 'Typical scores unavailable right now.',
     'bench.estSrc': 'iobit, estimates', 'bench.tsOpen': 'View on 3DMark', 'bench.gbOpen': 'View on Geekbench',
     'bench.copied': 'CPU/GPU/game names copied — paste them into the iobit calculator',
+    'bench.stOk': 'Good', 'bench.stWarn': 'Fair', 'bench.stErr': 'Poor',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
@@ -1791,12 +1793,10 @@ function bindPerfTip() {
 }
 function bindBenchFold() { /* pliage supprime : sections bench toujours ouvertes */ }
 /* ----- brief ----- */
-function briefCatHtml(id, icon, title, color, value, rows) {
-  const open = benchOpenRows.has(id);
-  return `<div class="ditem pill-item bench-cat" data-bcat="${id}" role="button" tabindex="0">
-    <span class="di-txt"><span class="di-name"><i class="${icon}"></i> ${esc(title)}</span>
-    ${open && rows ? `<span class="bench-sub">${rows.map(critHtml).join('')}</span>` : ''}</span>
-    <span class="di-price"><strong class="dot-${color}">●</strong>${value ? ` <span>${esc(value)}</span>` : ''}</span></div>`;
+/* brief = 5 tuiles (1/5 chacune) : statut seul, details au survol */
+function briefStatusWord(st) {
+  const s = st === 'unknown' ? 'warn' : st;
+  return { cls: s === 'ok' ? 'g' : s === 'warn' ? 'y' : 'r', txt: s === 'ok' ? t('bench.stOk') : s === 'warn' ? t('bench.stWarn') : t('bench.stErr') };
 }
 function renderBriefFacts(f) {
   const host = $('#briefBody');
@@ -1804,23 +1804,24 @@ function renderBriefFacts(f) {
   Perf.setLang(lang);
   const daily = Perf.dailyCriteria(f);
   const blocks = Perf.proCriteria(f, f.gRank);
-  const proWorst = Perf.worstOf([...blocks.video, ...blocks.compile, ...blocks.ai]);
-  // tuile jeu = Cyberpunk 2077 @ resolution courante (1080p par defaut)
   const cb = (f.cpuEntry && f.gpuEntry) ? Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: 'cp2077', res: f.res, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB }) : null;
   const cbSt = cb == null ? 'unknown' : { r: 'err', y: 'warn', g: 'ok', b: 'ok' }[Perf.fpsColor(cb)];
   const resLbl = f.res === '4k' ? '4K' : f.res + 'p';
-  const gRows = cb == null ? [] : [{ k: 'cb2077', st: cbSt, label: `Cyberpunk 2077 — ${resLbl} (High)`, detail: `${cb} FPS (${t('bench.estSrc')})` }];
-  const dc = Perf.worstOf(daily), gc = cbSt, pc = proWorst === 'unknown' ? 'warn' : proWorst;
-  $('#briefScore').innerHTML = `<span class="dot-${dc}">●</span> <span class="dot-${gc === 'unknown' ? 'warn' : gc}">●</span> <span class="dot-${pc}">●</span>`;
+  const gRows = cb == null
+    ? [{ k: 'cb0', st: 'unknown', label: 'Cyberpunk 2077', detail: t('bench.needBoth') }]
+    : [{ k: 'cb2077', st: cbSt, label: `Cyberpunk 2077 — ${resLbl} (High)`, detail: `${cb} FPS (${t('bench.estSrc')})` },
+       { k: 'cbhw', st: 'ok', label: f.cpuEntry[1], detail: f.gpuEntry[1] }];
+  const dc = Perf.worstOf(daily);
+  const proWorst = Perf.worstOf([...blocks.video, ...blocks.compile, ...blocks.ai]);
+  $('#briefScore').innerHTML = `<span class="dot-${dc}">●</span> <span class="dot-${cbSt === 'unknown' ? 'warn' : cbSt}">●</span> <span class="dot-${proWorst === 'unknown' ? 'warn' : proWorst}">●</span>`;
+  const tile = (icon, title, inner, rows) => `<div class="brief-tile" data-tip="${regTip(rows)}"><i class="${icon} bt-icon"></i><span class="bt-title">${esc(title)}</span>${inner}</div>`;
+  const stTile = (icon, title, st, rows) => { const w = briefStatusWord(st); return tile(icon, title, `<strong class="bt-status fps-${w.cls}">${esc(w.txt)}</strong>`, rows); };
   host.innerHTML =
-    briefCatHtml('daily', 'fa-solid fa-house-laptop', t('bench.daily'), dc, '', daily) +
-    briefCatHtml('gaming', 'fa-solid fa-gamepad', t('bench.gaming'), gc === 'unknown' ? 'warn' : gc, cb == null ? '—' : cb + ' FPS', gRows) +
-    briefCatHtml('pro', 'fa-solid fa-compass-drafting', t('bench.pro'), pc, '', [...blocks.video.map(r => ({ ...r, label: '[Video] ' + r.label })), ...blocks.compile.map(r => ({ ...r, label: '[Code] ' + r.label })), ...blocks.ai.map(r => ({ ...r, label: '[IA] ' + r.label }))]);
-  host.querySelectorAll('[data-bcat]').forEach(el => {
-    const go = () => { benchOpenRows.has(el.dataset.bcat) ? benchOpenRows.delete(el.dataset.bcat) : benchOpenRows.add(el.dataset.bcat); renderBriefFacts(f); };
-    el.onclick = go;
-    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
-  });
+    stTile('fa-solid fa-house-laptop', t('bench.daily'), dc, daily) +
+    tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : cb + ' FPS'}</strong>`, gRows) +
+    stTile('fa-solid fa-clapperboard', t('bench.video'), Perf.worstOf(blocks.video), blocks.video) +
+    stTile('fa-solid fa-code', t('bench.compile'), Perf.worstOf(blocks.compile), blocks.compile) +
+    stTile('fa-solid fa-brain', t('bench.ai'), Perf.worstOf(blocks.ai), blocks.ai);
 }
 /* ----- gaming iobit ----- */
 function fillGameSelect() {
