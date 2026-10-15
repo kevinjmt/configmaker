@@ -100,6 +100,7 @@ const I18N = {
     'bench.estSrc': 'iobit, estimations', 'bench.tsOpen': 'Voir sur 3DMark', 'bench.gbOpen': 'Voir sur Geekbench',
     'bench.copied': 'Noms CPU/GPU/jeu copiés — collez-les dans le calculateur iobit',
     'bench.stOk': 'Bon', 'bench.stWarn': 'Moyen', 'bench.stErr': 'Mauvais',
+    'bench.tsCombo': 'Combiné',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
@@ -135,6 +136,7 @@ const I18N = {
     'bench.estSrc': 'iobit, estimates', 'bench.tsOpen': 'View on 3DMark', 'bench.gbOpen': 'View on Geekbench',
     'bench.copied': 'CPU/GPU/game names copied — paste them into the iobit calculator',
     'bench.stOk': 'Good', 'bench.stWarn': 'Fair', 'bench.stErr': 'Poor',
+    'bench.tsCombo': 'Combined',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
@@ -1743,7 +1745,14 @@ function benchFacts() {
   const scrP = benchProd('screen1') || benchScan('screen');
   const threads = (cpuP && (Perf.threadsFromDatasheet(cpuP.datasheet) || Perf.specsThreads(cpuP.specs))) || null;
   const ramGB = ramP ? Perf.ramGB(ramP.name) : null;
-  const vramGB = gpuP ? Perf.ramGB(gpuP.name) : null;
+  // VRAM : nom d'abord, puis repli sur le datasheet ( Capacite memoire : 12 Go ).
+  let vramGB = gpuP ? Perf.ramGB(gpuP.name) : null;
+  if (vramGB == null && gpuP && gpuP.datasheet) {
+    try {
+      const P = Compat.parseDatasheet(gpuP.datasheet);
+      if (P && P.ramCap) vramGB = Math.round(P.ramCap);
+    } catch { /* ignore */ }
+  }
   const cpuEntry = cpuP ? Perf.matchCpu(cpuP.name) : null;
   const gpuEntry = gpuP ? Perf.matchGpu(gpuP.name) : null;
   const screenH = scrP ? Perf.screenH(scrP) : null;
@@ -1886,7 +1895,32 @@ function renderGaming(f) {
     window.open(FpsDb.SOURCE, '_blank', 'noopener');
   };
 }
-/* ----- pro ----- */
+/* ----- barres a checkpoints (rouge|jaune|vert + aiguille valeur) ----- */
+function barHtml(r) {
+  const id = regTip([r]);
+  if (!r.bar) return `<div class="cbar cbar-unknown" data-tip="${id}"><div class="cbar-top"><strong>${esc(r.label)}</strong><span>?</span></div><div class="cbar-track"><span class="zone z-u"></span></div><small>${esc(r.detail)}</small></div>`;
+  const b = r.bar, max = b.max || 1;
+  const pct = x => Math.max(0, Math.min(100, x / max * 100));
+  const wR = pct(b.cuts[0]), wY = pct(b.cuts[1]) - wR, wG = 100 - pct(b.cuts[1]);
+  const v = typeof b.val === 'number' ? pct(b.val) : null;
+  const vc = v == null ? null : Math.max(3, Math.min(97, v)); // garde le cercle visible aux bords
+  const zcls = typeof b.val !== 'number' ? '' : b.val <= b.cuts[0] ? 'r' : b.val <= b.cuts[1] ? 'y' : 'g';
+  return `<div class="cbar" data-tip="${id}">
+    <div class="cbar-top"><strong>${esc(r.label)}</strong>${b.noval ? '' : `<span>${esc(String(b.val) + (b.unit || ''))}</span>`}</div>
+    <div class="cbar-track"><span class="zone z-r" style="width:${wR}%"></span><span class="zone z-y" style="width:${wY}%"></span><span class="zone z-g" style="width:${wG}%"></span><span class="ckpt" style="left:${pct(b.cuts[0])}%"></span><span class="ckpt" style="left:${pct(b.cuts[1])}%"></span>${v == null ? '' : `<span class="needle n-${zcls}" style="left:${vc}%"></span>`}</div>
+    <small>${esc(r.detail)}</small></div>`;
+}
+function barsHtml(rows) { return `<div class="cbars">${rows.map(barHtml).join('')}</div>`; }
+/* ----- daily use (nouvelle section) ----- */
+function renderDaily(f) {
+  const host = $('#dailyBody');
+  if (!host) return;
+  Perf.setLang(lang);
+  const rows = Perf.dailyCriteria(f);
+  const w = Perf.worstOf(rows);
+  $('#dailyScore').innerHTML = `<span class="dot-${w === 'unknown' ? 'warn' : w}">●</span>`;
+  host.innerHTML = barsHtml(rows);
+}
 function renderPro(f) {
   const host = $('#proBody');
   if (!host) return;
@@ -1896,12 +1930,7 @@ function renderPro(f) {
   $('#proScore').innerHTML = defs.map(([k]) => { const w = Perf.worstOf(blocks[k]); return `<span class="dot-${w === 'unknown' ? 'warn' : w}">●</span>`; }).join(' ');
   host.innerHTML = defs.map(([k, icon, title]) => {
     const w = Perf.worstOf(blocks[k]);
-    const rows = blocks[k].map(r => {
-      const disp = r.st === 'unknown' ? 'warn' : r.st;
-      const ic = disp === 'ok' ? 'check' : disp === 'warn' ? 'triangle-exclamation' : 'xmark';
-      return `<div class="spec-row st-${disp}"><i class="fa-solid fa-${ic}"></i><span class="spec-txt"><strong>${esc(r.label)}</strong><small>${esc(r.detail)}</small></span></div>`;
-    }).join('');
-    return `<div class="pro-block"><div class="pro-head"><i class="${icon}"></i><span>${esc(title)}</span><strong class="dot-${w === 'unknown' ? 'warn' : w}">●</strong></div><div class="spec-list">${rows}</div></div>`;
+    return `<div class="pro-block"><div class="pro-head"><i class="${icon}"></i><span>${esc(title)}</span><strong class="dot-${w === 'unknown' ? 'warn' : w}">●</strong></div>${barsHtml(blocks[k])}</div>`;
   }).join('');
 }
 /* ----- Geekbench ----- */
@@ -1928,8 +1957,8 @@ function renderGb() {
   const loc = n => n == null ? '—' : n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
   $('#gbScore').textContent = (benchGb.version !== '?' ? benchGb.version + ' · ' : '') + loc(benchGb.multi);
   $('#gbBody').innerHTML =
-    `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.single'))}</span></span><span class="di-price"><strong>${loc(benchGb.single)}</strong></span></div>`
-    + `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.multi'))}</span></span><span class="di-price"><strong>${loc(benchGb.multi)}</strong></span></div>`
+    `<div class="gb-tiles"><div class="brief-tile static"><i class="fa-solid fa-square bt-icon"></i><span class="bt-title">${esc(t('bench.single'))}</span><strong class="bt-fps">${loc(benchGb.single)}</strong></div>`
+    + `<div class="brief-tile static"><i class="fa-solid fa-layer-group bt-icon"></i><span class="bt-title">${esc(t('bench.multi'))}</span><strong class="bt-fps">${loc(benchGb.multi)}</strong></div></div>`
     + `<p class="hint">${esc(benchGb.version)} · n=${benchGb.n} · browser.geekbench.com</p>`
     + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://browser.geekbench.com/search?q=${encodeURIComponent(benchGb.q || '')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.gbOpen'))}</a></div>`;
 }
@@ -1981,17 +2010,21 @@ function render3d() {
     return;
   }
   $('#tsScore').textContent = loc(combo.median);
-  let sub = `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i></p>`;
+  const comboTile = `<div class="brief-tile static ts-combo"><i class="fa-solid fa-trophy bt-icon"></i><span class="bt-title">${esc(t('bench.tsCombo'))}</span><strong class="bt-fps">${loc(combo.median)}</strong></div>`;
+  let tiles = comboTile, sub = `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i></p>`;
   if (bench3d.gpuOnly && bench3d.cpuOnly && bench3d.gpuOnly.median && bench3d.cpuOnly.median) {
     const v = Perf.tsBottleneck(combo.median, bench3d.gpuOnly.median, bench3d.cpuOnly.median);
     const cls = v.level === 'err' ? 'r' : v.level === 'warn' ? 'y' : 'g';
     const msg = v.side === 'cpu' ? t('bench.btCpu') : v.side === 'gpu' ? t('bench.btGpu') : t('bench.btOk');
-    sub = `<div class="ts-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.tsGpu'))}</span></span><span class="di-price"><strong>${loc(bench3d.gpuOnly.median)}</strong></span></div><div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.tsCpu'))}</span></span><span class="di-price"><strong>${loc(bench3d.cpuOnly.median)}</strong></span></div></div><p class="hint"><strong class="fps-${cls}">●</strong> ${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</p>`;
+    tiles += `<div class="brief-tile static"><i class="fa-solid fa-microchip bt-icon"></i><span class="bt-title">${esc((combo.cpu && combo.cpu.label) || t('bench.tsCpu'))}</span><strong class="bt-fps">${loc(bench3d.cpuOnly.median)}</strong></div>`
+      + `<div class="brief-tile static"><span class="bt-icon">${iconHtml('bi:bi-gpu-card')}</span><span class="bt-title">${esc((combo.gpu && combo.gpu.label) || t('bench.tsGpu'))}</span><strong class="bt-fps">${loc(bench3d.gpuOnly.median)}</strong></div>`;
+    sub = `<p class="hint"><strong class="fps-${cls}">●</strong> ${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</p>`;
   } else if (bench3d.singlesErr) {
     sub = `<p class="hint">${esc(t('bench.typErr'))}</p>` + retry;
   }
   $('#tsBody').innerHTML =
-    `<div class="ditem"><span class="di-txt"><span class="di-name">${esc((combo.cpu && combo.cpu.label) || '')} + ${esc((combo.gpu && combo.gpu.label) || '')}</span><br><small style="color:var(--muted)">${esc(t('bench.topruns'))} · n=${combo.n}</small></span><span class="di-price"><strong>${loc(combo.median)}</strong></span></div>` + sub
+    `<div class="ts-tiles">${tiles}</div>`
+    + `<p class="hint">${esc((combo.cpu && combo.cpu.label) || '')} + ${esc((combo.gpu && combo.gpu.label) || '')} · ${esc(t('bench.topruns'))} · n=${combo.n}</p>` + sub
     + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(combo.topUri || 'https://www.3dmark.com/search')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
   bindTsRetry();
 }
@@ -2041,8 +2074,8 @@ async function showBench() {
   bindPerfTip();
   if (!has) {
     benchKey = ''; benchRun++;
-    for (const id of ['briefBody', 'gameBody', 'proBody', 'gbBody', 'tsBody']) { const el = document.getElementById(id); if (el) el.innerHTML = `<p class="hint">${esc(t('bench.needs'))}</p>`; }
-    for (const id of ['briefScore', 'gameScore', 'proScore', 'gbScore', 'tsScore']) { const el = document.getElementById(id); if (el) el.textContent = '—'; }
+    for (const id of ['briefBody', 'gameBody', 'dailyBody', 'proBody', 'gbBody', 'tsBody']) { const el = document.getElementById(id); if (el) el.innerHTML = `<p class="hint">${esc(t('bench.needs'))}</p>`; }
+    for (const id of ['briefScore', 'gameScore', 'dailyScore', 'proScore', 'gbScore', 'tsScore']) { const el = document.getElementById(id); if (el) el.textContent = '—'; }
     $('#gameBars').innerHTML = '';
     $('#benchGrid').innerHTML = '';
     $('#benchStatus').textContent = '';
@@ -2056,6 +2089,7 @@ async function showBench() {
   Perf.setLang(lang);
   renderBriefFacts(f);
   renderGaming(f);
+  renderDaily(f);
   renderPro(f);
   loadBenchGb(f);
   loadBench3d(f);

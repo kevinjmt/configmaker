@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=83">
+<link rel="stylesheet" href="./assets/css/app.css?v=85">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -166,15 +166,17 @@
   <main id="page-bench" class="glass panel hidden">
     <h2><i class="fa-solid fa-gauge-high"></i> <span data-i18n="bench.title">Benchmarks</span></h2>
     <section class="dsec" id="bsecBrief"><div class="dsec-head"><i class="fa-solid fa-clipboard-list"></i><span data-i18n="bench.brief">Résumé d'usage</span><span class="dsec-total" id="briefScore"></span></div><div class="dsec-body" id="briefBody"></div></section>
-    <div class="bench-grid2">
     <section class="dsec" id="bsecGame"><div class="dsec-head"><i class="fa-solid fa-gamepad"></i><span data-i18n="bench.gaming">Jeu (FPS iobit)</span><span class="dsec-total" id="gameScore"></span></div><div class="dsec-body">
-      <div class="bench-gamerow"><label class="fld-label" for="benchGame">Jeu</label><select id="benchGame" class="bench-select"></select></div>
-      <div id="gameBody"></div>
-      <div id="gameBars"></div>
-      <p class="hint" id="gameCredit"></p>
+      <div class="game-split"><div class="game-left">
+        <div class="bench-gamerow"><label class="fld-label" for="benchGame">Jeu</label><select id="benchGame" class="bench-select"></select></div>
+        <div id="gameBody"></div>
+      </div><div class="game-right">
+        <div id="gameBars"></div>
+        <p class="hint" id="gameCredit"></p>
+      </div></div>
     </div></section>
+    <section class="dsec" id="bsecDaily"><div class="dsec-head"><i class="fa-solid fa-house-laptop"></i><span data-i18n="bench.daily">Quotidien</span><span class="dsec-total" id="dailyScore"></span></div><div class="dsec-body" id="dailyBody"></div></section>
     <section class="dsec" id="bsecPro"><div class="dsec-head"><i class="fa-solid fa-compass-drafting"></i><span data-i18n="bench.pro">Charges lourdes</span><span class="dsec-total" id="proScore"></span></div><div class="dsec-body" id="proBody"></div></section>
-    </div>
     <div class="bench-grid2">
     <section class="dsec" id="bsecGb"><div class="dsec-head"><i class="fa-solid fa-server"></i><span>Geekbench</span><span class="dsec-total" id="gbScore"></span></div><div class="dsec-body" id="gbBody"></div></section>
     <section class="dsec" id="bsec3d"><div class="dsec-head"><i class="fa-solid fa-microchip"></i><span>3DMark Time Spy</span><span class="dsec-total" id="tsScore"></span></div><div class="dsec-body" id="tsBody"></div></section>
@@ -246,8 +248,8 @@
 <script src="./assets/js/pcie.js?v=12"></script>
 <script src="./assets/js/tube.js?v=71"></script>
 <script src="./assets/js/fpsdb.js?v=1"></script>
-<script src="./assets/js/perf.js?v=6"></script>
-<script src="./assets/js/app.js?v=82"></script>
+<script src="./assets/js/perf.js?v=7"></script>
+<script src="./assets/js/app.js?v=84"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

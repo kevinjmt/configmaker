@@ -522,6 +522,26 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .bt-status{font-weight:900;font-size:1.05rem}
 .bt-res{font-size:.78rem;color:var(--muted)}
 .bt-fps{font-size:1.5rem}
+.brief-tile.static{cursor:default}
+/* barres a checkpoints : zones rouge|jaune|vert + ticks limites + aiguille */
+.cbars{display:flex;flex-direction:column;gap:12px}
+.cbar{cursor:help;min-width:0}
+.cbar-top{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;font-weight:800}
+.cbar-track{position:relative;height:14px;border-radius:8px;background:var(--bg-soft);border:1px solid var(--line);display:flex;margin-top:5px;overflow:hidden}
+.cbar-track .zone{height:100%}
+.z-r{background:rgba(224,49,49,.55)}.z-y{background:rgba(245,159,0,.6)}.z-g{background:rgba(47,158,68,.5)}.z-u{background:rgba(128,128,128,.25);width:100%}
+.ckpt{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.75}
+.needle{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff}
+.needle.n-r{background:#e03131;box-shadow:0 0 9px 2px rgba(224,49,49,.85)}
+.needle.n-y{background:#f59f00;box-shadow:0 0 9px 2px rgba(245,159,0,.85)}
+.needle.n-g{background:#2f9e44;box-shadow:0 0 9px 2px rgba(47,158,68,.85)}
+.cbar small{color:var(--muted);font-size:.75rem}
+/* splits internes : jeu (gauche/droite), tuiles gb/ts */
+.game-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.gb-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.ts-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+@media (max-width:960px){.game-split{grid-template-columns:1fr}}
+@media (max-width:640px){.ts-tiles{grid-template-columns:1fr}.gb-tiles{grid-template-columns:1fr}}
 /* tuiles brief pastel tres leger selon statut */
 .brief-tile.st-ok{background:rgba(47,158,68,.12)}
 .brief-tile.st-warn{background:rgba(245,159,0,.13)}

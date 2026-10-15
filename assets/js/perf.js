@@ -39,7 +39,8 @@ const Perf = (() => {
   }
   function ramGB(name) {
     const s = String(name || '');
-    let m = s.match(/(\d+)\s*[x×]\s*(\d+)\s*g[oob]?\b/i);
+    // kit "2x16GB" : pas d'espace apres le x (sinon "VENTUS 2X 12G" = ventilos + 12 Go).
+    let m = s.match(/(\d+)\s*[x×](\d+)\s*g[oob]?\b/i);
     if (m) return (+m[1]) * (+m[2]);
     m = s.match(/(\d+)\s*g[oob]?\b/i);
     return m ? +m[1] : null;
@@ -115,35 +116,44 @@ const Perf = (() => {
     return null;
   }
 
+  /* barres a checkpoints : {val, cuts:[finRouge, finJaune], max, unit, noval}.
+     Zones : [0..cuts[0]] rouge, [cuts[0]..cuts[1]] jaune, [cuts[1]..max] vert.
+     Le statut (st) reste calcule par les seuils metier (cas speciaux : HDD, SATA). */
+  function bar(val, redEnd, yelEnd, o) {
+    o = o || {};
+    const top = Math.max(typeof val === 'number' ? val : 0, yelEnd);
+    return { val, cuts: [redEnd, yelEnd], max: o.max || Math.ceil(top * 1.25), unit: o.unit || '', noval: !!o.noval };
+  }
+
   /* ---------- criteres daily (seuils utilisateur) ---------- */
   function dailyCriteria(f) {
     const rows = [];
     rows.push(f.threads == null
       ? { k: 'threads', st: 'unknown', label: L('Threads CPU inconnus', 'Unknown CPU threads'), detail: L('Indiquez-les dans la fiche CPU (ex : "16 threads")', 'Add them in the CPU entry (e.g. "16 threads")') }
-      : f.threads <= 8 ? { k: 'threads', st: 'err', label: `${f.threads} threads`, detail: L('≤ 8 threads : limite pour le multitâche', '≤ 8 threads: limiting for multitasking') }
-      : f.threads < 12 ? { k: 'threads', st: 'warn', label: `${f.threads} threads`, detail: L('< 12 threads : correct sans plus', '< 12 threads: passable') }
-      : { k: 'threads', st: 'ok', label: `${f.threads} threads`, detail: L('≥ 12 threads : confortable', '≥ 12 threads: comfortable') });
+      : f.threads <= 8 ? { k: 'threads', st: 'err', label: `${f.threads} threads`, detail: L('≤ 8 threads : limite pour le multitâche', '≤ 8 threads: limiting for multitasking'), bar: bar(f.threads, 8, 12) }
+      : f.threads < 12 ? { k: 'threads', st: 'warn', label: `${f.threads} threads`, detail: L('< 12 threads : correct sans plus', '< 12 threads: passable'), bar: bar(f.threads, 8, 12) }
+      : { k: 'threads', st: 'ok', label: `${f.threads} threads`, detail: L('≥ 12 threads : confortable', '≥ 12 threads: comfortable'), bar: bar(f.threads, 8, 12) });
     rows.push(f.ramGB == null
       ? { k: 'ram', st: 'unknown', label: L('RAM inconnue', 'Unknown RAM'), detail: L('Capacité introuvable dans le nom (ex : 32GB)', 'Capacity not found in name (e.g. 32GB)') }
-      : f.ramGB <= 12 ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: L(`≤ 12 ${U()} : juste pour un usage moderne`, `≤ 12 ${U()}: tight for modern use`) }
-      : f.ramGB < 16 ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: L(`< 16 ${U()} : correct sans plus`, `< 16 ${U()}: passable`) }
-      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: L(`≥ 16 ${U()} : confortable`, `≥ 16 ${U()}: comfortable`) });
+      : f.ramGB <= 12 ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: L(`≤ 12 ${U()} : juste pour un usage moderne`, `≤ 12 ${U()}: tight for modern use`), bar: bar(f.ramGB, 12, 16, { unit: U() }) }
+      : f.ramGB < 16 ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: L(`< 16 ${U()} : correct sans plus`, `< 16 ${U()}: passable`), bar: bar(f.ramGB, 12, 16, { unit: U() }) }
+      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: L(`≥ 16 ${U()} : confortable`, `≥ 16 ${U()}: comfortable`), bar: bar(f.ramGB, 12, 16, { unit: U() }) });
     rows.push(diskRow(f, 128, 250));
     rows.push(f.screenH == null
       ? { k: 'screen', st: 'unknown', label: L('Écran inconnu', 'Unknown display'), detail: L('Résolution introuvable', 'Resolution not found') }
-      : f.screenH <= 720 ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '≤ 720p' }
-      : f.screenH < 1080 ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '< 1080p' }
-      : { k: 'screen', st: 'ok', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '≥ 1080p' });
+      : f.screenH <= 720 ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '≤ 720p', bar: bar(f.screenH, 720, 1080, { unit: 'p' }) }
+      : f.screenH < 1080 ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '< 1080p', bar: bar(f.screenH, 720, 1080, { unit: 'p' }) }
+      : { k: 'screen', st: 'ok', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '≥ 1080p', bar: bar(f.screenH, 720, 1080, { unit: 'p' }) });
     return rows;
   }
   function diskRow(f, redGB, yelGB) {
-    if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: `HDD${f.diskGB ? ` ${f.diskGB} ${U()}` : ''}`, detail: L('Disque dur mécanique en principal : lent', 'Mechanical HDD as main drive: slow') };
+    if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: `HDD${f.diskGB ? ` ${f.diskGB} ${U()}` : ''}`, detail: L('Disque dur mécanique en principal : lent', 'Mechanical HDD as main drive: slow'), bar: bar(0, redGB, yelGB, { unit: U() }) };
     if (f.diskType == null || f.diskGB == null)
       return { k: 'disk', st: 'unknown', label: L('Disque principal inconnu', 'Unknown main drive'), detail: L('Type ou capacité introuvable (nom du stockage)', 'Type or capacity not found (storage name)') };
     const t = f.diskType === 'nvme' ? 'NVMe' : 'SATA';
-    if (f.diskGB <= redGB) return { k: 'disk', st: 'err', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`≤ ${redGB} ${U()} : trop petit`, `≤ ${redGB} ${U()}: too small`) };
-    if (f.diskGB < yelGB) return { k: 'disk', st: 'warn', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`< ${yelGB} ${U()} : un peu juste`, `< ${yelGB} ${U()}: a bit tight`) };
-    return { k: 'disk', st: 'ok', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`≥ ${yelGB} ${U()} : confortable`, `≥ ${yelGB} ${U()}: comfortable`) };
+    if (f.diskGB <= redGB) return { k: 'disk', st: 'err', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`≤ ${redGB} ${U()} : trop petit`, `≤ ${redGB} ${U()}: too small`), bar: bar(f.diskGB, redGB, yelGB, { unit: U() }) };
+    if (f.diskGB < yelGB) return { k: 'disk', st: 'warn', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`< ${yelGB} ${U()} : un peu juste`, `< ${yelGB} ${U()}: a bit tight`), bar: bar(f.diskGB, redGB, yelGB, { unit: U() }) };
+    return { k: 'disk', st: 'ok', label: `SSD ${t} ${f.diskGB} ${U()}`, detail: L(`≥ ${yelGB} ${U()} : confortable`, `≥ ${yelGB} ${U()}: comfortable`), bar: bar(f.diskGB, redGB, yelGB, { unit: U() }) };
   }
 
   /* ---------- criteres pro (seuils utilisateur) ---------- */
@@ -152,36 +162,37 @@ const Perf = (() => {
     // commun CPU/RAM/disque/ecran (variantes seuils)
     const thr = (red, yel) => f.threads == null
       ? { k: 'threads', st: 'unknown', label: L('Threads CPU inconnus', 'Unknown CPU threads'), detail: L('Indiquez-les dans la fiche CPU', 'Add them in the CPU entry') }
-      : f.threads <= red ? { k: 'threads', st: 'err', label: `${f.threads} threads`, detail: `≤ ${red} threads` }
-      : f.threads <= yel ? { k: 'threads', st: 'warn', label: `${f.threads} threads`, detail: L(`≤ ${yel} threads (vert au-delà)`, `≤ ${yel} threads (green above)`) }
-      : { k: 'threads', st: 'ok', label: `${f.threads} threads`, detail: `> ${yel} threads` };
+      : f.threads <= red ? { k: 'threads', st: 'err', label: `${f.threads} threads`, detail: `≤ ${red} threads`, bar: bar(f.threads, red, yel) }
+      : f.threads <= yel ? { k: 'threads', st: 'warn', label: `${f.threads} threads`, detail: L(`≤ ${yel} threads (vert au-delà)`, `≤ ${yel} threads (green above)`), bar: bar(f.threads, red, yel) }
+      : { k: 'threads', st: 'ok', label: `${f.threads} threads`, detail: `> ${yel} threads`, bar: bar(f.threads, red, yel) };
     const ram = (red, yel, cmp) => f.ramGB == null
       ? { k: 'ram', st: 'unknown', label: L('RAM inconnue', 'Unknown RAM'), detail: L('Capacité introuvable', 'Capacity not found') }
-      : (cmp === 'lt' ? f.ramGB < red : f.ramGB <= red) ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: `${cmp === 'lt' ? '<' : '≤'} ${red} ${U()}` }
-      : (cmp === 'le' ? f.ramGB <= yel : f.ramGB < yel) ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: `${cmp === 'le' ? '≤' : '<'} ${yel} ${U()}` }
-      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: 'OK' };
+      : (cmp === 'lt' ? f.ramGB < red : f.ramGB <= red) ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: `${cmp === 'lt' ? '<' : '≤'} ${red} ${U()}`, bar: bar(f.ramGB, red, yel, { unit: U() }) }
+      : (cmp === 'le' ? f.ramGB <= yel : f.ramGB < yel) ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: `${cmp === 'le' ? '≤' : '<'} ${yel} ${U()}`, bar: bar(f.ramGB, red, yel, { unit: U() }) }
+      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: 'OK', bar: bar(f.ramGB, red, yel, { unit: U() }) };
     const diskTW = (redGB, yelGB) => {
-      if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: 'HDD', detail: L('Mécanique en principal', 'Mechanical as main drive') };
+      if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: `HDD${f.diskGB ? ` ${f.diskGB} ${U()}` : ''}`, detail: L('Mécanique en principal', 'Mechanical as main drive'), bar: bar(0, redGB, 2000, { unit: U() }) };
       if (f.diskType == null || f.diskGB == null) return { k: 'disk', st: 'unknown', label: L('Disque inconnu', 'Unknown drive'), detail: L('Type/capacité introuvable', 'Type/capacity not found') };
-      if (f.diskGB <= redGB) return { k: 'disk', st: 'err', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: `≤ ${redGB} ${U()}` };
-      if (f.diskGB <= yelGB) return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: `≤ ${yelGB} ${U()}` };
-      if (f.diskType === 'sata' || f.diskGB < 2000) return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: f.diskType === 'sata' ? L('SATA : plafonné vs NVMe', 'SATA: capped vs NVMe') : '< 2000 Go' };
-      return { k: 'disk', st: 'ok', label: `SSD NVMe ${f.diskGB} ${U()}`, detail: L('NVMe + capacité OK', 'NVMe + capacity OK') };
+      if (f.diskGB <= redGB) return { k: 'disk', st: 'err', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: `≤ ${redGB} ${U()}`, bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
+      if (f.diskGB <= yelGB) return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: `≤ ${yelGB} ${U()}`, bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
+      if (f.diskType === 'sata' || f.diskGB < 2000) return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: f.diskType === 'sata' ? L('SATA : plafonné vs NVMe', 'SATA: capped vs NVMe') : '< 2000 Go', bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
+      return { k: 'disk', st: 'ok', label: `SSD NVMe ${f.diskGB} ${U()}`, detail: L('NVMe + capacité OK', 'NVMe + capacity OK'), bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
     };
     const scr = (redH, yelH, greenCmp) => f.screenH == null
       ? { k: 'screen', st: 'unknown', label: L('Écran inconnu', 'Unknown display'), detail: L('Résolution introuvable', 'Resolution not found') }
-      : f.screenH <= redH ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `≤ ${redH}p` }
-      : f.screenH < yelH ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `< ${yelH}p` }
+      : f.screenH <= redH ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `≤ ${redH}p`, bar: bar(f.screenH, redH, yelH, { unit: 'p' }) }
+      : f.screenH < yelH ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `< ${yelH}p`, bar: bar(f.screenH, redH, yelH, { unit: 'p' }) }
       : (greenCmp === 'ge' ? f.screenH >= yelH : f.screenH > yelH)
-        ? { k: 'screen', st: 'ok', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: 'OK' }
-        : { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: L('Limite de palier', 'Tier boundary') };
+        ? { k: 'screen', st: 'ok', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: 'OK', bar: bar(f.screenH, redH, yelH, { unit: 'p' }) }
+        : { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: L('Limite de palier', 'Tier boundary'), bar: bar(f.screenH, redH, yelH, { unit: 'p' }) };
     const gpu = (refRed, refYel, names) => {
       if (gRank == null) return { k: 'gpu', st: 'unknown', label: L('GPU inconnu', 'Unknown GPU'), detail: L('Modèle non reconnu', 'Model not recognized') };
       const r = tierRank(gRank, refRed, refYel);
       const nm = gRank.rtx ? `RTX ${gRank.gen}xxx` : gRank.rx ? `RX ${['5xx', '5xxx', '6xxx', '7xxx', '9xxx'][gRank.gen] || '?'}` : gRank.gtx ? 'GTX' : 'Arc';
-      if (r === 'err') return { k: 'gpu', st: 'err', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`) };
-      if (r === 'warn') return { k: 'gpu', st: 'warn', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`) };
-      return { k: 'gpu', st: 'ok', label: `GPU ${nm}`, detail: L('Palier OK', 'Tier OK') };
+      const b = bar(gRank.gen, refRed, refYel, { max: 5, noval: true });
+      if (r === 'err') return { k: 'gpu', st: 'err', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`), bar: b };
+      if (r === 'warn') return { k: 'gpu', st: 'warn', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`), bar: b };
+      return { k: 'gpu', st: 'ok', label: `GPU ${nm}`, detail: L('Palier OK', 'Tier OK'), bar: b };
     };
     // Adobe / DaVinci / Blender : red ≤12T, ≤16Go, <2xxx/6xxx, HDD, ≤500Go, ≤1080p
     //   yellow <16T, <32Go, <3xxx/7xxx, SATA, ≤1000Go, <1440p ; green >16T, ≥32Go, >4xxx/9xxx, NVMe, ≥2000Go, >1440p
@@ -203,20 +214,20 @@ const Perf = (() => {
     const vram = f.vramGB;
     const vramRow = vram == null
       ? { k: 'vram', st: 'unknown', label: L('VRAM inconnue', 'Unknown VRAM'), detail: L('Capacité GPU introuvable', 'GPU capacity not found') }
-      : vram < 16 ? { k: 'vram', st: 'err', label: `${vram} ${U()} VRAM`, detail: L(`< 16 ${U()} : trop juste pour l'IA locale`, `< 16 ${U()}: too tight for local AI`) }
-      : vram <= 24 ? { k: 'vram', st: 'warn', label: `${vram} ${U()} VRAM`, detail: L(`≤ 24 ${U()} : modèles moyens uniquement`, `≤ 24 ${U()}: mid-size models only`) }
-      : { k: 'vram', st: 'ok', label: `${vram} ${U()} VRAM`, detail: L(`> 24 ${U()} : gros modèles OK`, `> 24 ${U()}: large models OK`) };
+      : vram < 16 ? { k: 'vram', st: 'err', label: `${vram} ${U()} VRAM`, detail: L(`< 16 ${U()} : trop juste pour l'IA locale`, `< 16 ${U()}: too tight for local AI`), bar: bar(vram, 16, 24, { unit: U() }) }
+      : vram <= 24 ? { k: 'vram', st: 'warn', label: `${vram} ${U()} VRAM`, detail: L(`≤ 24 ${U()} : modèles moyens uniquement`, `≤ 24 ${U()}: mid-size models only`), bar: bar(vram, 16, 24, { unit: U() }) }
+      : { k: 'vram', st: 'ok', label: `${vram} ${U()} VRAM`, detail: L(`> 24 ${U()} : gros modèles OK`, `> 24 ${U()}: large models OK`), bar: bar(vram, 16, 24, { unit: U() }) };
     const ramAI = f.ramGB == null
       ? { k: 'ram', st: 'unknown', label: L('RAM inconnue', 'Unknown RAM'), detail: L('Capacité introuvable', 'Capacity not found') }
-      : f.ramGB < 32 ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: `< 32 ${U()}` }
-      : f.ramGB <= 48 ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: `≤ 48 ${U()}` }
-      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: `> 48 ${U()}` };
+      : f.ramGB < 32 ? { k: 'ram', st: 'err', label: `${f.ramGB} ${U()} RAM`, detail: `< 32 ${U()}`, bar: bar(f.ramGB, 32, 48, { unit: U() }) }
+      : f.ramGB <= 48 ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: `≤ 48 ${U()}`, bar: bar(f.ramGB, 32, 48, { unit: U() }) }
+      : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: `> 48 ${U()}`, bar: bar(f.ramGB, 32, 48, { unit: U() }) };
     const diskAI = (() => {
-      if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: 'HDD', detail: L('Mécanique en principal', 'Mechanical as main drive') };
+      if (f.diskType === 'hdd') return { k: 'disk', st: 'err', label: `HDD${f.diskGB ? ` ${f.diskGB} ${U()}` : ''}`, detail: L('Mécanique en principal', 'Mechanical as main drive'), bar: bar(0, 1000, 2000, { unit: U() }) };
       if (f.diskType == null || f.diskGB == null) return { k: 'disk', st: 'unknown', label: L('Disque inconnu', 'Unknown drive'), detail: L('Type/capacité introuvable', 'Type/capacity not found') };
-      if (f.diskGB <= 1000) return { k: 'disk', st: 'err', label: `SSD ${f.diskGB} ${U()}`, detail: `≤ 1000 ${U()}` };
-      if (f.diskGB < 2000 || f.diskType === 'sata') return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: f.diskType === 'sata' ? L('SATA : plafonné', 'SATA: capped') : '< 2000 Go' };
-      return { k: 'disk', st: 'ok', label: `SSD NVMe ${f.diskGB} ${U()}`, detail: `≥ 2000 ${U()} NVMe` };
+      if (f.diskGB <= 1000) return { k: 'disk', st: 'err', label: `SSD ${f.diskGB} ${U()}`, detail: `≤ 1000 ${U()}`, bar: bar(f.diskGB, 1000, 2000, { unit: U() }) };
+      if (f.diskGB < 2000 || f.diskType === 'sata') return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: f.diskType === 'sata' ? L('SATA : plafonné', 'SATA: capped') : '< 2000 Go', bar: bar(f.diskGB, 1000, 2000, { unit: U() }) };
+      return { k: 'disk', st: 'ok', label: `SSD NVMe ${f.diskGB} ${U()}`, detail: `≥ 2000 ${U()} NVMe`, bar: bar(f.diskGB, 1000, 2000, { unit: U() }) };
     })();
     blocks.ai = [thr(12, 16), ramAI, vramRow, diskAI];
     return blocks;
