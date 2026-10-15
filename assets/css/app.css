@@ -398,6 +398,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(5,10,8,.5);backdrop-filter:blur(6px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{width:min(640px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+@media (min-width:961px){.modal{width:60vw;height:75vh;max-height:75vh}}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
 .modal-head h2{margin:0;font-size:1.05rem}
 .modal-body{padding:18px;overflow:auto}
@@ -510,7 +511,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .wgrid label,.wfld{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:800;color:var(--muted)}
 .wgrid input,.wfld textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem;font-weight:500;width:100%}
 .wfld{margin:8px 0}
-.wrecents{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+.wrecents{flex:1;min-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
 .wrow{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px;background:var(--surface)}
 .wrow .grow{flex:1;min-width:0;font-size:.82rem}
 .wrow .wst{color:var(--muted);font-size:.75rem;white-space:nowrap}
@@ -518,12 +519,51 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .wslot{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:7px 9px;color:var(--ink);font:inherit;font-size:.8rem;max-width:45%}
 #wBuild:disabled{opacity:.75;cursor:wait}
 @media (max-width:640px){.wgrid{grid-template-columns:1fr}}
+/* welcome v2 : 2 colonnes, boutons bubble, slide IA, consentement */
+.wcols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:stretch}
+/* remplissage du grand popup : colonnes flex + scrolls internes */
+#modalBody:has(#wMain){display:flex;flex-direction:column}
+#wMain,#wAi{flex:1;display:flex;flex-direction:column;min-height:0}
+#wMain .wcols{flex:1;min-height:0}
+#wMain .wright{display:flex;flex-direction:column;min-height:0}
+#wAi .wslide{flex:1;min-height:0}
+#wAi .wai-left,#wAi .wai-right{min-height:0;overflow-y:auto;padding-right:2px}
+.wtitle{font-size:1.25rem;font-weight:900}
+.wtitle a{color:var(--brand-ink)}
+.wslogan{margin:2px 0 8px 0}
+.wlogo{width:150px;height:150px;border-radius:24px;margin-bottom:12px}
+.wconsentwarn{display:flex;gap:8px;align-items:center;border:1px solid rgba(245,159,0,.5);background:rgba(245,159,0,.1);border-radius:12px;padding:8px 10px;font-size:.78rem;font-weight:700;margin-bottom:8px;flex-wrap:wrap}
+.bubble-btn{background:linear-gradient(135deg,#0f5c2c,#1a8744 45%,#2dd4bf)!important;color:#fff!important;border:none!important;box-shadow:0 0 14px rgba(47,169,104,.5),0 0 30px rgba(45,212,191,.25)}
+.bubble-btn:hover{transform:translateY(-2px);box-shadow:0 0 20px rgba(47,169,104,.65),0 0 40px rgba(45,212,191,.35)}
+.wslide{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.wslide .wai-left,.wslide .wai-right{transition:transform .35s ease,opacity .35s ease}
+.wslide.pre .wai-left{transform:translateX(-26px);opacity:0}
+.wslide.pre .wai-right{transform:translateX(26px);opacity:0}
+/* boutons composants (style slots non selectionnes) */
+.wcomp{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px;margin-bottom:8px;color:var(--ink);font:inherit;cursor:default}
+.wcomp-ic{flex:0 0 auto;font-size:1.3rem;color:var(--muted);width:30px;text-align:center}
+.wcomp-tx{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.wcomp-tx strong{font-size:.78rem;color:var(--muted)}
+.wcomp-tx{font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wcomp-st{flex:0 0 auto;font-size:1rem;color:var(--muted)}
+.wcomp.st-search .wcomp-st{color:#b97a0c}
+.wcomp.st-search .wcomp-st i{animation:wmag .7s ease-in-out infinite}
+.wcomp.st-import .wcomp-st{color:var(--brand-ink)}
+.wcomp.st-import .wcomp-st i{animation:wdl .7s ease-in-out infinite}
+.wcomp.st-done{background:rgba(150,230,180,.22);border-color:rgba(60,180,110,.45)}
+.wcomp.st-done .wcomp-st{color:#1e7e46}
+.wcomp.st-warn{border-color:rgba(245,159,0,.5)}
+.wcomp.st-warn .wcomp-st{color:#b97a0c}
+@keyframes wmag{0%,100%{transform:translateX(-3px)}50%{transform:translateX(3px)}}
+@keyframes wdl{0%,100%{transform:translateY(-3px)}50%{transform:translateY(3px)}}
+#wResults .pick-card{margin-bottom:8px}
+/* banniere consentement */
+.consent-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:3000;display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;padding:12px 16px;box-shadow:var(--shadow-md);font-size:.82rem;font-weight:700;max-width:min(640px,calc(100vw - 32px));flex-wrap:wrap}
+.consent-btns{display:flex;gap:8px}
+@media (max-width:640px){.wcols{grid-template-columns:1fr}.wslide{grid-template-columns:1fr}}
 /* welcome hero : logo + slogan + 4 atouts glass */
-.whero{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:18px;margin-bottom:12px}
-.whero img{width:56px;height:56px;border-radius:14px;flex:0 0 auto}
-.whero strong{font-size:1.1rem}
-.whero small{color:var(--muted)}
-.wfeats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.wfeats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.wfeat{font-size:.82rem;padding:16px 10px}
 .wfeat{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:14px;font-size:.72rem;font-weight:800;text-align:center}
 .wfeat i{font-size:1.2rem;color:var(--brand-ink)}
 @media (max-width:560px){.wfeats{grid-template-columns:repeat(2,1fr)}}

@@ -9,10 +9,25 @@ const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? Stor
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
   try {
+    if (k !== LS.prefs && storeConsent() === 'denied') return true; // memoire seule : ecriture refusee, app fonctionnelle
     if (typeof StoreDB !== 'undefined') return StoreDB.putRaw(k, JSON.stringify(v));
     localStorage.setItem(k, JSON.stringify(v)); return true;
   } catch (e) { return { quota: true, err: e }; }
 };
+/* ---------- Consentement stockage ---------- */
+function storeConsent() { try { return (typeof prefs !== 'undefined' && prefs && prefs.storeConsent) || load(LS.prefs, {}).storeConsent || null; } catch { return null; } }
+function setStoreConsent(v) {
+  try { prefs = { ...(typeof prefs !== 'undefined' ? prefs : {}), storeConsent: v }; } catch { /* ignore */ }
+  try {
+    const raw = JSON.stringify(load(LS.prefs, {}));
+    const next = { ...JSON.parse(raw || '{}'), storeConsent: v };
+    if (typeof StoreDB !== 'undefined') StoreDB.putRaw(LS.prefs, JSON.stringify(next));
+    else localStorage.setItem(LS.prefs, JSON.stringify(next));
+  } catch { /* ignore */ }
+  const bar = $('#consentBar'); if (bar) bar.classList.add('hidden');
+}
+function showConsentBar() { const bar = $('#consentBar'); if (bar) { bar.classList.remove('hidden'); refreshIcons(); } }
+function maybeConsentBar() { try { if (!storeConsent()) showConsentBar(); } catch { /* ignore */ } }
 const isQuotaErr = r => !!(r && typeof r === 'object' && r.quota);
 const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -111,7 +126,12 @@ const I18N = {
     'welcome.skipped': 'Ignoré', 'welcome.skippedN': 'ignoré(s)', 'welcome.notFound': 'Introuvable',
     'welcome.askSlot': 'Type inconnu — choisissez le slot :', 'welcome.askWait': 'En attente…', 'welcome.skip': 'Ignorer',
     'welcome.openConfig': 'Ouvrir la config', 'welcome.needsUsage': 'Décrivez l’utilisation d’abord.', 'welcome.noParse': 'Aucune ligne « type : référence » trouvée.',
-    'welcome.feat1': 'Prix Idealo en direct', 'welcome.feat2': 'Compatibilité vérifiée', 'welcome.feat3': 'Benchmarks & conso', 'welcome.feat4': '100 % local, sans compte',
+    'welcome.feat1': 'Prix Idealo en direct', 'welcome.feat2': 'Compatibilité vérifiée', 'welcome.feat3': 'Benchmarks & conso',
+    'welcome.feat4': 'Open source · 100 % local', 'welcome.stop': 'Arrêter', 'welcome.stopped': 'arrêté', 'welcome.results': 'résultats', 'welcome.choose': 'Choisir',
+    'welcome.noStore': 'Stockage local non accepté — les configs ne seront pas sauvegardées.', 'welcome.askAgain': 'Redemander',
+    'welcome.del': 'Supprimer', 'welcome.delConfirm': 'Supprimer cette config ?', 'welcome.yes': 'Oui', 'welcome.no': 'Non',
+    'consent.msg': 'Ce site stocke vos configs localement. Accepter ?', 'consent.accept': 'Accepter', 'consent.deny': 'Refuser',
+    'consent.saveBlocked': 'Sauvegarde désactivée (stockage refusé) — JSON exporté en secours.', 'consent.deniedHint': 'Stockage refusé : mode mémoire seule.',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
@@ -158,7 +178,12 @@ const I18N = {
     'welcome.skipped': 'Skipped', 'welcome.skippedN': 'skipped', 'welcome.notFound': 'Not found',
     'welcome.askSlot': 'Unknown type — pick a slot:', 'welcome.askWait': 'Waiting…', 'welcome.skip': 'Skip',
     'welcome.openConfig': 'Open config', 'welcome.needsUsage': 'Describe the usage first.', 'welcome.noParse': 'No “type: reference” lines found.',
-    'welcome.feat1': 'Live Idealo prices', 'welcome.feat2': 'Checked compatibility', 'welcome.feat3': 'Benchmarks & power', 'welcome.feat4': '100% local, no account',
+    'welcome.feat1': 'Live Idealo prices', 'welcome.feat2': 'Checked compatibility', 'welcome.feat3': 'Benchmarks & power',
+    'welcome.feat4': 'Open source · 100% local', 'welcome.stop': 'Stop', 'welcome.stopped': 'stopped', 'welcome.results': 'results', 'welcome.choose': 'Choose',
+    'welcome.noStore': 'Local storage not accepted — configs will not be saved.', 'welcome.askAgain': 'Ask again',
+    'welcome.del': 'Delete', 'welcome.delConfirm': 'Delete this config?', 'welcome.yes': 'Yes', 'welcome.no': 'No',
+    'consent.msg': 'This site stores your configs locally. Accept?', 'consent.accept': 'Accept', 'consent.deny': 'Decline',
+    'consent.saveBlocked': 'Saving disabled (storage declined) — JSON exported as backup.', 'consent.deniedHint': 'Storage declined: memory-only mode.',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
@@ -2130,6 +2155,11 @@ function playVideo(v) {
 }
 /* ---------- Save / load / history / share / export ---------- */
 function doSave() {
+  if (storeConsent() === 'denied') {
+    toast(t('consent.saveBlocked'));
+    try { download((state.name || 'config') + '.configmaker.json', JSON.stringify({ state, exportedAt: new Date().toISOString() }, null, 2), 'application/json'); } catch { /* ignore */ }
+    return;
+  }
   state.name = String(state.name || '').trim() || 'Ma Config';
   const nameInput = $('#configName'); if (nameInput) nameInput.value = state.name;
   state.version = stampVersion();
@@ -2238,32 +2268,50 @@ function aiSlotOptions() {
 }
 function openWelcome() {
   openModal(t('welcome.title'), `
-    <div class="whero glass"><img src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <div><strong>ConfigMaker by KJ</strong><br><small>${esc(t('footer.tag'))}</small></div></div>
-    <div class="wfeats">
-      <div class="glass wfeat"><i class="fa-solid fa-tag"></i><span>${esc(t('welcome.feat1'))}</span></div>
-      <div class="glass wfeat"><i class="fa-solid fa-shield-halved"></i><span>${esc(t('welcome.feat2'))}</span></div>
-      <div class="glass wfeat"><i class="fa-solid fa-gauge-high"></i><span>${esc(t('welcome.feat3'))}</span></div>
-      <div class="glass wfeat"><i class="fa-solid fa-lock"></i><span>${esc(t('welcome.feat4'))}</span></div>
-    </div>
     <div id="wMain" class="wpage">
-      <h3>${esc(t('welcome.new'))}</h3>
-      <div class="wgrid"><label>${esc(t('welcome.name'))}<input id="wName" maxlength="60" value="${esc(state.name)}"></label>
-      <label>${esc(t('welcome.budget'))}<input id="wBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
-      <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
-      <button class="btn" id="wAiGo"><i class="fa-solid fa-wand-magic-sparkles"></i> ${esc(t('welcome.createAi'))}</button></div>
-      <h3 style="margin-top:14px">${esc(t('welcome.load'))}</h3>
-      <div id="wRecents" class="wrecents"></div>
+      <div class="wcols">
+        <div class="wleft">
+          <img class="wlogo" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
+          <div class="wtitle">ConfigMaker by <a href="https://kevinjmt.github.io/" target="_blank" rel="noopener">KJ</a></div>
+          <p class="hint wslogan">${esc(t('footer.tag'))}</p>
+          <div class="wfeats">
+            <div class="glass wfeat"><i class="fa-solid fa-tag"></i><span>${esc(t('welcome.feat1'))}</span></div>
+            <div class="glass wfeat"><i class="fa-solid fa-shield-halved"></i><span>${esc(t('welcome.feat2'))}</span></div>
+            <div class="glass wfeat"><i class="fa-solid fa-gauge-high"></i><span>${esc(t('welcome.feat3'))}</span></div>
+            <div class="glass wfeat"><i class="fa-solid fa-code-branch"></i><span>${esc(t('welcome.feat4'))}</span></div>
+          </div>
+          <h3>${esc(t('welcome.new'))}</h3>
+          <div class="wgrid"><label>${esc(t('welcome.name'))}<input id="wName" maxlength="60" value="${esc(state.name)}"></label>
+          <label>${esc(t('welcome.budget'))}<input id="wBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
+          <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
+          <button class="btn bubble-btn" id="wAiGo"><i class="fa-solid fa-wand-magic-sparkles"></i> ${esc(t('welcome.createAi'))}</button></div>
+        </div>
+        <div class="wright">
+          <h3>${esc(t('welcome.load'))}</h3>
+          <div id="wConsentWarn"></div>
+          <div id="wRecents" class="wrecents"></div>
+        </div>
+      </div>
     </div>
     <div id="wAi" class="wpage hidden">
       <div class="btn-row" style="justify-content:start"><button class="btn btn-sm" id="wBack"><i class="fa-solid fa-arrow-left"></i> ${esc(t('welcome.back'))}</button></div>
       <h3>${esc(t('welcome.createAi'))}</h3>
-      <div class="wgrid"><label>${esc(t('welcome.budget'))}<input id="wAiBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
-      <label class="wfld">${esc(t('welcome.usage'))}<textarea id="wUsage" rows="3" placeholder="${esc(t('welcome.usagePh'))}"></textarea></label>
-      <div class="btn-row"><button class="btn btn-primary" id="wSend"><i class="fa-solid fa-paper-plane"></i> ${esc(t('welcome.sendPplx'))}</button></div>
-      <label class="wfld">${esc(t('welcome.pastedHint'))}<textarea id="wPaste" rows="6" placeholder="${esc(t('welcome.pastePh'))}"></textarea></label>
-      <div class="btn-row"><button class="btn btn-primary" id="wBuild"><i class="fa-solid fa-gears"></i> ${esc(t('welcome.build'))}</button></div>
-      <div id="wProgs"></div>
+      <div class="wslide pre" id="wSlide">
+        <div class="wai-left">
+          <div id="wAiForm">
+            <div class="wgrid"><label>${esc(t('welcome.budget'))}<input id="wAiBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
+            <label class="wfld">${esc(t('welcome.usage'))}<textarea id="wUsage" rows="4" placeholder="${esc(t('welcome.usagePh'))}"></textarea></label>
+            <div class="btn-row"><button class="btn bubble-btn" id="wSend"><i class="fa-solid fa-paper-plane"></i> ${esc(t('welcome.sendPplx'))}</button></div>
+          </div>
+          <div id="wAiComps" class="hidden"></div>
+        </div>
+        <div class="wai-right" id="wAiRight">
+          <label class="wfld" id="wPasteWrap">${esc(t('welcome.pastedHint'))}<textarea id="wPaste" rows="8" placeholder="${esc(t('welcome.pastePh'))}"></textarea></label>
+          <div class="btn-row" id="wBuildRow"><button class="btn bubble-btn" id="wBuild"><i class="fa-solid fa-gears"></i> ${esc(t('welcome.build'))}</button></div>
+          <div id="wProgs"></div>
+          <div id="wResults" class="hidden"></div>
+        </div>
+      </div>
     </div>`);
   $('#wNew').onclick = () => {
     const n = $('#wName') ? $('#wName').value.trim() : '';
@@ -2273,23 +2321,54 @@ function openWelcome() {
     if (b > 0) state.budget = b;
     persist(); refresh();
   };
-  $('#wAiGo').onclick = () => { $('#wMain').classList.add('hidden'); $('#wAi').classList.remove('hidden'); };
+  $('#wAiGo').onclick = () => {
+    $('#wMain').classList.add('hidden');
+    const ai = $('#wAi');
+    ai.classList.remove('hidden');
+    const slide = $('#wSlide');
+    if (slide) { slide.classList.add('pre'); requestAnimationFrame(() => requestAnimationFrame(() => slide.classList.remove('pre'))); }
+    refreshIcons();
+  };
   $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); };
   $('#wAiBudget').onchange = e => { const v = parseFloat(e.target.value) || 0; if (v > 0) { state.budget = v; persist(); refresh(); } };
-  // recents
-  const cfgs = load(LS.configs, {});
-  const host = $('#wRecents');
-  const names = Object.keys(cfgs).sort((a, b) => (cfgs[b][cfgs[b].length - 1].savedAt || 0) - (cfgs[a][cfgs[a].length - 1].savedAt || 0));
-  host.innerHTML = names.length ? '' : `<p class="hint">${esc(t('welcome.empty'))}</p>`;
-  names.forEach(n => {
-    const arr = cfgs[n], last = arr[arr.length - 1];
-    const row = document.createElement('div');
-    row.className = 'list-row';
-    row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${new Date(last.savedAt).toLocaleString()} · ${eur(last.total)}</small></span>`;
-    const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${esc(t('welcome.open'))}`;
-    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
-    row.appendChild(b); host.appendChild(row);
-  });
+  // recents (+ warning consent + suppression inline en 2 temps)
+  const renderRecents = () => {
+    const cfgs = load(LS.configs, {});
+    const warn = $('#wConsentWarn');
+    if (warn) {
+      warn.innerHTML = storeConsent() === 'granted' ? '' : `<div class="wconsentwarn"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(t('welcome.noStore'))}</span><button class="mini-btn" id="wAskAgain">${esc(t('welcome.askAgain'))}</button></div>`;
+      const again = $('#wAskAgain');
+      if (again) again.onclick = () => showConsentBar();
+    }
+    const host = $('#wRecents');
+    if (!host) return;
+    const names = Object.keys(cfgs).sort((a, b) => (cfgs[b][cfgs[b].length - 1].savedAt || 0) - (cfgs[a][cfgs[a].length - 1].savedAt || 0));
+    host.innerHTML = names.length ? '' : `<p class="hint">${esc(t('welcome.empty'))}</p>`;
+    names.forEach(n => {
+      const arr = cfgs[n], last = arr[arr.length - 1];
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      const paint = () => {
+        row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${new Date(last.savedAt).toLocaleString()} · ${eur(last.total)}</small></span>`;
+        const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${esc(t('welcome.open'))}`;
+        b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+        const del = document.createElement('button'); del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+        del.title = t('welcome.del');
+        del.onclick = () => {
+          row.innerHTML = `<span class="grow"><strong>${esc(t('welcome.delConfirm'))}</strong></span>`;
+          const yes = document.createElement('button'); yes.className = 'mini-btn danger'; yes.textContent = t('welcome.yes');
+          const no = document.createElement('button'); no.className = 'mini-btn'; no.textContent = t('welcome.no');
+          yes.onclick = () => { const c2 = load(LS.configs, {}); delete c2[n]; save(LS.configs, c2); renderRecents(); };
+          no.onclick = paint;
+          row.appendChild(yes); row.appendChild(no);
+        };
+        row.appendChild(b); row.appendChild(del);
+      };
+      paint();
+      host.appendChild(row);
+    });
+  };
+  renderRecents();
   $('#wSend').onclick = () => {
     const usage = $('#wUsage').value.trim();
     if (!usage) { toast(t('welcome.needsUsage')); return; }
@@ -2298,6 +2377,7 @@ function openWelcome() {
     toast(t('welcome.sentHint'));
   };
   $('#wBuild').onclick = () => {
+    if (aiBuilding) { aiRunId++; return; } // stop : la boucle s'arrete apres l'item en cours
     const items = AiParse.parseResponse($('#wPaste').value);
     if (!items.length) { toast(t('welcome.noParse')); return; }
     aiBuild(items);
@@ -2349,39 +2429,117 @@ async function importAiProduct(slotId, it) {
   s.products.push(np); s.selectedId = np.id;
   return true;
 }
+let aiRunId = 0, aiBuilding = false;
+function aiSlotLabel(slot) { return (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slot; }
+function aiSlotIcon(slot) { const d = SLOT_DEFS.find(x => x.id === slot); return iconHtml(d ? d.icon : 'fa-solid fa-question'); }
+/* boutons composants a gauche (style slots non selectionnes, sans image ni specs) */
+function aiRenderComps(items, slots) {
+  const host = $('#wAiComps'); if (!host) return [];
+  host.classList.remove('hidden');
+  const form = $('#wAiForm'); if (form) form.classList.add('hidden');
+  host.innerHTML = '';
+  return items.map((it, i) => {
+    const slot = slots[i];
+    const d = document.createElement('div');
+    d.className = 'wcomp';
+    d.innerHTML = `<span class="wcomp-ic">${slot ? aiSlotIcon(slot) : '<i class="fa-solid fa-question"></i>'}</span><span class="wcomp-tx"><strong>${esc(slot ? aiSlotLabel(slot) : it.type)}</strong>${esc(it.ref)}</span><span class="wcomp-st"><i class="fa-solid fa-circle"></i></span>`;
+    host.appendChild(d);
+    return d;
+  });
+}
+function aiSetComp(comp, st) {
+  if (!comp) return;
+  comp.classList.remove('st-search', 'st-import', 'st-done', 'st-warn');
+  const ic = comp.querySelector('.wcomp-st i');
+  if (st === 'search') { comp.classList.add('st-search'); if (ic) ic.className = 'fa-solid fa-magnifying-glass'; }
+  else if (st === 'import') { comp.classList.add('st-import'); if (ic) ic.className = 'fa-solid fa-download'; }
+  else if (st === 'done') { comp.classList.add('st-done'); if (ic) ic.className = 'fa-solid fa-check'; }
+  else if (st === 'warn') { comp.classList.add('st-warn'); if (ic) ic.className = 'fa-solid fa-triangle-exclamation'; }
+  else if (ic) ic.className = 'fa-solid fa-circle';
+}
+/* resultats Idealo complets dans le panneau droit (choix manuel) */
+function aiManualPick(slot, query) {
+  return new Promise(async resolve => {
+    const res = $('#wResults'), paste = $('#wPasteWrap'), brow = $('#wBuildRow');
+    if (!res) { resolve(null); return; }
+    if (paste) paste.classList.add('hidden');
+    if (brow) brow.classList.add('hidden');
+    res.classList.remove('hidden');
+    res.innerHTML = `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i> ${esc(query)}</p>`;
+    let r = null;
+    try { r = await Idealo.list(idealoSearchUrl(query)); } catch { /* ignore */ }
+    const items = (r && !r.error && r.items) || [];
+    if (!items.length) {
+      res.innerHTML = `<p class="hint">${esc(t('welcome.notFound'))} : ${esc(query)}</p><div class="btn-row"><button class="mini-btn" id="wSkip">${esc(t('welcome.skip'))}</button></div>`;
+      $('#wSkip').onclick = () => { aiRestoreRight(); resolve(null); };
+      return;
+    }
+    res.innerHTML = `<p class="hint">${esc(query)} — ${items.length} ${esc(t('welcome.results'))}</p>` +
+      items.slice(0, 12).map((it, i) => `<div class="pick-card"><div class="pi"><div class="pn">${esc(it.name)}</div><div class="ps">${esc(it.specs || '')}</div></div><span class="pp">${it.price ? eur(it.price) : ''}</span><button class="mini-btn" data-pick="${i}">${esc(t('welcome.choose'))}</button></div>`).join('') +
+      `<div class="btn-row"><button class="mini-btn" id="wSkip">${esc(t('welcome.skip'))}</button></div>`;
+    res.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
+      const it = items[Number(b.dataset.pick)];
+      b.disabled = true;
+      await importAiProduct(slot, it);
+      aiRestoreRight(); resolve(it);
+    });
+    $('#wSkip').onclick = () => { aiRestoreRight(); resolve(null); };
+  });
+}
+function aiRestoreRight() {
+  const res = $('#wResults'); if (res) { res.classList.add('hidden'); res.innerHTML = ''; }
+  const paste = $('#wPasteWrap'); if (paste) paste.classList.remove('hidden');
+  const brow = $('#wBuildRow'); if (brow) brow.classList.remove('hidden');
+}
 async function aiBuild(items) {
   const host = $('#wProgs'); if (!host) return;
   host.innerHTML = '';
   const btn = $('#wBuild');
-  btn.disabled = true;
   const baseLbl = btn.innerHTML;
-  let ok = 0; const skipped = [];
-  const rows = items.map(it => {
-    const r = document.createElement('div');
-    r.className = 'wrow';
-    r.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i><span class="grow">${esc(it.type)} : <strong>${esc(it.ref)}</strong></span><small class="wst"></small>`;
-    host.appendChild(r);
-    return r;
-  });
+  const my = ++aiRunId;
+  aiBuilding = true;
+  const stopLbl = `<i class="fa-solid fa-stop"></i> ${esc(t('welcome.stop'))}`;
+  btn.innerHTML = stopLbl;
+  // pre-mapping connue + boutons a gauche
+  const slots = items.map(it => AiParse.typeToSlot(it.type));
+  const comps = aiRenderComps(items, slots);
+  let ok = 0; const skipped = []; let stopped = false;
   for (let i = 0; i < items.length; i++) {
-    const it = items[i], row = rows[i], st = row.querySelector('.wst'), ic = row.querySelector('i');
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 28))}`;
-    ic.className = 'fa-solid fa-magnifying-glass';
-    st.textContent = t('welcome.searching');
-    let slot = AiParse.typeToSlot(it.type);
-    if (!slot) { st.textContent = t('welcome.askWait'); slot = await aiAskSlot(host, it); }
-    if (!slot) { ic.className = 'fa-solid fa-minus'; st.textContent = t('welcome.skipped'); skipped.push(it); continue; }
+    if (my !== aiRunId) { stopped = true; break; }
+    const it = items[i];
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 24))} · ${esc(t('welcome.stop'))}`;
+    aiSetComp(comps[i], 'search');
+    let slot = slots[i];
+    if (!slot) {
+      slot = await aiAskSlot(host, it);
+      if (my !== aiRunId) { stopped = true; break; }
+      slots[i] = slot;
+      if (slot && comps[i]) {
+        comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
+        comps[i].querySelector('.wcomp-tx strong').textContent = aiSlotLabel(slot);
+      }
+    }
+    if (!slot) { aiSetComp(comps[i], 'warn'); skipped.push(it); continue; }
     const found = await aiFindRef(it.ref);
-    if (!found) { ic.className = 'fa-solid fa-xmark'; st.textContent = t('welcome.notFound'); skipped.push(it); continue; }
-    st.textContent = t('welcome.importing');
+    if (my !== aiRunId) { stopped = true; break; }
+    if (!found) {
+      aiSetComp(comps[i], 'warn');
+      const picked = await aiManualPick(slot, it.ref);
+      if (my !== aiRunId) { stopped = true; break; }
+      if (!picked) { skipped.push(it); continue; }
+      aiSetComp(comps[i], 'done'); ok++;
+      continue;
+    }
+    aiSetComp(comps[i], 'import');
     await importAiProduct(slot, found.item);
-    ic.className = 'fa-solid fa-check'; st.textContent = (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slot;
-    ok++;
+    if (my !== aiRunId) { stopped = true; break; }
+    aiSetComp(comps[i], 'done'); ok++;
   }
+  aiBuilding = false;
   persist(); refresh();
-  host.insertAdjacentHTML('beforeend', `<p class="hint">${ok} ✓${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(s => s.type + ' : ' + s.ref).join(' | '))}` : ''}</p>
+  host.insertAdjacentHTML('beforeend', `<p class="hint">${ok} ✓${stopped ? ' · ' + esc(t('welcome.stopped')) : ''}${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(s => s.type + ' : ' + s.ref).join(' | '))}` : ''}</p>
     <div class="btn-row"><button class="btn btn-primary" id="wOpen"><i class="fa-solid fa-computer"></i> ${esc(t('welcome.openConfig'))}</button></div>`);
-  btn.disabled = false; btn.innerHTML = baseLbl;
+  btn.innerHTML = baseLbl;
   const go = $('#wOpen');
   if (go) go.onclick = () => { closeModal(); showPage('config'); refresh(); };
 }
@@ -2789,6 +2947,10 @@ function bind() {
   if (aiSendBtn) aiSendBtn.onclick = aiSend;
   const brandHome = $('#brandHome');
   if (brandHome) brandHome.onclick = e => { e.preventDefault(); openWelcome(); };
+  const consentAccept = $('#consentAccept');
+  if (consentAccept) consentAccept.onclick = () => setStoreConsent('granted');
+  const consentDeny = $('#consentDeny');
+  if (consentDeny) consentDeny.onclick = () => { setStoreConsent('denied'); toast(t('consent.deniedHint')); };
   if (aiInput) aiInput.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') aiSend(); });
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
@@ -2819,6 +2981,6 @@ function bind() {
     try { importConfig(decodeShare(location.hash)); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ }
   } else baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
-  applyTheme(); applyLang(); bind(); refresh(); showBench(); maybeWelcome();
+  applyTheme(); applyLang(); bind(); refresh(); showBench(); maybeWelcome(); maybeConsentBar();
   schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();
