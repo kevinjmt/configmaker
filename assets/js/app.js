@@ -303,8 +303,8 @@ function stampVersion(d = new Date()) {
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 2400); }
 
 /* ---------- Modal ---------- */
-function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalOverlay').classList.remove('hidden'); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); editingPid = null; }
+function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove('modal-xl'); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) box.classList.remove('modal-xl'); editingPid = null; }
 let editingPid = null;
 
 /* ---------- Compatibility (Compat module) ---------- */
@@ -2313,6 +2313,7 @@ function openWelcome() {
         </div>
       </div>
     </div>`);
+  $('#modalBox').classList.add('modal-xl');
   $('#wNew').onclick = () => {
     const n = $('#wName') ? $('#wName').value.trim() : '';
     const b = $('#wBudget') ? parseFloat($('#wBudget').value) || 0 : 0;

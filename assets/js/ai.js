@@ -69,7 +69,7 @@ const AiParse = (() => {
   function stripParens(ref) { return String(ref || '').replace(/\s*\([^)]*\)/g, '').trim(); }
   function budgetForPrompt(budget) { return Math.round((Number(budget) || 0) * MARGIN); }
   function buildPrompt(budget88, usage) {
-    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant>" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses).`;
+    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant>" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses). Pour le jeu vidéo, choisis un GPU AMD si son rapport prix/performance est meilleur. Si les prix sont trop élevés pour ce budget, mets 16 Go de RAM. Mets toujours au minimum un ventirad pour le CPU.`;
   }
 
   return { MARGIN, TYPEMAP, norm, typeHits, typeToSlot, parseResponse, stripParens, budgetForPrompt, buildPrompt };

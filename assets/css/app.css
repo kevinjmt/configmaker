@@ -398,10 +398,10 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(5,10,8,.5);backdrop-filter:blur(6px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{width:min(640px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
-@media (min-width:961px){.modal{width:60vw;height:75vh;max-height:75vh}}
+@media (min-width:961px){.modal.modal-xl{width:60vw;height:75vh;max-height:75vh}}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
 .modal-head h2{margin:0;font-size:1.05rem}
-.modal-body{padding:18px;overflow:auto}
+.modal-body{padding:18px;overflow:auto;flex:1;min-height:0}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form-grid .full{grid-column:1/-1}
 .fld{display:flex;flex-direction:column;gap:4px}
@@ -528,10 +528,15 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 #wMain .wright{display:flex;flex-direction:column;min-height:0}
 #wAi .wslide{flex:1;min-height:0}
 #wAi .wai-left,#wAi .wai-right{min-height:0;overflow-y:auto;padding-right:2px}
-.wtitle{font-size:1.25rem;font-weight:900}
+.wtitle{font-size:1.25rem;font-weight:900;text-align:center}
 .wtitle a{color:var(--brand-ink)}
-.wslogan{margin:2px 0 8px 0}
-.wlogo{width:150px;height:150px;border-radius:24px;margin-bottom:12px}
+.wslogan{margin:2px auto 8px auto;text-align:center;max-width:46ch}
+.wlogo{width:150px;height:150px;border-radius:24px;margin:0 auto 12px auto;display:block}
+.wleft{text-align:center}
+#wMain,#wAi{justify-content:safe center}
+#wMain h3,#wAi h3{text-align:center}
+#wUsage{height:clamp(110px,17vh,230px)}
+#wPaste{height:clamp(220px,34vh,480px)}
 .wconsentwarn{display:flex;gap:8px;align-items:center;border:1px solid rgba(245,159,0,.5);background:rgba(245,159,0,.1);border-radius:12px;padding:8px 10px;font-size:.78rem;font-weight:700;margin-bottom:8px;flex-wrap:wrap}
 .bubble-btn{background:linear-gradient(135deg,#0f5c2c,#1a8744 45%,#2dd4bf)!important;color:#fff!important;border:none!important;box-shadow:0 0 14px rgba(47,169,104,.5),0 0 30px rgba(45,212,191,.25)}
 .bubble-btn:hover{transform:translateY(-2px);box-shadow:0 0 20px rgba(47,169,104,.65),0 0 40px rgba(45,212,191,.35)}
