@@ -290,6 +290,7 @@ const Perf = (() => {
   const TS_API = 'https://www.3dmark.com/proxycon/ajax/';
   const TS_READER = 'https://r.jina.ai/';
   const tsCache = {};
+  function tsClear() { for (const k of Object.keys(tsCache)) delete tsCache[k]; }
   let tsChain = Promise.resolve();
   function tsQueued(fn) { const p = tsChain.catch(() => {}).then(fn); tsChain = p.catch(() => {}); return p; }
   function tryParseJson(txt) {
@@ -346,7 +347,8 @@ const Perf = (() => {
     const ck = 'id:' + kind + ':' + q;
     if (tsCache[ck]) return tsCache[ck];
     const j = await tsFetchJson(TS_API + 'search/' + kind + 'name?term=' + encodeURIComponent(q)).catch(() => null);
-    const arr = j && (j.gpus || j.cpus);
+    // NOTE : l'autocomplete renvoie un tableau nu [...], pas {gpus:...}.
+    const arr = Array.isArray(j) ? j : (j && (j.gpus || j.cpus));
     if (!Array.isArray(arr) || !arr.length) return null;
     const core = q.replace(/[^0-9A-Z]/gi, '');
     // Plusieurs variantes contiennent le token ("RTX 4070" ⊂ "RTX 4070 Ti") :
@@ -361,24 +363,29 @@ const Perf = (() => {
   }
   async function tsBucket(url, cap, pages) {
     const out = [];
-    let next = url, n = 0;
+    let next = url, n = 0, topUri = null;
     cap = cap || 120; pages = pages || 3;
     while (next && n < pages && out.length < cap) {
       const j = await tsFetchJson(next).catch(() => null);
       if (!j || !Array.isArray(j.results)) break;
-      for (const r of j.results) { if (r && typeof r.overallScore === 'number') out.push(r.overallScore); }
+      for (const r of j.results) {
+        if (r && typeof r.overallScore === 'number') {
+          out.push(r.overallScore);
+          if (!topUri && r.resultDetailsUri) topUri = String(r.resultDetailsUri).replace(/^http:/, 'https:');
+        }
+      }
       next = j.nextPageLink ? ('https://www.3dmark.com' + j.nextPageLink) : null;
       n++;
     }
-    return out;
+    return { scores: out, topUri };
   }
   async function tsCombo(cpuName, gpuName) {
     const c = await tsHwId('cpu', cpuName), g = await tsHwId('gpu', gpuName);
     if (!c || !g) return { median: null, n: 0, cpu: c, gpu: g };
     const ck = 'combo:' + c.id + ':' + g.id;
     if (tsCache[ck]) return { ...tsCache[ck], cpu: c, gpu: g };
-    const arr = await tsBucket(TS_API + 'search2/cpugpu/spy/P/' + c.id + '/' + g.id + '/999999?minScore=0');
-    const v = { median: tsMedian(arr), n: arr.length };
+    const bk = await tsBucket(TS_API + 'search2/cpugpu/spy/P/' + c.id + '/' + g.id + '/999999?minScore=0');
+    const v = { median: tsMedian(bk.scores), n: bk.scores.length, topUri: bk.topUri };
     tsCache[ck] = v;
     return { ...v, cpu: c, gpu: g };
   }
@@ -388,8 +395,8 @@ const Perf = (() => {
     const ck = kind + ':' + h.id;
     if (tsCache[ck]) return { ...tsCache[ck], hw: h };
     // NOTE : les paniers solo sont au singulier (/search2/gpu|/cpu/), pas gpus/cpus (404).
-    const arr = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpu' : 'cpu') + '/spy/P/' + h.id + '/999999?minScore=0', 60, 2);
-    const v = { median: tsMedian(arr), n: arr.length };
+    const bk = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpu' : 'cpu') + '/spy/P/' + h.id + '/999999?minScore=0', 60, 2);
+    const v = { median: tsMedian(bk.scores), n: bk.scores.length };
     tsCache[ck] = v;
     return { ...v, hw: h };
   }
@@ -434,7 +441,7 @@ const Perf = (() => {
   return {
     setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, gpuRank, tierRank,
     dailyCriteria, diskRow, proCriteria, matchCpu, matchGpu, ramMult, fpsFor,
-    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, gbScores, tryParseJson,
+    bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, tsHwId, tsClear, gbScores, tryParseJson,
   };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Perf;

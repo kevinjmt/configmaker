@@ -479,6 +479,9 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .pbar-fill{display:block;height:100%;border-radius:7px}
 .fpsbg-r{background:#e03131}.fpsbg-y{background:#f59f00}.fpsbg-g{background:#2f9e44}.fpsbg-b{background:#1971c2}
 .pbar-val{flex:0 0 52px;text-align:right}
+.di-sub{display:block;font-size:.78rem;color:var(--muted)}
+.di-specs{display:block;font-size:.78rem;color:var(--muted);margin-top:2px}
+.di-specs span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bench-gamerow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .bench-select{flex:1;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem}
 .yt-extra{margin:12px 0 4px 0}
@@ -495,6 +498,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 #gbBody,#tsBody,#proBody{display:grid;gap:10px;grid-template-columns:1fr;align-items:start}
 .iobit-grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-bottom:10px}
 .iobit-grid3{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:10px}
+.ts-grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-bottom:10px}
 #page-bench .bench-cat,
 #page-bench #gameBody .ditem,
 #page-bench #gbBody .ditem,

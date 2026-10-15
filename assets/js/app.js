@@ -96,7 +96,9 @@ const I18N = {
     'bench.single': 'Mono-cœur', 'bench.multi': 'Multi-cœurs',
     'bench.btCpu': 'CPU limite — ce couple obtient moins que la moyenne de ce GPU', 'bench.btGpu': 'Config limitée par le GPU (normal à cette résolution)', 'bench.btOk': 'Couple équilibré',
     'bench.q_low': 'Bas', 'bench.q_medium': 'Moyen', 'bench.q_high': 'Élevé', 'bench.q_ultra': 'Ultra', 'bench.q_max': 'Max',
-    'bench.iobit': 'Ouvrir le calculateur iobit',
+    'bench.iobit': 'Ouvrir le calculateur iobit', 'bench.retry': 'Réessayer', 'bench.typErr': 'Typiques indisponibles pour le moment.',
+    'bench.estSrc': 'iobit, estimations', 'bench.tsOpen': 'Voir sur 3DMark', 'bench.gbOpen': 'Voir sur Geekbench',
+    'bench.copied': 'Noms CPU/GPU/jeu copiés — collez-les dans le calculateur iobit',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
@@ -128,7 +130,9 @@ const I18N = {
     'bench.single': 'Single-core', 'bench.multi': 'Multi-core',
     'bench.btCpu': 'CPU-limited — this combo scores below this GPU average', 'bench.btGpu': 'GPU-bound config (normal at this resolution)', 'bench.btOk': 'Balanced combo',
     'bench.q_low': 'Low', 'bench.q_medium': 'Medium', 'bench.q_high': 'High', 'bench.q_ultra': 'Ultra', 'bench.q_max': 'Max',
-    'bench.iobit': 'Open the iobit calculator',
+    'bench.iobit': 'Open the iobit calculator', 'bench.retry': 'Retry', 'bench.typErr': 'Typical scores unavailable right now.',
+    'bench.estSrc': 'iobit, estimates', 'bench.tsOpen': 'View on 3DMark', 'bench.gbOpen': 'View on Geekbench',
+    'bench.copied': 'CPU/GPU/game names copied — paste them into the iobit calculator',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
@@ -1713,6 +1717,7 @@ function benchQuery() { const b = benchParts(); return `${b.cpu} ${b.gpu} ${b.ra
 let benchCacheQ = '', benchBusy = false;
 /* ---------- Benchmarks : brief + gaming iobit + pro + Geekbench + 3DMark + YT ---------- */
 let benchGame = 'cp2077';
+let benchGameEntries = null;
 const benchFold = {};
 const benchOpenRows = new Set();
 let benchKey = '', benchRun = 0, benchYtKey = '';
@@ -1741,7 +1746,8 @@ function benchFacts() {
   const cpuEntry = cpuP ? Perf.matchCpu(cpuP.name) : null;
   const gpuEntry = gpuP ? Perf.matchGpu(gpuP.name) : null;
   const screenH = scrP ? Perf.screenH(scrP) : null;
-  const res = screenH >= 2000 ? '4k' : screenH >= 1300 ? 1440 : screenH >= 900 ? 1080 : 720;
+  // defaut 1080p sans ecran ; sinon palier iobit le plus proche en dessous
+  const res = screenH == null ? 1080 : screenH >= 2000 ? '4k' : screenH >= 1300 ? 1440 : screenH >= 900 ? 1080 : 720;
   return {
     cpuP, gpuP, ramP, storP, scrP, threads, ramGB, vramGB, cpuEntry, gpuEntry, screenH, res,
     diskType: storP ? Perf.diskType(storP.name, storP.datasheet, storDef) : null, diskGB: storP ? Perf.diskGB(storP.name) : null,
@@ -1800,22 +1806,26 @@ function briefCatHtml(id, icon, title, color, value, rows) {
     ${open && rows ? `<span class="bench-sub">${rows.map(critHtml).join('')}</span>` : ''}</span>
     <span class="di-price"><strong class="dot-${color}">●</strong>${value ? ` <span>${esc(value)}</span>` : ''}</span></div>`;
 }
-function renderBriefFacts(f, gameFps) {
+function renderBriefFacts(f) {
   const host = $('#briefBody');
   if (!host) return;
   Perf.setLang(lang);
   const daily = Perf.dailyCriteria(f);
   const blocks = Perf.proCriteria(f, f.gRank);
   const proWorst = Perf.worstOf([...blocks.video, ...blocks.compile, ...blocks.ai]);
-  const dc = Perf.worstOf(daily), gc = gameFps == null ? 'unknown' : Perf.fpsColor(gameFps) === 'r' ? 'err' : Perf.fpsColor(gameFps) === 'y' ? 'warn' : 'ok';
-  const pc = proWorst === 'unknown' ? 'warn' : proWorst;
+  // tuile jeu = Cyberpunk 2077 @ resolution courante (1080p par defaut)
+  const cb = (f.cpuEntry && f.gpuEntry) ? Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: 'cp2077', res: f.res, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB }) : null;
+  const cbSt = cb == null ? 'unknown' : { r: 'err', y: 'warn', g: 'ok', b: 'ok' }[Perf.fpsColor(cb)];
+  const resLbl = f.res === '4k' ? '4K' : f.res + 'p';
+  const gRows = cb == null ? [] : [{ k: 'cb2077', st: cbSt, label: `Cyberpunk 2077 — ${resLbl} (High)`, detail: `${cb} FPS (${t('bench.estSrc')})` }];
+  const dc = Perf.worstOf(daily), gc = cbSt, pc = proWorst === 'unknown' ? 'warn' : proWorst;
   $('#briefScore').innerHTML = `<span class="dot-${dc}">●</span> <span class="dot-${gc === 'unknown' ? 'warn' : gc}">●</span> <span class="dot-${pc}">●</span>`;
   host.innerHTML =
     briefCatHtml('daily', 'fa-solid fa-house-laptop', t('bench.daily'), dc, '', daily) +
-    briefCatHtml('gaming', 'fa-solid fa-gamepad', t('bench.gaming'), gc, gameFps == null ? '—' : gameFps + ' FPS', null) +
+    briefCatHtml('gaming', 'fa-solid fa-gamepad', t('bench.gaming'), gc === 'unknown' ? 'warn' : gc, cb == null ? '—' : cb + ' FPS', gRows) +
     briefCatHtml('pro', 'fa-solid fa-compass-drafting', t('bench.pro'), pc, '', [...blocks.video.map(r => ({ ...r, label: '[Video] ' + r.label })), ...blocks.compile.map(r => ({ ...r, label: '[Code] ' + r.label })), ...blocks.ai.map(r => ({ ...r, label: '[IA] ' + r.label }))]);
   host.querySelectorAll('[data-bcat]').forEach(el => {
-    const go = () => { benchOpenRows.has(el.dataset.bcat) ? benchOpenRows.delete(el.dataset.bcat) : benchOpenRows.add(el.dataset.bcat); renderBriefFacts(f, gameFps); };
+    const go = () => { benchOpenRows.has(el.dataset.bcat) ? benchOpenRows.delete(el.dataset.bcat) : benchOpenRows.add(el.dataset.bcat); renderBriefFacts(f); };
     el.onclick = go;
     el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   });
@@ -1830,7 +1840,7 @@ function fillGameSelect() {
     s.appendChild(o);
   });
   s.value = benchGame;
-  s.onchange = () => { benchGame = s.value; const f = benchFacts(); renderGaming(f); renderBriefFacts(f, gameFpsOf(f)); };
+  s.onchange = () => { benchGame = s.value; const f = benchFacts(); renderGaming(f); renderBriefFacts(f); };
 }
 function gameFpsOf(f, quality) {
   if (!f.cpuEntry || !f.gpuEntry) return null;
@@ -1858,11 +1868,11 @@ function renderGaming(f) {
   const btCard = bt.level == null ? `<div class="ditem"><span class="di-txt"><span class="di-name">✓ ${esc(t('bench.btOk'))}</span></span></div>`
     : `<div class="ditem"><span class="di-txt"><span class="di-name"><i class="fa-solid fa-scale-balanced"></i> ${esc(bt.side === 'cpu' ? (f.cpuP ? f.cpuP.name : 'CPU') : (f.gpuP ? f.gpuP.name : 'GPU'))}</span><br><small style="color:var(--muted)">${esc(bt.side === 'cpu' ? t('bench.btCpu') : t('bench.btGpu'))}</small></span><span class="di-price"><strong class="fps-${bt.level === 'err' ? 'r' : 'y'}">●</strong></span></div>`;
   const resLbl = f.res === '4k' ? '4K' : f.res + 'p';
-  const row = (lbl, v) => `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(lbl)}</span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(v)}">${v} FPS</strong></span></div>`;
+  const row = (sub, v) => `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(sub)}</span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(v)}">${v} FPS</strong></span></div>`;
   host.innerHTML =
-    `<div class="iobit-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(gname)} — ${esc(resLbl)} (High)</span><br><small style="color:var(--muted)">${esc(f.cpuEntry[1])} + ${esc(f.gpuEntry[1])}</small></span><span class="di-price"><strong class="fps-${Perf.fpsColor(cur)}" style="font-size:1.3rem">${cur} FPS</strong></span></div>`
+    `<div class="iobit-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(gname)}</span><span class="di-sub">${esc(resLbl)} · High</span><span class="di-specs"><span>${esc(f.cpuEntry[1])}</span><span>${esc(f.gpuEntry[1])}</span></span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(cur)}" style="font-size:1.3rem">${cur} FPS</strong></span></div>`
     + btCard + `</div>`
-    + `<div class="iobit-grid3">` + row('1080p (High)', r1080) + row('1440p (High)', r1440) + row('4K (High)', r4k) + `</div>`;
+    + `<div class="iobit-grid3">` + row('1080p', r1080) + row('1440p', r1440) + row('4K', r4k) + `</div>`;
   // barres par preset @ resolution courante
   const quals = ['low', 'medium', 'high', 'ultra', 'max'];
   const vals = quals.map(q => gameFpsOf(f, q));
@@ -1873,12 +1883,21 @@ function renderGaming(f) {
     return `<div class="pbar"><span class="pbar-lbl">${esc(t('bench.q_' + q))}</span><span class="pbar-track"><span class="pbar-fill fpsbg-${c}" style="width:${w}%"></span></span><span class="pbar-val fps-${c}">${v}</span></div>`;
   }).join('') + '</div>';
   $('#gameCredit').innerHTML = `FPS : <a href="${esc(FpsDb.SOURCE)}" target="_blank" rel="noopener">iobit.com (${esc(FpsDb.SNAPSHOT)})</a> — estimations.`;
+  // iobit ne permet pas la preselection par URL : on copie les noms exacts
+  // (CPU/GPU/jeu tels que reconnus) pour les coller dans ses champs, puis on ouvre.
+  benchGameEntries = { cpu: f.cpuEntry[1], gpu: f.gpuEntry[1], game: gname };
   if (!$('#gameBars').parentElement.querySelector('.iobit-open')) {
-    $('#gameBars').insertAdjacentHTML('afterend', `<div class="btn-row iobit-open"><a class="btn" target="_blank" rel="noopener" href="${esc(FpsDb.SOURCE)}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.iobit'))}</a></div>`);
+    $('#gameBars').insertAdjacentHTML('afterend', `<div class="btn-row iobit-open"><button class="btn" id="iobitGo"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.iobit'))}</button></div>`);
   } else {
-    const a = $('#gameBars').parentElement.querySelector('.iobit-open a');
+    const a = $('#gameBars').parentElement.querySelector('.iobit-open #iobitGo');
     if (a) a.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.iobit'))}`;
   }
+  $('#iobitGo').onclick = () => {
+    const txt = `CPU: ${benchGameEntries.cpu}\nGPU: ${benchGameEntries.gpu}\nGame: ${benchGameEntries.game}`;
+    try { navigator.clipboard?.writeText(txt); } catch { /* ignore */ }
+    toast(t('bench.copied'));
+    window.open(FpsDb.SOURCE, '_blank', 'noopener');
+  };
 }
 /* ----- pro ----- */
 function renderPro(f) {
@@ -1912,7 +1931,7 @@ async function loadBenchGb(f) {
   $('#gbScore').textContent = '…';
   const v = await Perf.gbScores(key).catch(() => ({ single: null, multi: null, n: 0, version: '?' }));
   if (run !== benchRun) return;
-  benchGb = v;
+  benchGb = { ...v, q: key };
   renderGb();
 }
 function renderGb() {
@@ -1927,7 +1946,8 @@ function renderGb() {
   $('#gbBody').innerHTML =
     `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.single'))}</span></span><span class="di-price"><strong>${loc(benchGb.single)}</strong></span></div>`
     + `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.multi'))}</span></span><span class="di-price"><strong>${loc(benchGb.multi)}</strong></span></div>`
-    + `<p class="hint">${esc(benchGb.version)} · n=${benchGb.n} · browser.geekbench.com</p>`;
+    + `<p class="hint">${esc(benchGb.version)} · n=${benchGb.n} · browser.geekbench.com</p>`
+    + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://browser.geekbench.com/search?q=${encodeURIComponent(benchGb.q || '')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.gbOpen'))}</a></div>`;
 }
 /* ----- 3DMark ----- */
 async function loadBench3d(f) {
@@ -1940,21 +1960,36 @@ async function loadBench3d(f) {
   try {
     const combo = await Perf.tsCombo(f.cpuP.name, f.gpuP.name);
     if (run !== benchRun) return;
-    bench3d = { combo, gpuOnly: null, cpuOnly: null };
+    bench3d = { combo, gpuOnly: null, cpuOnly: null, singlesErr: false };
     render3d();
+  } catch (e) { if (run === benchRun) { bench3d = { combo: { median: null, n: 0 }, err: String((e && e.message) || e) }; render3d(); } return; }
+  // Les typiques ne doivent jamais masquer un combine reussi.
+  try {
     const [g, c] = await Promise.all([Perf.tsSingle('gpu', f.gpuP.name), Perf.tsSingle('cpu', f.cpuP.name)]);
     if (run !== benchRun) return;
     bench3d.gpuOnly = g; bench3d.cpuOnly = c;
     render3d();
-  } catch (e) { if (run === benchRun) { $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}<br><small>${esc(String((e && e.message) || e))}</small></p>`; $('#tsScore').textContent = '—'; } }
+  } catch { if (run === benchRun && bench3d) { bench3d.singlesErr = true; render3d(); } }
+}
+function bindTsRetry() {
+  const rb = $('#tsRetry');
+  if (rb) rb.onclick = () => { Perf.tsClear(); bench3dKey = ''; bench3d = null; loadBench3d(benchFacts()); };
 }
 function render3d() {
   if (!bench3d) return;
   const { combo } = bench3d;
   const loc = n => n == null ? '—' : n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
+  const retry = `<div class="btn-row"><button class="mini-btn" id="tsRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button></div>`;
+  if (bench3d.err) {
+    $('#tsScore').textContent = '—';
+    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}<br><small>${esc(bench3d.err)}</small></p>` + retry;
+    bindTsRetry();
+    return;
+  }
   if (combo.median == null) {
     $('#tsScore').textContent = '—';
-    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))} (${esc((combo.gpu && combo.gpu.label) || '')} + ${esc((combo.cpu && combo.cpu.label) || '')})</p>`;
+    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))} (${esc((combo.gpu && combo.gpu.label) || '')} + ${esc((combo.cpu && combo.cpu.label) || '')})</p>` + retry;
+    bindTsRetry();
     return;
   }
   $('#tsScore').textContent = loc(combo.median);
@@ -1963,10 +1998,14 @@ function render3d() {
     const v = Perf.tsBottleneck(combo.median, bench3d.gpuOnly.median, bench3d.cpuOnly.median);
     const cls = v.level === 'err' ? 'r' : v.level === 'warn' ? 'y' : 'g';
     const msg = v.side === 'cpu' ? t('bench.btCpu') : v.side === 'gpu' ? t('bench.btGpu') : t('bench.btOk');
-    sub = `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.tsGpu'))} : <strong>${loc(bench3d.gpuOnly.median)}</strong> · ${esc(t('bench.tsCpu'))} : <strong>${loc(bench3d.cpuOnly.median)}</strong></span><br><small style="color:var(--muted)">${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</small></span><span class="di-price"><strong class="fps-${cls}">●</strong></span></div>`;
+    sub = `<div class="ts-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.tsGpu'))}</span></span><span class="di-price"><strong>${loc(bench3d.gpuOnly.median)}</strong></span></div><div class="ditem"><span class="di-txt"><span class="di-name">${esc(t('bench.tsCpu'))}</span></span><span class="di-price"><strong>${loc(bench3d.cpuOnly.median)}</strong></span></div></div><p class="hint"><strong class="fps-${cls}">●</strong> ${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</p>`;
+  } else if (bench3d.singlesErr) {
+    sub = `<p class="hint">${esc(t('bench.typErr'))}</p>` + retry;
   }
   $('#tsBody').innerHTML =
-    `<div class="ditem"><span class="di-txt"><span class="di-name">${esc((combo.cpu && combo.cpu.label) || '')} + ${esc((combo.gpu && combo.gpu.label) || '')}</span><br><small style="color:var(--muted)">${esc(t('bench.topruns'))} · n=${combo.n}</small></span><span class="di-price"><strong>${loc(combo.median)}</strong></span></div>` + sub;
+    `<div class="ditem"><span class="di-txt"><span class="di-name">${esc((combo.cpu && combo.cpu.label) || '')} + ${esc((combo.gpu && combo.gpu.label) || '')}</span><br><small style="color:var(--muted)">${esc(t('bench.topruns'))} · n=${combo.n}</small></span><span class="di-price"><strong>${loc(combo.median)}</strong></span></div>` + sub
+    + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(combo.topUri || 'https://www.3dmark.com/search')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
+  bindTsRetry();
 }
 /* ----- YouTube (existant + champ extra) ----- */
 function paintVideos(items, cached) {
@@ -2027,7 +2066,7 @@ async function showBench() {
   for (const k of Object.keys(tipReg)) delete tipReg[k];
   const f = benchFacts();
   Perf.setLang(lang);
-  renderBriefFacts(f, gameFpsOf(f));
+  renderBriefFacts(f);
   renderGaming(f);
   renderPro(f);
   loadBenchGb(f);
