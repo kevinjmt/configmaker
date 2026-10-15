@@ -1721,7 +1721,6 @@ let benchCacheQ = '', benchBusy = false;
 let benchGame = 'cp2077';
 let benchGameEntries = null;
 const benchFold = {};
-const benchOpenRows = new Set();
 let benchKey = '', benchRun = 0, benchYtKey = '';
 let bench3d = null, bench3dKey = '', benchGb = null, benchGbKey = '';
 const tipReg = {}; let tipSeq = 0;
@@ -1758,12 +1757,6 @@ function benchFacts() {
 }
 /* ----- tooltip flottant (suit le curseur) ----- */
 function regTip(rows) { const id = 'tip' + (++tipSeq); tipReg[id] = rows; return id; }
-function critHtml(r) {
-  const disp = r.st === 'unknown' ? 'warn' : r.st;
-  const icon = disp === 'ok' ? 'check' : disp === 'warn' ? 'triangle-exclamation' : 'xmark';
-  const id = regTip([r]);
-  return `<span class="pcrit st-${disp}" data-tip="${id}"><i class="fa-solid fa-${icon}"></i><strong>${esc(r.label)}</strong></span>`;
-}
 function bindPerfTip() {
   if (bindPerfTip.done) return;
   bindPerfTip.done = true;
@@ -1814,11 +1807,12 @@ function renderBriefFacts(f) {
   const dc = Perf.worstOf(daily);
   const proWorst = Perf.worstOf([...blocks.video, ...blocks.compile, ...blocks.ai]);
   $('#briefScore').innerHTML = `<span class="dot-${dc}">●</span> <span class="dot-${cbSt === 'unknown' ? 'warn' : cbSt}">●</span> <span class="dot-${proWorst === 'unknown' ? 'warn' : proWorst}">●</span>`;
-  const tile = (icon, title, inner, rows) => `<div class="brief-tile" data-tip="${regTip(rows)}"><i class="${icon} bt-icon"></i><span class="bt-title">${esc(title)}</span>${inner}</div>`;
-  const stTile = (icon, title, st, rows) => { const w = briefStatusWord(st); return tile(icon, title, `<strong class="bt-status fps-${w.cls}">${esc(w.txt)}</strong>`, rows); };
+  const tileCls = st => st === 'ok' ? 'st-ok' : st === 'err' ? 'st-err' : 'st-warn';
+  const tile = (icon, title, inner, rows, st) => `<div class="brief-tile ${tileCls(st === 'unknown' ? 'warn' : st)}" data-tip="${regTip(rows)}"><i class="${icon} bt-icon"></i><span class="bt-title">${esc(title)}</span>${inner}</div>`;
+  const stTile = (icon, title, st, rows) => { const w = briefStatusWord(st); return tile(icon, title, `<strong class="bt-status fps-${w.cls}">${esc(w.txt)}</strong>`, rows, st); };
   host.innerHTML =
     stTile('fa-solid fa-house-laptop', t('bench.daily'), dc, daily) +
-    tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : cb + ' FPS'}</strong>`, gRows) +
+    tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : cb + ' FPS'}</strong>`, gRows, cbSt) +
     stTile('fa-solid fa-clapperboard', t('bench.video'), Perf.worstOf(blocks.video), blocks.video) +
     stTile('fa-solid fa-code', t('bench.compile'), Perf.worstOf(blocks.compile), blocks.compile) +
     stTile('fa-solid fa-brain', t('bench.ai'), Perf.worstOf(blocks.ai), blocks.ai);
@@ -1901,18 +1895,14 @@ function renderPro(f) {
   const defs = [['video', 'fa-solid fa-clapperboard', t('bench.video')], ['compile', 'fa-solid fa-code', t('bench.compile')], ['ai', 'fa-solid fa-brain', t('bench.ai')]];
   $('#proScore').innerHTML = defs.map(([k]) => { const w = Perf.worstOf(blocks[k]); return `<span class="dot-${w === 'unknown' ? 'warn' : w}">●</span>`; }).join(' ');
   host.innerHTML = defs.map(([k, icon, title]) => {
-    const open = benchOpenRows.has('pro_' + k);
     const w = Perf.worstOf(blocks[k]);
-    return `<div class="ditem pill-item bench-cat${open ? ' open' : ''}" data-pro="${k}" role="button" tabindex="0">
-      <span class="di-txt"><span class="di-name"><i class="${icon}"></i> ${esc(title)}</span>
-      ${open ? `<span class="bench-sub">${blocks[k].map(critHtml).join('')}</span>` : ''}</span>
-      <span class="di-price"><strong class="dot-${w === 'unknown' ? 'warn' : w}">●</strong></span></div>`;
+    const rows = blocks[k].map(r => {
+      const disp = r.st === 'unknown' ? 'warn' : r.st;
+      const ic = disp === 'ok' ? 'check' : disp === 'warn' ? 'triangle-exclamation' : 'xmark';
+      return `<div class="spec-row st-${disp}"><i class="fa-solid fa-${ic}"></i><span class="spec-txt"><strong>${esc(r.label)}</strong><small>${esc(r.detail)}</small></span></div>`;
+    }).join('');
+    return `<div class="pro-block"><div class="pro-head"><i class="${icon}"></i><span>${esc(title)}</span><strong class="dot-${w === 'unknown' ? 'warn' : w}">●</strong></div><div class="spec-list">${rows}</div></div>`;
   }).join('');
-  host.querySelectorAll('[data-pro]').forEach(el => {
-    const go = () => { benchOpenRows.has('pro_' + el.dataset.pro) ? benchOpenRows.delete('pro_' + el.dataset.pro) : benchOpenRows.add('pro_' + el.dataset.pro); renderPro(benchFacts()); };
-    el.onclick = go;
-    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
-  });
 }
 /* ----- Geekbench ----- */
 async function loadBenchGb(f) {

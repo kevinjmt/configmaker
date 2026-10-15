@@ -522,6 +522,20 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .bt-status{font-weight:900;font-size:1.05rem}
 .bt-res{font-size:.78rem;color:var(--muted)}
 .bt-fps{font-size:1.5rem}
+/* tuiles brief pastel tres leger selon statut */
+.brief-tile.st-ok{background:rgba(47,158,68,.12)}
+.brief-tile.st-warn{background:rgba(245,159,0,.13)}
+.brief-tile.st-err{background:rgba(224,49,49,.10)}
+/* specs charges lourdes : liste verticale, pas de pills */
+.pro-block{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);padding:12px 14px;box-shadow:var(--shadow-md)}
+.pro-head{display:flex;align-items:center;gap:8px;font-weight:900;margin-bottom:8px}
+.pro-head span{flex:1}
+.spec-list{display:flex;flex-direction:column;gap:6px}
+.spec-row{display:flex;gap:8px;align-items:flex-start;font-size:.82rem}
+.spec-row i{margin-top:2px}
+.spec-row.st-ok i{color:#1e7e46}.spec-row.st-warn i{color:#b97a0c}.spec-row.st-err i{color:var(--danger)}
+.spec-txt{display:flex;flex-direction:column}
+.spec-txt small{color:var(--muted)}
 #gbBody,#tsBody,#proBody{display:grid;gap:10px;grid-template-columns:1fr;align-items:start}
 .iobit-grid2{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-bottom:10px}
 .iobit-grid3{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-bottom:10px}
