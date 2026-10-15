@@ -468,6 +468,21 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 /* brief = bloc hero en haut de section */
 #bsecBrief{border:1px solid var(--brand);background:linear-gradient(135deg,rgba(47,158,68,.14),rgba(47,158,68,.03));padding:20px 22px}
 #bsecBrief .dsec-head{font-size:1.2rem;color:var(--ink)}
+/* anti-debordement + stabilite (tailles stables, responsive conserve) */
+#page-bench .dsec{overflow:hidden;overflow-wrap:break-word}
+#page-bench .dsec-head{flex-wrap:wrap;row-gap:4px}
+#page-bench .dsec-head>span:nth-child(2){min-width:0}
+#page-bench .dsec-body{min-height:140px}
+#page-bench .btn{min-width:0;max-width:100%;white-space:normal;text-align:center;justify-content:center}
+#page-bench .search-row input{flex:1 1 auto;min-width:0;width:auto}
+#page-bench .bench-select{flex:1;min-width:0;max-width:100%}
+#page-bench .bench-gamerow{flex-wrap:wrap}
+/* wrap textuel general dans les tuiles bench (fini les troncatures/nowrap) */
+#page-bench .di-name{white-space:normal;overflow:visible;text-overflow:clip}
+#page-bench .di-specs span{white-space:normal}
+#page-bench code.k{overflow-wrap:anywhere}
+#page-bench .mini-btn{max-width:100%;white-space:normal;text-align:center;justify-content:center}
+.bench-grid2,.bench-grid3{align-items:stretch}
 #page-bench .dsec.collapsed .dsec-body{display:none}
 .pcrit{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:800;border-radius:10px;padding:3px 9px;margin:2px 4px 2px 0;border:1px solid;cursor:help}
 .pcrit.st-ok{color:#1e7e46;border-color:rgba(30,126,70,.4);background:rgba(30,126,70,.08)}
