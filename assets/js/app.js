@@ -2439,7 +2439,7 @@ function aiRenderComps(items, slots) {
   host.classList.remove('hidden');
   const form = $('#wAiForm'); if (form) form.classList.add('hidden');
   host.innerHTML = '';
-  return items.map((it, i) => {
+  const list = items.map((it, i) => {
     const slot = slots[i];
     const d = document.createElement('div');
     d.className = 'wcomp';
@@ -2447,6 +2447,8 @@ function aiRenderComps(items, slots) {
     host.appendChild(d);
     return d;
   });
+  refreshIcons(host); // lucide/bi injectes dynamiquement sinon invisibles
+  return list;
 }
 function aiSetComp(comp, st) {
   if (!comp) return;
@@ -2518,6 +2520,7 @@ async function aiBuild(items) {
       if (slot && comps[i]) {
         comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
         comps[i].querySelector('.wcomp-tx strong').textContent = aiSlotLabel(slot);
+        refreshIcons(comps[i]);
       }
     }
     if (!slot) { aiSetComp(comps[i], 'warn'); skipped.push(it); continue; }
