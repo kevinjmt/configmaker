@@ -460,7 +460,14 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 /* video */
 .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
 /* Benchmarks : criteres colores + tooltip flottant + barres presets (scope page-bench) */
+#page-bench.glass{margin-top:50px}
 #page-bench .dsec{margin-bottom:12px}
+/* tuiles : chaque section benchmark est une carte */
+#page-bench .dsec{background:var(--surface);border:1px solid var(--line-strong);border-radius:20px;padding:16px 18px;box-shadow:var(--shadow-md);min-width:0}
+#page-bench .dsec-head{margin:0 0 10px 0}
+/* brief = bloc hero en haut de section */
+#bsecBrief{border:1px solid var(--brand);background:linear-gradient(135deg,rgba(47,158,68,.14),rgba(47,158,68,.03));padding:20px 22px}
+#bsecBrief .dsec-head{font-size:1.2rem;color:var(--ink)}
 #page-bench .dsec.collapsed .dsec-body{display:none}
 .pcrit{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:800;border-radius:10px;padding:3px 9px;margin:2px 4px 2px 0;border:1px solid;cursor:help}
 .pcrit.st-ok{color:#1e7e46;border-color:rgba(30,126,70,.4);background:rgba(30,126,70,.08)}
