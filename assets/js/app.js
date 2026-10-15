@@ -101,6 +101,17 @@ const I18N = {
     'bench.copied': 'Noms CPU/GPU/jeu copiés — collez-les dans le calculateur iobit',
     'bench.stOk': 'Bon', 'bench.stWarn': 'Moyen', 'bench.stErr': 'Mauvais',
     'bench.tsCombo': 'Combiné',
+    'welcome.title': 'Bienvenue sur ConfigMaker', 'welcome.new': 'Nouveau', 'welcome.name': 'Nom', 'welcome.budget': 'Budget (€)',
+    'welcome.createAi': 'Créer avec IA', 'welcome.load': 'Charger une config', 'welcome.empty': 'Aucune config enregistrée.',
+    'welcome.open': 'Ouvrir', 'welcome.back': 'Retour', 'welcome.usage': 'Utilisation',
+    'welcome.usagePh': 'Ex : jeu 1440p, montage vidéo 4K, silencieux…',
+    'welcome.sendPplx': 'Envoyer à Perplexity', 'welcome.sentHint': 'Prompt envoyé — copiez la réponse Perplexity ci-dessous.',
+    'welcome.pastedHint': 'Collez la réponse Perplexity ci-dessous :', 'welcome.pastePh': 'Processeur : AMD Ryzen 5 7600\n\nCarte graphique : ASUS GeForce RTX 5060 Ti\n\n…',
+    'welcome.build': 'Construire la config', 'welcome.searching': 'Recherche…', 'welcome.importing': 'Import…',
+    'welcome.skipped': 'Ignoré', 'welcome.skippedN': 'ignoré(s)', 'welcome.notFound': 'Introuvable',
+    'welcome.askSlot': 'Type inconnu — choisissez le slot :', 'welcome.askWait': 'En attente…', 'welcome.skip': 'Ignorer',
+    'welcome.openConfig': 'Ouvrir la config', 'welcome.needsUsage': 'Décrivez l’utilisation d’abord.', 'welcome.noParse': 'Aucune ligne « type : référence » trouvée.',
+    'welcome.feat1': 'Prix Idealo en direct', 'welcome.feat2': 'Compatibilité vérifiée', 'welcome.feat3': 'Benchmarks & conso', 'welcome.feat4': '100 % local, sans compte',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
@@ -137,6 +148,17 @@ const I18N = {
     'bench.copied': 'CPU/GPU/game names copied — paste them into the iobit calculator',
     'bench.stOk': 'Good', 'bench.stWarn': 'Fair', 'bench.stErr': 'Poor',
     'bench.tsCombo': 'Combined',
+    'welcome.title': 'Welcome to ConfigMaker', 'welcome.new': 'New', 'welcome.name': 'Name', 'welcome.budget': 'Budget (€)',
+    'welcome.createAi': 'Create with AI', 'welcome.load': 'Load a config', 'welcome.empty': 'No saved configs yet.',
+    'welcome.open': 'Open', 'welcome.back': 'Back', 'welcome.usage': 'Usage',
+    'welcome.usagePh': 'E.g. 1440p gaming, 4K video editing, silent…',
+    'welcome.sendPplx': 'Send to Perplexity', 'welcome.sentHint': 'Prompt sent — paste the Perplexity answer below.',
+    'welcome.pastedHint': 'Paste the Perplexity answer below:', 'welcome.pastePh': 'CPU: AMD Ryzen 5 7600\n\nGPU: ASUS GeForce RTX 5060 Ti\n\n…',
+    'welcome.build': 'Build config', 'welcome.searching': 'Searching…', 'welcome.importing': 'Importing…',
+    'welcome.skipped': 'Skipped', 'welcome.skippedN': 'skipped', 'welcome.notFound': 'Not found',
+    'welcome.askSlot': 'Unknown type — pick a slot:', 'welcome.askWait': 'Waiting…', 'welcome.skip': 'Skip',
+    'welcome.openConfig': 'Open config', 'welcome.needsUsage': 'Describe the usage first.', 'welcome.noParse': 'No “type: reference” lines found.',
+    'welcome.feat1': 'Live Idealo prices', 'welcome.feat2': 'Checked compatibility', 'welcome.feat3': 'Benchmarks & power', 'welcome.feat4': '100% local, no account',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
@@ -2210,6 +2232,164 @@ function openHistory() {
     state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
   });
 }
+/* ---------- Welcome popup : creer / charger / construire avec IA ---------- */
+function aiSlotOptions() {
+  return SLOT_DEFS.filter(d => !d.extra).map(d => `<option value="${d.id}">${esc((SLOT_NAMES[lang] && SLOT_NAMES[lang][d.id]) || SLOT_NAMES.fr[d.id] || d.id)}</option>`).join('');
+}
+function openWelcome() {
+  openModal(t('welcome.title'), `
+    <div class="whero glass"><img src="./assets/icons/configmakericon.png" alt="ConfigMaker">
+      <div><strong>ConfigMaker by KJ</strong><br><small>${esc(t('footer.tag'))}</small></div></div>
+    <div class="wfeats">
+      <div class="glass wfeat"><i class="fa-solid fa-tag"></i><span>${esc(t('welcome.feat1'))}</span></div>
+      <div class="glass wfeat"><i class="fa-solid fa-shield-halved"></i><span>${esc(t('welcome.feat2'))}</span></div>
+      <div class="glass wfeat"><i class="fa-solid fa-gauge-high"></i><span>${esc(t('welcome.feat3'))}</span></div>
+      <div class="glass wfeat"><i class="fa-solid fa-lock"></i><span>${esc(t('welcome.feat4'))}</span></div>
+    </div>
+    <div id="wMain" class="wpage">
+      <h3>${esc(t('welcome.new'))}</h3>
+      <div class="wgrid"><label>${esc(t('welcome.name'))}<input id="wName" maxlength="60" value="${esc(state.name)}"></label>
+      <label>${esc(t('welcome.budget'))}<input id="wBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
+      <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
+      <button class="btn" id="wAiGo"><i class="fa-solid fa-wand-magic-sparkles"></i> ${esc(t('welcome.createAi'))}</button></div>
+      <h3 style="margin-top:14px">${esc(t('welcome.load'))}</h3>
+      <div id="wRecents" class="wrecents"></div>
+    </div>
+    <div id="wAi" class="wpage hidden">
+      <div class="btn-row" style="justify-content:start"><button class="btn btn-sm" id="wBack"><i class="fa-solid fa-arrow-left"></i> ${esc(t('welcome.back'))}</button></div>
+      <h3>${esc(t('welcome.createAi'))}</h3>
+      <div class="wgrid"><label>${esc(t('welcome.budget'))}<input id="wAiBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
+      <label class="wfld">${esc(t('welcome.usage'))}<textarea id="wUsage" rows="3" placeholder="${esc(t('welcome.usagePh'))}"></textarea></label>
+      <div class="btn-row"><button class="btn btn-primary" id="wSend"><i class="fa-solid fa-paper-plane"></i> ${esc(t('welcome.sendPplx'))}</button></div>
+      <label class="wfld">${esc(t('welcome.pastedHint'))}<textarea id="wPaste" rows="6" placeholder="${esc(t('welcome.pastePh'))}"></textarea></label>
+      <div class="btn-row"><button class="btn btn-primary" id="wBuild"><i class="fa-solid fa-gears"></i> ${esc(t('welcome.build'))}</button></div>
+      <div id="wProgs"></div>
+    </div>`);
+  $('#wNew').onclick = () => {
+    const n = $('#wName') ? $('#wName').value.trim() : '';
+    const b = $('#wBudget') ? parseFloat($('#wBudget').value) || 0 : 0;
+    wipeToNew(); // ferme le modal : on applique nom/budget sur la config vierge
+    if (n) state.name = n;
+    if (b > 0) state.budget = b;
+    persist(); refresh();
+  };
+  $('#wAiGo').onclick = () => { $('#wMain').classList.add('hidden'); $('#wAi').classList.remove('hidden'); };
+  $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); };
+  $('#wAiBudget').onchange = e => { const v = parseFloat(e.target.value) || 0; if (v > 0) { state.budget = v; persist(); refresh(); } };
+  // recents
+  const cfgs = load(LS.configs, {});
+  const host = $('#wRecents');
+  const names = Object.keys(cfgs).sort((a, b) => (cfgs[b][cfgs[b].length - 1].savedAt || 0) - (cfgs[a][cfgs[a].length - 1].savedAt || 0));
+  host.innerHTML = names.length ? '' : `<p class="hint">${esc(t('welcome.empty'))}</p>`;
+  names.forEach(n => {
+    const arr = cfgs[n], last = arr[arr.length - 1];
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${new Date(last.savedAt).toLocaleString()} · ${eur(last.total)}</small></span>`;
+    const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${esc(t('welcome.open'))}`;
+    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+    row.appendChild(b); host.appendChild(row);
+  });
+  $('#wSend').onclick = () => {
+    const usage = $('#wUsage').value.trim();
+    if (!usage) { toast(t('welcome.needsUsage')); return; }
+    const b88 = AiParse.budgetForPrompt(parseFloat($('#wAiBudget').value) || state.budget);
+    window.open('https://www.perplexity.ai/search?q=' + encodeURIComponent(AiParse.buildPrompt(b88, usage)), '_blank', 'noopener');
+    toast(t('welcome.sentHint'));
+  };
+  $('#wBuild').onclick = () => {
+    const items = AiParse.parseResponse($('#wPaste').value);
+    if (!items.length) { toast(t('welcome.noParse')); return; }
+    aiBuild(items);
+  };
+}
+function aiAskSlot(host, it) {
+  return new Promise(resolve => {
+    const row = document.createElement('div');
+    row.className = 'wrow wrow-ask';
+    row.innerHTML = `<span class="grow"><strong>${esc(it.type)} : ${esc(it.ref)}</strong><br><small>${esc(t('welcome.askSlot'))}</small></span>
+      <select class="wslot">${aiSlotOptions()}</select>
+      <button class="mini-btn" data-ok>OK</button><button class="mini-btn" data-skip>${esc(t('welcome.skip'))}</button>`;
+    host.appendChild(row);
+    row.querySelector('[data-ok]').onclick = () => { const v = row.querySelector('.wslot').value; row.remove(); resolve(v); };
+    row.querySelector('[data-skip]').onclick = () => { row.remove(); resolve(null); };
+  });
+}
+async function aiFindRef(ref) {
+  const tries = [ref];
+  const stripped = AiParse.stripParens(ref);
+  if (stripped && stripped !== ref) tries.push(stripped);
+  for (const q of tries) {
+    try {
+      const r = await Idealo.list(idealoSearchUrl(q));
+      if (r && !r.error && r.items && r.items.length) return { item: r.items[0], stripped: q !== ref };
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+async function importAiProduct(slotId, it) {
+  const np = blankProduct();
+  np.name = it.name; np.image = it.img || ''; np.idealo = it.url || '';
+  np.price = it.price || 0; np.specs = it.specs || ''; np.vendor = it.vendor || '';
+  np.delivery = it.delivery || 0; np.src = it.src || '';
+  if (it.url) {
+    try {
+      const d = await Idealo.product(it.url);
+      if (d && !d.error) {
+        if (d.datasheet) np.datasheet = d.datasheet;
+        if (d.specs && !np.specs) np.specs = d.specs;
+        if (d.name && !np.name) np.name = d.name;
+        if (d.image && !np.image) np.image = d.image;
+        if (d.price && !np.price) np.price = d.price;
+      }
+    } catch { /* ignore */ }
+  }
+  const s = state.slots[slotId];
+  if (!s) return false;
+  s.products.push(np); s.selectedId = np.id;
+  return true;
+}
+async function aiBuild(items) {
+  const host = $('#wProgs'); if (!host) return;
+  host.innerHTML = '';
+  const btn = $('#wBuild');
+  btn.disabled = true;
+  const baseLbl = btn.innerHTML;
+  let ok = 0; const skipped = [];
+  const rows = items.map(it => {
+    const r = document.createElement('div');
+    r.className = 'wrow';
+    r.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i><span class="grow">${esc(it.type)} : <strong>${esc(it.ref)}</strong></span><small class="wst"></small>`;
+    host.appendChild(r);
+    return r;
+  });
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i], row = rows[i], st = row.querySelector('.wst'), ic = row.querySelector('i');
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 28))}`;
+    ic.className = 'fa-solid fa-magnifying-glass';
+    st.textContent = t('welcome.searching');
+    let slot = AiParse.typeToSlot(it.type);
+    if (!slot) { st.textContent = t('welcome.askWait'); slot = await aiAskSlot(host, it); }
+    if (!slot) { ic.className = 'fa-solid fa-minus'; st.textContent = t('welcome.skipped'); skipped.push(it); continue; }
+    const found = await aiFindRef(it.ref);
+    if (!found) { ic.className = 'fa-solid fa-xmark'; st.textContent = t('welcome.notFound'); skipped.push(it); continue; }
+    st.textContent = t('welcome.importing');
+    await importAiProduct(slot, found.item);
+    ic.className = 'fa-solid fa-check'; st.textContent = (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slot;
+    ok++;
+  }
+  persist(); refresh();
+  host.insertAdjacentHTML('beforeend', `<p class="hint">${ok} ✓${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(s => s.type + ' : ' + s.ref).join(' | '))}` : ''}</p>
+    <div class="btn-row"><button class="btn btn-primary" id="wOpen"><i class="fa-solid fa-computer"></i> ${esc(t('welcome.openConfig'))}</button></div>`);
+  btn.disabled = false; btn.innerHTML = baseLbl;
+  const go = $('#wOpen');
+  if (go) go.onclick = () => { closeModal(); showPage('config'); refresh(); };
+}
+function maybeWelcome() {
+  try {
+    if (state.order.every(id => !(state.slots[id].products || []).length)) openWelcome();
+  } catch { /* ignore */ }
+}
 function encodeShare(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
 function decodeShare(s) {
   const m = String(s).match(/#c=([A-Za-z0-9+/=]+)/) || String(s).match(/[A-Za-z0-9+/=]{40,}/);
@@ -2607,6 +2787,8 @@ function bind() {
   if (aiClose) aiClose.onclick = () => aiPop && aiPop.classList.add('hidden');
   const aiSendBtn = $('#aiSend');
   if (aiSendBtn) aiSendBtn.onclick = aiSend;
+  const brandHome = $('#brandHome');
+  if (brandHome) brandHome.onclick = e => { e.preventDefault(); openWelcome(); };
   if (aiInput) aiInput.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') aiSend(); });
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
@@ -2637,6 +2819,6 @@ function bind() {
     try { importConfig(decodeShare(location.hash)); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ }
   } else baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
-  applyTheme(); applyLang(); bind(); refresh(); showBench();
+  applyTheme(); applyLang(); bind(); refresh(); showBench(); maybeWelcome();
   schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();

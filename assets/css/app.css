@@ -504,6 +504,29 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .di-sub{display:block;font-size:.78rem;color:var(--muted)}
 .di-specs{display:block;font-size:.78rem;color:var(--muted);margin-top:2px}
 .di-specs span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* welcome popup */
+.wpage h3{margin:4px 0 8px 0;font-size:1rem}
+.wgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.wgrid label,.wfld{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:800;color:var(--muted)}
+.wgrid input,.wfld textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem;font-weight:500;width:100%}
+.wfld{margin:8px 0}
+.wrecents{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+.wrow{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px;background:var(--surface)}
+.wrow .grow{flex:1;min-width:0;font-size:.82rem}
+.wrow .wst{color:var(--muted);font-size:.75rem;white-space:nowrap}
+.wrow-ask{border-color:var(--brand)}
+.wslot{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:7px 9px;color:var(--ink);font:inherit;font-size:.8rem;max-width:45%}
+#wBuild:disabled{opacity:.75;cursor:wait}
+@media (max-width:640px){.wgrid{grid-template-columns:1fr}}
+/* welcome hero : logo + slogan + 4 atouts glass */
+.whero{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:18px;margin-bottom:12px}
+.whero img{width:56px;height:56px;border-radius:14px;flex:0 0 auto}
+.whero strong{font-size:1.1rem}
+.whero small{color:var(--muted)}
+.wfeats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.wfeat{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;border-radius:14px;font-size:.72rem;font-weight:800;text-align:center}
+.wfeat i{font-size:1.2rem;color:var(--brand-ink)}
+@media (max-width:560px){.wfeats{grid-template-columns:repeat(2,1fr)}}
 .bench-gamerow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .bench-select{flex:1;background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem}
 .yt-extra{margin:12px 0 4px 0}
