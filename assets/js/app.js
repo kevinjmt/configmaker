@@ -1905,9 +1905,12 @@ function barHtml(r) {
   const v = typeof b.val === 'number' ? pct(b.val) : null;
   const vc = v == null ? null : Math.max(3, Math.min(97, v)); // garde le cercle visible aux bords
   const zcls = typeof b.val !== 'number' ? '' : b.val <= b.cuts[0] ? 'r' : b.val <= b.cuts[1] ? 'y' : 'g';
+  const u = b.unit || '';
+  const ztip = zi => regTip([{ k: 'z' + zi, st: zi === 0 ? 'err' : zi === 1 ? 'warn' : 'ok', label: r.label,
+    detail: zi === 0 ? `≤ ${b.cuts[0]}${u}` : zi === 1 ? `${b.cuts[0]} – ${b.cuts[1]}${u}` : `> ${b.cuts[1]}${u}` }]);
   return `<div class="cbar" data-tip="${id}">
-    <div class="cbar-top"><strong>${esc(r.label)}</strong>${b.noval ? '' : `<span>${esc(String(b.val) + (b.unit || ''))}</span>`}</div>
-    <div class="cbar-track"><span class="zone z-r" style="width:${wR}%"></span><span class="zone z-y" style="width:${wY}%"></span><span class="zone z-g" style="width:${wG}%"></span><span class="ckpt" style="left:${pct(b.cuts[0])}%"></span><span class="ckpt" style="left:${pct(b.cuts[1])}%"></span>${v == null ? '' : `<span class="needle n-${zcls}" style="left:${vc}%"></span>`}</div>
+    <div class="cbar-top"><strong>${esc(r.label)}</strong>${b.noval ? '' : `<span>${esc(String(b.val) + u)}</span>`}</div>
+    <div class="cbar-track"><div class="cbar-zones"><span class="zone z-r" data-tip="${ztip(0)}" style="width:${wR}%"></span><span class="zone z-y" data-tip="${ztip(1)}" style="width:${wY}%"></span><span class="zone z-g" data-tip="${ztip(2)}" style="width:${wG}%"></span></div><span class="ckpt" style="left:${pct(b.cuts[0])}%"></span><span class="ckpt" style="left:${pct(b.cuts[1])}%"></span>${v == null ? '' : `<span class="needle n-${zcls}" data-tip="${id}" style="left:${vc}%"></span>`}</div>
     <small>${esc(r.detail)}</small></div>`;
 }
 function barsHtml(rows) { return `<div class="cbars">${rows.map(barHtml).join('')}</div>`; }
@@ -1950,7 +1953,7 @@ function renderGb() {
   if (!benchGb) return;
   if (benchGb.single == null && benchGb.multi == null) {
     $('#gbScore').textContent = '—';
-    $('#gbBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))}</p><div class="btn-row"><button class="mini-btn" id="gbRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button></div>`;
+    $('#gbBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))}</p><div class="btn-row"><button class="mini-btn" id="gbRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button><a class="btn btn-sm" target="_blank" rel="noopener" href="https://browser.geekbench.com/search?q=${encodeURIComponent(benchGb.q || '')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.gbOpen'))}</a></div>`;
     bindGbRetry();
     return;
   }
@@ -1999,13 +2002,15 @@ function render3d() {
   const retry = `<div class="btn-row"><button class="mini-btn" id="tsRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button></div>`;
   if (bench3d.err) {
     $('#tsScore').textContent = '—';
-    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}<br><small>${esc(bench3d.err)}</small></p>` + retry;
+    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.err'))}<br><small>${esc(bench3d.err)}</small></p>` + retry
+      + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://www.3dmark.com/search"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
     bindTsRetry();
     return;
   }
   if (combo.median == null) {
     $('#tsScore').textContent = '—';
-    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))} (${esc((combo.gpu && combo.gpu.label) || '')} + ${esc((combo.cpu && combo.cpu.label) || '')})</p>` + retry;
+    $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))} (${esc((combo.gpu && combo.gpu.label) || '')} + ${esc((combo.cpu && combo.cpu.label) || '')})</p>` + retry
+      + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://www.3dmark.com/search"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
     bindTsRetry();
     return;
   }

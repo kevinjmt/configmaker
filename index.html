@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=85">
+<link rel="stylesheet" href="./assets/css/app.css?v=88">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -175,8 +175,10 @@
         <p class="hint" id="gameCredit"></p>
       </div></div>
     </div></section>
+    <div class="bench-grid2 ratio13">
     <section class="dsec" id="bsecDaily"><div class="dsec-head"><i class="fa-solid fa-house-laptop"></i><span data-i18n="bench.daily">Quotidien</span><span class="dsec-total" id="dailyScore"></span></div><div class="dsec-body" id="dailyBody"></div></section>
     <section class="dsec" id="bsecPro"><div class="dsec-head"><i class="fa-solid fa-compass-drafting"></i><span data-i18n="bench.pro">Charges lourdes</span><span class="dsec-total" id="proScore"></span></div><div class="dsec-body" id="proBody"></div></section>
+    </div>
     <div class="bench-grid2">
     <section class="dsec" id="bsecGb"><div class="dsec-head"><i class="fa-solid fa-server"></i><span>Geekbench</span><span class="dsec-total" id="gbScore"></span></div><div class="dsec-body" id="gbBody"></div></section>
     <section class="dsec" id="bsec3d"><div class="dsec-head"><i class="fa-solid fa-microchip"></i><span>3DMark Time Spy</span><span class="dsec-total" id="tsScore"></span></div><div class="dsec-body" id="tsBody"></div></section>
@@ -243,13 +245,13 @@
 
 <script src="./assets/js/store.js?v=1"></script>
 <script src="./assets/js/idealo.js?v=71"></script>
-<script src="./assets/js/compat.js?v=2"></script>
+<script src="./assets/js/compat.js?v=3"></script>
 <script src="./assets/js/pcie-catalog.js?v=12"></script>
 <script src="./assets/js/pcie.js?v=12"></script>
 <script src="./assets/js/tube.js?v=71"></script>
 <script src="./assets/js/fpsdb.js?v=1"></script>
-<script src="./assets/js/perf.js?v=7"></script>
-<script src="./assets/js/app.js?v=84"></script>
+<script src="./assets/js/perf.js?v=8"></script>
+<script src="./assets/js/app.js?v=87"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

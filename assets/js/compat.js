@@ -66,7 +66,7 @@ const Compat = (() => {
     ['fréquence mémoire', 'ramSpeedMax', 'num'],
     ['memory frequency', 'ramSpeedMax', 'num'], ['bus frequency', 'ramSpeedMax', 'num'], ['fréquence de bus', 'ramSpeedMax', 'num'],
     ['extension de mémoire max', 'ramCapMax', 'num'], ['max memory', 'ramCapMax', 'num'],
-    ['capacité mémoire', 'ramCap', 'num'], ['memory capacity', 'ramCap', 'num'], ['memory size', 'ramCap', 'num'],
+    ['capacité mémoire', 'ramCap', 'num'], ['capacité de mémoire', 'ramCap', 'num'], ['mémoire vidéo', 'ramCap', 'num'], ['taille mémoire', 'ramCap', 'num'], ['memory capacity', 'ramCap', 'num'], ['memory size', 'ramCap', 'num'], ['video memory', 'ramCap', 'num'],
     ['configuration', 'ramConfig', 'raw'],
     ['hauteur', 'height', 'num'], ['height', 'height', 'num'],
     ['tension', null, null], ['voltage', null, null],
