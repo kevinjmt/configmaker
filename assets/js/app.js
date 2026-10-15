@@ -2396,23 +2396,36 @@ function aiAskSlot(host, it) {
     row.querySelector('[data-skip]').onclick = () => { row.remove(); resolve(null); };
   });
 }
-async function aiFindRef(ref) {
+async function aiFindRef(it) {
+  const ref = typeof it === 'string' ? it : it.ref;
+  const link = typeof it === 'string' ? null : it.link;
+  // lien idealo direct (tous TLD/chemins) : import sans recherche, repli nom sinon.
+  // Le lien est ignore si la page ne correspond pas a la ref (copier-coller melanges).
+  if (link && AiParse.isIdealoLink(link)) {
+    try {
+      const d = await Idealo.product(link);
+      if (d && !d.error && (d.datasheet || d.name) && AiParse.linkMatchesPage(ref, d.name || '')) {
+        return { item: { name: d.name || ref, img: d.image || '', url: link, price: d.price || 0, specs: d.specs || '', vendor: '', delivery: 0, src: 'ai-link' }, stripped: false, direct: true, link };
+      }
+    } catch { /* repli recherche */ }
+  }
   const tries = [ref];
   const stripped = AiParse.stripParens(ref);
   if (stripped && stripped !== ref) tries.push(stripped);
   for (const q of tries) {
     try {
       const r = await Idealo.list(idealoSearchUrl(q));
-      if (r && !r.error && r.items && r.items.length) return { item: r.items[0], stripped: q !== ref };
+      if (r && !r.error && r.items && r.items.length) return { item: r.items[0], stripped: q !== ref, direct: false, link };
     } catch { /* ignore */ }
   }
   return null;
 }
-async function importAiProduct(slotId, it) {
+async function importAiProduct(slotId, it, link) {
   const np = blankProduct();
   np.name = it.name; np.image = it.img || ''; np.idealo = it.url || '';
   np.price = it.price || 0; np.specs = it.specs || ''; np.vendor = it.vendor || '';
   np.delivery = it.delivery || 0; np.src = it.src || '';
+  if (link && !/idealo\.fr/i.test(link)) np.store = link; // lien marchand fourni par l'IA
   if (it.url) {
     try {
       const d = await Idealo.product(it.url);
@@ -2461,7 +2474,7 @@ function aiSetComp(comp, st) {
   else if (ic) ic.className = 'fa-solid fa-circle';
 }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
-function aiManualPick(slot, query) {
+function aiManualPick(slot, query, link) {
   return new Promise(async resolve => {
     const res = $('#wResults'), paste = $('#wPasteWrap'), brow = $('#wBuildRow');
     if (!res) { resolve(null); return; }
@@ -2483,7 +2496,7 @@ function aiManualPick(slot, query) {
     res.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
       const it = items[Number(b.dataset.pick)];
       b.disabled = true;
-      await importAiProduct(slot, it);
+      await importAiProduct(slot, it, link);
       aiRestoreRight(); resolve(it);
     });
     $('#wSkip').onclick = () => { aiRestoreRight(); resolve(null); };
@@ -2524,18 +2537,18 @@ async function aiBuild(items) {
       }
     }
     if (!slot) { aiSetComp(comps[i], 'warn'); skipped.push(it); continue; }
-    const found = await aiFindRef(it.ref);
+    const found = await aiFindRef(it);
     if (my !== aiRunId) { stopped = true; break; }
     if (!found) {
       aiSetComp(comps[i], 'warn');
-      const picked = await aiManualPick(slot, it.ref);
+      const picked = await aiManualPick(slot, it.ref, it.link);
       if (my !== aiRunId) { stopped = true; break; }
       if (!picked) { skipped.push(it); continue; }
       aiSetComp(comps[i], 'done'); ok++;
       continue;
     }
     aiSetComp(comps[i], 'import');
-    await importAiProduct(slot, found.item);
+    await importAiProduct(slot, found.item, found.link);
     if (my !== aiRunId) { stopped = true; break; }
     aiSetComp(comps[i], 'done'); ok++;
   }

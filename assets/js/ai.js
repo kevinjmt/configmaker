@@ -48,30 +48,59 @@ const AiParse = (() => {
     return uniq.length === 1 ? uniq[0] : null;
   }
 
-  /* lignes "- type : ref" (puces) OU "Type : ref" nues (format Perplexity) :
+  /* lignes "- type : ref [lien]" (puces) OU "Type : ref [lien]" nues :
      les lignes nues ne sont retenues que si le type evoque un composant
-     (connu ou ambigu -> on demandera), pour ignorer la prose ("Budget : ..."). */
+     (connu ou ambigu -> on demandera), pour ignorer la prose. */
   function parseResponse(text) {
     const out = [];
-    for (const ln of String(text || '').split('\n')) {
+    const src = joinBrokenLinks(text);
+    for (const ln of src.split('\n')) {
       const m = ln.match(/^\s*(?:[-*•]|\d+\s*[.)])\s*(.+?)\s*:\s*(.+?)\s*$/);
       if (m) {
-        const type = m[1].trim(), ref = m[2].trim();
-        if (type && ref && ref.length > 1) out.push({ type, ref });
+        const type = m[1].trim(), parts = splitLink(m[2]);
+        if (type && parts.ref && parts.ref.length > 1) out.push({ type, ref: parts.ref, link: parts.link });
         continue;
       }
-      const b = ln.match(/^\s*([^:\n]{1,40}?)\s*:\s*(.{2,120}?)\s*$/);
-      if (b && typeHits(b[1].trim()).length) out.push({ type: b[1].trim(), ref: b[2].trim() });
+      const b = ln.match(/^\s*([^:\n]{1,40}?)\s*:\s*(.{2,260}?)\s*$/);
+      if (b && typeHits(b[1].trim()).length) {
+        const parts = splitLink(b[2]);
+        if (parts.ref.length > 1) out.push({ type: b[1].trim(), ref: parts.ref, link: parts.link });
+      }
     }
     return out;
   }
 
   function stripParens(ref) { return String(ref || '').replace(/\s*\([^)]*\)/g, '').trim(); }
+  /* le lien colle souvent sur les lignes suivantes : " [\nURL\n]" -> "[URL]" */
+  function joinBrokenLinks(text) {
+    return String(text || '').replace(/\[\s*(https?:\/\/[^\]\s]+)\s*\]/g, '[$1]');
+  }
+  /* le lien pointe-t-il vraiment le produit demande ? (copier-coller melanges) */
+  const LINK_STOP = new Set(['go', 'gb', 'tb', 'pb', 'noir', 'black', 'blanc', 'white', 'kit', 'ddr', 'ddr4', 'ddr5', 'gddr', 'gddr6', 'gddr6x', 'ssd', 'hdd', 'usb', 'hdmi', 'sata', 'nvme', 'pcie', 'rgb', 'oem', 'box', 'boxed', 'version', 'edition']);
+  function linkTokens(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(w => w.length >= 3 && !LINK_STOP.has(w));
+  }
+  function linkMatchesPage(ref, page) {
+    const r = linkTokens(ref), p = new Set(linkTokens(page));
+    if (!r.length) return false;
+    const shared = r.filter(t => p.has(t));
+    return shared.length >= 2 || (r.length === 1 && shared.length === 1);
+  }
+  function isIdealoLink(link) { return /idealo\./i.test(String(link || '')); }
+  function isIdealoPrix(link) { return /idealo\.[a-z]+\/prix\//i.test(String(link || '')); }
+  /* lien nu [http...] ou (http...) en fin de reference (Perplexity varie) */
+  function splitLink(s) {
+    let m = String(s || '').match(/^(.*?)\s*\[(https?:\/\/[^\]\s]+)\]\s*[.,;]?\s*$/);
+    if (m) return { ref: m[1].trim(), link: m[2].trim() };
+    m = String(s || '').match(/^(.*?)\s*\((https?:\/\/[^)\s]+)\)\s*[.,;]?\s*$/);
+    if (m) return { ref: m[1].trim(), link: m[2].trim() };
+    return { ref: String(s || '').trim(), link: null };
+  }
   function budgetForPrompt(budget) { return Math.round((Number(budget) || 0) * MARGIN); }
   function buildPrompt(budget88, usage) {
-    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant>" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses). Pour le jeu vidéo, choisis un GPU AMD si son rapport prix/performance est meilleur. Si les prix sont trop élevés pour ce budget, mets 16 Go de RAM. Mets toujours au minimum un ventirad pour le CPU.`;
+    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant> [<lien>]" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses). Pour le jeu vidéo, choisis un GPU AMD si son rapport prix/performance est meilleur. Si l'utilisateur mentionne un usage professionnel ou étudiant en montage vidéo ou en IA locale, choisis un GPU NVIDIA, sinon un GPU AMD convient. Si les prix sont trop élevés pour ce budget, mets 16 Go de RAM. Mets toujours au minimum un ventirad pour le CPU.`;
   }
 
-  return { MARGIN, TYPEMAP, norm, typeHits, typeToSlot, parseResponse, stripParens, budgetForPrompt, buildPrompt };
+  return { MARGIN, TYPEMAP, norm, typeHits, typeToSlot, parseResponse, stripParens, splitLink, joinBrokenLinks, linkTokens, linkMatchesPage, isIdealoLink, isIdealoPrix, budgetForPrompt, buildPrompt };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = AiParse;
