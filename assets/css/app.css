@@ -382,6 +382,18 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .budget-line{cursor:help}
 .sum-totals .sum-line{border-bottom:2px dotted var(--line-strong);padding-bottom:8px;margin-bottom:8px}
 .sum-totals .sum-line:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+/* usage & tarification editor */
+.usage-edit-btn{margin-top:12px;width:100%;justify-content:center}
+.usage-tabs{display:flex;gap:6px;background:var(--bg-soft);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px;width:max-content;margin:0 auto 12px}
+.usage-tab{border:none;background:transparent;padding:8px 16px;border-radius:var(--radius-pill);font-weight:800;color:var(--muted);cursor:pointer;font-size:.85rem}
+.usage-tab.active{background:var(--ink);color:#fff}
+.hour-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:6px}
+.hour-sq{border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);border-radius:9px;padding:9px 0;font-size:.7rem;font-weight:800;cursor:pointer;line-height:1;transition:.15s}
+.hour-sq:hover{border-color:var(--brand)}
+.hour-sq.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.hour-sq.hp{background:#ffd9a3;border-color:#f0a94a;color:#7a4b00}
+.hour-sq.hc{background:var(--brand);border-color:var(--brand);color:#fff}
+[data-theme="dark"] .hour-sq.hp{background:#5a3f12;border-color:#b7791f;color:#ffd9a3}
 .charts-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
 .chart-card{flex:0 0 220px;border:none;border-radius:14px;padding:12px;background:var(--surface);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;position:sticky;top:8px;z-index:5}
 .chart-card h3{margin:0 0 6px 0;font-size:.85rem;flex:0 0 100%;text-align:center}

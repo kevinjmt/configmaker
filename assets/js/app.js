@@ -63,6 +63,7 @@ const SLOT_DEFS = [
   { id: 'headset', sec: 'setup', icon: 'lucide:headset', q: 'casque gaming', w: 3 },
   { id: 'gamepad', sec: 'setup', icon: 'lucide:gamepad-2', q: 'manette jeu', w: 3, extra: true },
   { id: 'ups', sec: 'setup', icon: 'lucide:battery-charging', q: 'onduleur', w: 0, extra: true },
+  { id: 'multiprise', sec: 'setup', icon: 'lucide:plug', q: 'multiprise parafoudre', w: 0, extra: true },
   { id: 'switch', sec: 'setup', icon: 'lucide:network', q: 'switch réseau', w: 10, extra: true },
   { id: 'router', sec: 'setup', icon: 'lucide:router', q: 'routeur wifi', w: 12, extra: true },
   { id: 'nas', sec: 'setup', icon: 'lucide:server', q: 'NAS stockage réseau', w: 30, extra: true },
@@ -189,8 +190,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -862,7 +863,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i></button>
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
       ${['mb', 'ssd1', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
-      ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (Raison Bassig DB)' : 'Qualité & fiabilité alim (base Raison Bassig)'}"><i class="fa-solid fa-ranking-star"></i></button>` : ''}
+      ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (tier list 2025)' : 'Qualité & fiabilité alim (tier list 2025)'}"><i class="fa-solid fa-ranking-star"></i></button>` : ''}
       ${p && p.manual ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
@@ -960,51 +961,57 @@ function slotAction(id, act) {
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
 }
 
-/* ---------- PSU quality & reliability (vendored Raison Bassig DB, updated 2019) ---------- */
+/* ---------- PSU quality & reliability (community PSU tier list, 2025) ---------- */
 function psuRow(label, status, value) {
   const st = status || 'na';
   const ic = st === 'ok' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus';
   return `<div class="list-row"><strong class="grow">${esc(label)}</strong><span class="compat-badge ${st}"><i class="fa-solid fa-${ic}"></i>${esc(value)}</span></div>`;
 }
+const PSU_EFF = { G: 'Gold', S: 'Silver', B: 'Bronze', W: 'White', T: 'Titanium', P: 'Platinum', N: 'None' };
 function psuVerdict(r) {
-  const score = Math.max(r.jg || 0, r.kg || 0, r.tpu || 0);
-  if (score >= 9) return { st: 'ok', txt: `${score} / 10` };
-  if (r.tier === 'I' || r.tier === 'II') return { st: 'ok', txt: `tier ${r.tier}` };
-  if (score >= 8) return { st: 'warn', txt: `${score} / 10` };
-  if (r.tier === 'III' || r.tier === 'IV') return { st: 'warn', txt: `tier ${r.tier}` };
-  return { st: 'na', txt: '—' };
+  const first = String((r && r.tier) || '').trim().toUpperCase()[0] || '';
+  const lc = r && r.lc ? '*' : '';
+  if (first === 'A') return { st: 'ok', txt: 'tier ' + r.tier + lc };
+  if (first === 'B') return { st: 'ok', txt: 'tier ' + r.tier + lc };
+  if (first === 'C') return { st: 'warn', txt: 'tier ' + r.tier + lc };
+  if (first === 'D') return { st: 'err', txt: 'tier ' + r.tier + lc };
+  if (first === 'E' || first === 'F') return { st: 'err', txt: 'tier ' + r.tier + lc };
+  return { st: 'na', txt: r && r.tier ? 'tier ' + r.tier + lc : '—' };
 }
 function openPsuCompare(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
-  let capW = (Number(p.capW) || 0) || ((Compat.parse('psu', p.name, p.specs || '') || {}).capW || 0);
+  const capW = (Number(p.capW) || 0) || ((Compat.parse('psu', p.name, p.specs || '') || {}).capW || 0);
   const r = (typeof PsuDb !== 'undefined') ? PsuDb.match(p.name, capW) : null;
   const rows = [];
   if (r) {
-    const score = Math.max(r.jg || 0, r.kg || 0, r.tpu || 0);
     const v = psuVerdict(r);
     const cert = r.cert ? r.cert.toUpperCase() : 'NOT CERT';
-    rows.push(psuRow(lang === 'en' ? 'Effective 80 Plus' : '80 Plus réel', cert === 'NOT CERT' ? 'warn' : 'ok', cert));
-    rows.push(psuRow(lang === 'en' ? 'Prior tests' : 'Tests presse', v.st, v.txt));
-    rows.push(psuRow(lang === 'en' ? 'PCB tier' : 'Tier plateforme', r.tier ? (r.tier === 'I' || r.tier === 'II' ? 'ok' : 'warn') : 'na', r.tier ? 'tier ' + r.tier : lang === 'en' ? 'none' : 'sans'));
-    rows.push(psuRow(lang === 'en' ? 'Warranty' : 'Garantie', (r.war || 0) >= 7 ? 'ok' : (r.war || 0) >= 3 ? 'warn' : 'na', (r.war || 0) >= 3 ? `${r.war} ${lang === 'en' ? 'yrs' : 'ans'}` : '?'));
+    rows.push(psuRow(lang === 'en' ? 'Tier (quality)' : 'Tier (qualité)', v.st, v.txt + (r.lc ? ' *' : '')));
+    rows.push(psuRow(lang === 'en' ? '80 Plus' : '80 Plus', cert === 'NOT CERT' ? 'warn' : 'ok', cert));
+    rows.push(psuRow(lang === 'en' ? 'Series' : 'Série', 'na', r.series || '?'));
+    rows.push(psuRow(lang === 'en' ? 'Wattages' : 'Puissances', 'na', (r.watts || []).join(' / ') + ' W'));
+    rows.push(psuRow(lang === 'en' ? 'Efficiency grade' : 'Grade rendement', r.eff ? 'ok' : 'na', r.eff ? (PSU_EFF[r.eff] || r.eff) : '?'));
     rows.push(psuRow(lang === 'en' ? 'Modularity' : 'Modularité', r.mod === 'Full' ? 'ok' : r.mod === 'Semi' ? 'warn' : 'na', r.mod === 'Full' ? (lang === 'en' ? 'Full' : 'Complète') : r.mod === 'Semi' ? (lang === 'en' ? 'Partial' : 'Partielle') : (lang === 'en' ? 'Fixed' : 'Fixe')));
-    rows.push(psuRow(lang === 'en' ? 'Made by' : 'Fabriqué par', r.oem ? 'ok' : 'na', r.oem || '?'));
-    rows.push(psuRow(lang === 'en' ? 'Size (L×W×H)' : 'Taille (L×P×H)', 'na', r.L && r.W && r.H ? `${r.L} × ${r.W} × ${r.H} mm${r.ff === 'SFX' || r.ff === 'SFX-L' || r.ff === 'TFX' ? ` (${r.ff})` : ''}` : '?'));
-    if (r.mtbf) rows.push(psuRow('MTBF', 'na', Math.round(r.mtbf / 1000) + 'K h'));
-    rows.push(psuRow(lang === 'en' ? 'Product status' : 'Statut produit', r.status === 'GA' ? 'ok' : 'warn', r.status === 'GA' ? (lang === 'en' ? 'Sold' : 'Commercialisée') + (r.yr ? ' · ' + r.yr : '') : (lang === 'en' ? 'Discontinued' : 'Fin de série') + (r.yr ? ' · ' + r.yr : '')));
+    rows.push(psuRow(lang === 'en' ? 'Made by (ODM)' : 'Fabriqué par (ODM)', r.odm ? 'ok' : 'na', r.odm || '?'));
+    rows.push(psuRow(lang === 'en' ? 'Platform / ATX' : 'Plateforme / ATX', /3\./.test(r.atx || '') ? 'ok' : 'na', `${r.plat || '?'} · ATX ${r.atx || '2.x'}`));
+    rows.push(psuRow(lang === 'en' ? 'Input range' : 'Plage d’entrée', /full/i.test(r.inp || '') ? 'ok' : 'na', r.inp ? (/full/i.test(r.inp) ? (lang === 'en' ? 'Full range 100-240V' : 'Pleine plage 100-240V') : r.inp) : '?'));
+    if (r.topoP || r.topoS || r.reg) rows.push(psuRow(lang === 'en' ? 'Topology' : 'Topologie', 'na', [r.topoP, r.topoS, r.reg].filter(Boolean).join(' / ')));
+    rows.push(psuRow(lang === 'en' ? 'Intro year' : 'Année d’intro', 'na', r.yr || '?'));
+    if (r.notes) rows.push(`<p class="hint" style="margin-top:8px"><i class="fa-solid fa-circle-info"></i> ${esc(r.notes)}</p>`);
   }
   const nearest = r ? [] : ((typeof PsuDb !== 'undefined') ? PsuDb.nearest(capW || (p.watts || 0), null) : []);
-  const pretty = rr => esc(rr.model.replace(/\s*\([^)]*\)/g, '').replace(rr.brand, '').trim() || rr.model);
+  const pretty = rr => esc(rr.series || '');
   const verdictNote = !r ? '' : psuVerdict(r).st === 'warn'
     ? `<p class="hint">${lang === 'en' ? 'Mid-range unit — budget/gaming OK, prefer better for heavy loads.' : 'Milieu de gamme — budget/jouer OK, viser mieux en forte charge.'}</p>`
-    : psuVerdict(r).st === 'ok' ? `<p class="hint">${lang === 'en' ? 'Reviewed as a solid unit.' : 'Testée comme une unité de confiance.'}</p>` : '';
+    : psuVerdict(r).st === 'err' ? `<p class="hint">${lang === 'en' ? 'Low tier — avoid for a serious build.' : 'Tier bas — à éviter pour une config sérieuse.'}</p>`
+      : psuVerdict(r).st === 'ok' ? `<p class="hint">${lang === 'en' ? 'Reviewed as a solid unit.' : 'Testée comme une unité de confiance.'}</p>` : '';
   const matchedHtml = r ? `
-      <p class="compat-badge ok"><i class="fa-solid fa-database"></i>${esc(r.brand)} — ${pretty(r)}</p>${verdictNote}${rows.join('')}
-      <p class="hint" style="margin-top:8px"><i class="fa-solid fa-database"></i> ${lang === 'en' ? 'Raison John Bassig PSU database (updated 05/2019, 873 units)' : 'Base PSU Raison John Bassig (maj 05/2019, 873 modèles)'}</p>`
+      <p class="compat-badge ok"><i class="fa-solid fa-database"></i>${esc(r.brand)} — ${pretty(r)}${r.lc ? ' (*)' : ''}</p>${verdictNote}${rows.join('')}
+      <p class="hint" style="margin-top:8px"><i class="fa-solid fa-database"></i> ${lang === 'en' ? 'Community PSU Tier List (2025 revision, 1258 units) · (*) = limited confidence' : 'Tier List PSU communautaire (rév. 2025, 1258 modèles) · (*) = confiance limitée'}</p>`
     : `
-      <p class="compat-badge warn"><i class="fa-solid fa-triangle-exclamation"></i>${lang === 'en' ? 'Not reviewed in the PSU database (2019) — modern unit? Quality unknown.' : 'Non testée dans la base PSU (2019) — modèle récent ? Qualité inconnue.'}</p>
+      <p class="compat-badge warn"><i class="fa-solid fa-triangle-exclamation"></i>${lang === 'en' ? 'Not listed in the PSU tier list (2025) — quality unknown.' : 'Non listée dans la tier list PSU (2025) — qualité inconnue.'}</p>
       ${capW ? psuRow(lang === 'en' ? 'Detected wattage' : 'Puissance détectée', 'na', capW + ' W') : ''}
-      ${nearest.length ? `<p class="hint" style="margin-top:10px">${lang === 'en' ? 'Nearest reviewed units:' : 'Modèles testés voisins :'}</p>${nearest.map(n => `<div class="list-row"><span class="grow">${esc(n.brand)} — ${pretty(n)}</span><span class="compat-badge na"><i class="fa-solid fa-plug"></i>${n.watt} W</span><span class="compat-badge na"><i class="fa-solid fa-certificate"></i>${esc(n.cert || '?')}</span></div>`).join('')}` : ''}`;
+      ${nearest.length ? `<p class="hint" style="margin-top:10px">${lang === 'en' ? 'Nearest listed units:' : 'Modèles voisins listés :'}</p>${nearest.map(n => `<div class="list-row"><span class="grow">${esc(n.brand)} — ${pretty(n)}</span><span class="compat-badge na"><i class="fa-solid fa-plug"></i>${(n.watts || []).join('/')} W</span><span class="compat-badge ${psuVerdict(n).st}"><i class="fa-solid fa-ranking-star"></i>${esc(psuVerdict(n).txt)}</span></div>`).join('')}` : ''}`;
   openModal(lang === 'en' ? 'PSU — quality & reliability' : 'Alim — qualité & fiabilité', `
     <p class="hint"><strong>${esc(p.name)}</strong> — ${capW ? capW + ' W' : lang === 'en' ? 'wattage unknown' : 'puissance inconnue'}</p>${matchedHtml}`);
 }
@@ -1035,7 +1042,7 @@ async function refreshOnePrice(slotId) {
   persist(); refresh(); hideProgress();
 }
 const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'netcard', 'os', 'soft'];
-const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
+const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
   const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
   const byId = Object.fromEntries(SLOT_DEFS.map(d => [d.id, d]));
@@ -1123,6 +1130,7 @@ const IDEALO_CATS = [
   { key: 'psucables', label: "Câbles d'alimentation", url: 'https://www.idealo.fr/cat/5694F3384068/cables-adaptateurs-pc.html' },
   { key: 'soft', label: 'Logiciels', url: 'https://www.idealo.fr/scat/3330/logiciels.html' },
   { key: 'ups', label: 'Onduleurs', url: 'https://www.idealo.fr/cat/3107/onduleurs.html' },
+  { key: 'multiprise', label: 'Multiprises', url: 'https://www.idealo.fr/cat/12892/multiprises.html' },
   { key: 'switch', label: 'Switches', url: 'https://www.idealo.fr/cat/3104/switches.html' },
   { key: 'router', label: 'Routeurs', url: 'https://www.idealo.fr/cat/3099/routeurs.html' },
   { key: 'gamepad', label: 'Manettes', url: 'https://www.idealo.fr/cat/3014/manettes-de-jeux.html' },
@@ -1140,7 +1148,7 @@ const IDEALO_CATS = [
   { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
   { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0, idealLoadingMore = false;
 function slotCatKey(slotId) {
@@ -1636,6 +1644,76 @@ function pieSVG(items, size = 150) {
   });
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img">${paths}<circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.22}" fill="var(--surface)"/></svg>`;
 }
+/* ---------- Usage & tarification (24h grids) ---------- */
+function usagePrefs() {
+  const p = load(LS.prefs, {});
+  const usage = Array.isArray(p.usage) && p.usage.length === 24 ? p.usage.map(x => (x ? 1 : 0)) : Array.from({ length: 24 }, (_, i) => (i >= 18 && i <= 21 ? 1 : 0));
+  const tarif = Array.isArray(p.tarif) && p.tarif.length === 24 ? p.tarif.map(x => (x ? 1 : 0)) : Array(24).fill(1);
+  const priceHP = Number(p.priceHP) > 0 ? Number(p.priceHP) : 0.2146;
+  const priceHC = Number(p.priceHC) > 0 ? Number(p.priceHC) : 0.1696;
+  return { usage, tarif, priceHP, priceHC };
+}
+function saveUsagePrefs(u) { save(LS.prefs, { ...load(LS.prefs, {}), usage: u.usage, tarif: u.tarif, priceHP: u.priceHP, priceHC: u.priceHC }); }
+function usageAnnualKwh(powerW, st) {
+  const hours = st.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
+  return { hours, kwh: powerW * hours * 365 / 1000 };
+}
+function usageAnnualCost(powerW, st) {
+  let cost = 0;
+  for (let h = 0; h < 24; h++) if (st.usage[h]) cost += powerW * 365 / 1000 * (st.tarif[h] ? st.priceHP : st.priceHC);
+  return cost;
+}
+function openUsageEditor() {
+  const st = usagePrefs();
+  let tab = 'usage';
+  const hh = i => String(i).padStart(2, '0');
+  const grid = (kind, arr) => `<div class="hour-grid" data-kind="${kind}">${arr.map((v, i) => `<button type="button" class="hour-sq ${kind === 'tarif' ? (v ? 'hp' : 'hc') : (v ? 'on' : '')}" data-i="${i}" title="${hh(i)}h">${hh(i)}</button>`).join('')}</div>`;
+  const paneUsage = () => `
+    <p class="hint">${lang === 'en' ? 'Click the hours the PC is used each day (on/off).' : 'Cliquez les heures d’utilisation du PC par jour (marche/arrêt).'}</p>
+    ${grid('usage', st.usage)}
+    <p class="hint" style="margin-top:8px"><span id="u_usageCount">${st.usage.filter(Boolean).length}</span> ${lang === 'en' ? 'h/day used' : 'h/jour utilisées'}</p>`;
+  const paneTarif = () => `
+    <p class="hint">${lang === 'en' ? 'Toggle each hour: light orange = peak (HP), green = off-peak (HC).' : 'Basculez chaque heure : orange clair = heures pleines (HP), vert = heures creuses (HC).'}</p>
+    ${grid('tarif', st.tarif)}
+    <div class="form-grid" style="margin-top:10px">
+      <div class="fld"><label>${lang === 'en' ? 'Peak price (€/kWh)' : 'Heures pleines (€/kWh)'}</label><input id="u_hp" type="number" min="0" step="0.0001" value="${st.priceHP}"></div>
+      <div class="fld"><label>${lang === 'en' ? 'Off-peak price (€/kWh)' : 'Heures creuses (€/kWh)'}</label><input id="u_hc" type="number" min="0" step="0.0001" value="${st.priceHC}"></div>
+    </div>
+    <p class="hint" style="margin-top:8px"><span id="u_tarifCount">${st.tarif.filter(Boolean).length} HP · ${24 - st.tarif.filter(Boolean).length} HC</span></p>`;
+  openModal(lang === 'en' ? 'PC usage & pricing' : 'Usage & tarification PC', `
+    <div class="usage-tabs">
+      <button type="button" class="usage-tab active" data-tab="usage">${lang === 'en' ? 'Usage' : 'Utilisation'}</button>
+      <button type="button" class="usage-tab" data-tab="tarif">${lang === 'en' ? 'Pricing' : 'Tarification'}</button>
+    </div>
+    <div class="usage-pane" data-pane="usage">${paneUsage()}</div>
+    <div class="usage-pane" data-pane="tarif" style="display:none">${paneTarif()}</div>
+    <div class="btn-row"><button class="btn btn-primary" id="u_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save' : 'Enregistrer'}</button></div>`);
+  const host = $('#modalBody');
+  const updCounts = () => {
+    const uc = $('#u_usageCount'); if (uc) uc.textContent = st.usage.filter(Boolean).length;
+    const tc = $('#u_tarifCount'); if (tc) tc.textContent = `${st.tarif.filter(Boolean).length} HP · ${24 - st.tarif.filter(Boolean).length} HC`;
+  };
+  host.querySelectorAll('.usage-tab').forEach(b => b.onclick = () => {
+    tab = b.dataset.tab;
+    host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
+    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
+  });
+  host.querySelectorAll('.hour-sq').forEach(b => b.onclick = () => {
+    const i = Number(b.dataset.i);
+    const kind = b.closest('.hour-grid').dataset.kind;
+    if (kind === 'usage') { st.usage[i] = st.usage[i] ? 0 : 1; b.classList.toggle('on', !!st.usage[i]); }
+    else { st.tarif[i] = st.tarif[i] ? 0 : 1; b.classList.toggle('hp', !!st.tarif[i]); b.classList.toggle('hc', !st.tarif[i]); }
+    updCounts();
+  });
+  $('#u_save').onclick = () => {
+    st.priceHP = parseFloat($('#u_hp').value) || st.priceHP;
+    st.priceHC = parseFloat($('#u_hc').value) || st.priceHC;
+    saveUsagePrefs(st);
+    closeModal();
+    renderSumExtra();
+    toast(lang === 'en' ? 'Usage & pricing saved' : 'Usage & tarification enregistrés');
+  };
+}
 function renderSumExtra() {
   const T = totals();
   const cols = ['#1a8744', '#2fa968', '#7ed491', '#0ca678', '#94d82d', '#1971c2', '#845ef7', '#e8890c', '#e03131', '#868e96'];
@@ -1707,8 +1785,10 @@ function renderSumExtra() {
       const pw = Compat.powerBreakdown({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
       const list = pw.items.filter(i => i.w > 0);
       const totP = pw.psuTotal, totU = pw.upsTotal;
-      const kwh = totU * pw.hoursDay * 365 / 1000;
-      const eurY = kwh * pw.kwhPrice, eurM = eurY / 12;
+      const UP = usagePrefs();
+      const usedHours = UP.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
+      const kwh = totU * usedHours * 365 / 1000;
+      const eurY = usageAnnualCost(totU, UP), eurM = eurY / 12;
       const secOf = id => { const s = state.slots[id]; return s ? defOf(s).sec : 'others'; };
       const pwSecs = ['pc', 'setup', 'others'].map(sec => {
         const items = list.filter(i => secOf(i.id) === sec);
@@ -1741,15 +1821,19 @@ function renderSumExtra() {
       <div class="sum-totals">
         <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${totP} W</span></span></div>
         <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens)' : 'Charge onduleur (PC+écrans)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${totU} W</strong></span></div>
-        <div class="sum-line"><span>kWh / ${pw.hoursDay}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span class="tot-right">${eur(eurY)}/an</span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (${pw.kwhPrice.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${eur(eurM)}/mois</span></span></div>
+        <div class="sum-line"><span>kWh / ${usedHours}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span class="tot-right">${eur(eurY)}/an</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${eur(eurM)}/mois</span></span></div>
       </div>
       <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
     }
   } catch { /* fall through to legacy display */ }
-  if (!powerHtml) powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
-    <div class="charts-row"><div class="chart-card"><h3>kWh / 4h jour ≈ ${((tot * 4 * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts)}
+  if (!powerHtml) {
+    const UPf = usagePrefs();
+    const uh = UPf.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
+    powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
+    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${((tot * uh * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts)}
     <div class="legend">${watts.map((x, i) => `<span><i class="dot" style="background:${cols[i % cols.length]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
+  }
   $('#sumPowerPane').innerHTML = powerHtml;
   $('#sumPowerPane').querySelectorAll('.chart-dsec').forEach(dsec => {
     const sec = dsec.dataset.sec;
@@ -1760,6 +1844,12 @@ function renderSumExtra() {
     };
     wireChartRows(dsec);
   });
+  const ub = document.createElement('button');
+  ub.className = 'btn btn-sm usage-edit-btn';
+  ub.id = 'openUsageBtn';
+  ub.innerHTML = `<i class="fa-solid fa-sliders"></i> ${lang === 'en' ? 'Edit PC usage & pricing' : 'Modifier usage & tarification'}`;
+  ub.onclick = openUsageEditor;
+  $('#sumPowerPane').appendChild(ub);
   refreshIcons();
 }
 
@@ -2833,7 +2923,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.50', `
+  openModal('Changelog — v2.51', `
+    <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
     <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et comparaisons de specs façon VS, bouton Vérifié (pastille vert clair,une seule coche), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110, connectique écrans/clavier/souris/casque/dock (HDMI/DP/USB-C/USB-A/Bluetooth/Jack).</p></div>
     <div class="chlog"><h3>v2.48 — Vérification de compatibilité</h3><p class="hint">Pastilles vertes/jaunes/rouges par composant (socket, chipset, format, RAM, PCIe…), boutons et résumé surlignés en cas de souci, onglet Compat avec problèmes et avertissements cliquables, champ puissance alim/onduleur.</p></div>

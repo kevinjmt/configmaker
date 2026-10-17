@@ -1003,62 +1003,112 @@ const Compat = (() => {
       else if (need > usable * 0.8) add(psuId, 'watt', L('Puissance', 'Wattage'), WARN, L(`~${need}W proches des ~${usable}W utiles (${cap}W${certTxt}) — marge faible`, `~${need}W close to ~${usable}W usable (${cap}W${certTxt}) — thin margin`), A('Alim utile', `~${usable} W`, psuId), A('Besoin', need + ' W'));
       else add(psuId, 'watt', L('Puissance', 'Wattage'), OK, L(`~${need}W ≤ ~${usable}W utiles (${cap}W${certTxt})`, `~${need}W ≤ ~${usable}W usable (${cap}W${certTxt})`), A('Alim utile', `~${usable} W`, psuId), A('Besoin', need + ' W'));
     }
-    /* ---- PSU quality / reliability / modularity / fit (vendored Raison Bassig DB, 2019) ---- */
+    /* ---- PSU quality / build / modularity / fit (community 2025 tier list) ---- */
     if (psuId) {
       const rp = P[psuId].p;
-      const dbrow = (typeof PsuDb !== 'undefined' || typeof globalThis.PsuDb !== 'undefined') ? (globalThis.PsuDb || PsuDb).match(rp.name || '', pwOf(psuId) ? pw.psu.capW : (Number(rp.capW) || 0)) : null;
+      const db = (typeof PsuDb !== 'undefined' || typeof globalThis.PsuDb !== 'undefined') ? (globalThis.PsuDb || PsuDb) : null;
+      const dbrow = db ? db.match(rp.name || '', pwOf(psuId) ? pw.psu.capW : (Number(rp.capW) || 0)) : null;
+      const psuDs = P[psuId].ds || {};
       if (dbrow) {
-        const score = Math.max(dbrow.jg || 0, dbrow.kg || 0, dbrow.tpu || 0);
-        let qs = 'na', qt = L('sans test connu', 'no known test');
-        if (score >= 9) { qs = 'ok'; qt = score + '/10 — ' + L('tests presse excellents', 'excellent press tests'); }
-        else if (dbrow.tier === 'I' || dbrow.tier === 'II') { qs = 'ok'; qt = 'tier ' + dbrow.tier + (score ? ' · ' + score + '/10' : ''); }
-        else if (score >= 8) { qs = 'warn'; qt = score + '/10 — ' + L('milieu de gamme', 'mid-range'); }
-        else if (dbrow.tier === 'III' || dbrow.tier === 'IV') { qs = 'warn'; qt = 'tier ' + dbrow.tier + ' — ' + L('médiocre', 'mediocre'); }
+        const letter = String(dbrow.tier || '').replace(/[^A-Za-z+\-]/g, '');
+        const first = (letter[0] || '').toUpperCase();
+        const lc = dbrow.lc ? L(' · confiance limitée (*)', ' · limited confidence (*)') : '';
+        let qs = 'warn', qv = L('non classée', 'untiered');
+        if (first === 'A') { qs = 'ok'; qv = L('excellente', 'excellent'); }
+        else if (first === 'B') { qs = 'ok'; qv = L('bonne', 'good'); }
+        else if (first === 'C') { qs = 'warn'; qv = L('correcte / bas de gamme', 'okay / budget'); }
+        else if (first === 'D') { qs = 'err'; qv = L('à éviter', 'avoid'); }
+        else if (first === 'E' || first === 'F') { qs = 'err'; qv = L('non recommandée', 'not recommended'); }
         add(psuId, 'psuq', L('Qualité alim', 'PSU quality'), qs,
-          L('Base Raison Bassig (maj 2019) : ', 'Raison Bassig DB (2019): ') + qt,
-          A('80 Plus', dbrow.cert || L('non certifiée', 'not certified')), A('Tier', dbrow.tier ? 'tier ' + dbrow.tier : L('—', '—')));
-        const wars = (dbrow.war || 0) >= 7 ? 'ok' : ((dbrow.war || 0) >= 3 ? 'warn' : 'na');
-        const wart = (dbrow.war || 0) >= 3
-          ? `${dbrow.war} ${L('ans', 'yrs')}${(dbrow.war || 0) >= 7 ? ' — ' + L('garantie longue, fabricant confiant', 'long warranty, confident vendor') : ' — ' + L('garantie courte', 'short warranty')}`
-          : L('garantie inconnue', 'unknown warranty');
-        add(psuId, 'psur', L('Fiabilité', 'Reliability'), wars, wart,
-          A('Garantie', (dbrow.war || 0) >= 3 ? dbrow.war + ' ans' : '?'), A('MTBF', dbrow.mtbf ? (dbrow.mtbf >= 1000 ? Math.round(dbrow.mtbf / 1000) + 'K h' : dbrow.mtbf + ' h') : '?'));
-        const mods = dbrow.mod === 'Full' ? 'ok' : (dbrow.mod === 'Semi' ? 'warn' : 'na');
-        const modt = dbrow.mod === 'Full' ? L('Câbles modulaires — câblage libre', 'Modular cables — free wiring')
-          : dbrow.mod === 'Semi' ? L('Modularité partielle — câbles principaux fixes', 'Partial modularity — main cables fixed')
+          L('Tier ', 'Tier ') + (letter || '?') + ' (' + qv + ')' + lc + (dbrow.series ? ' — ' + dbrow.series : ''),
+          A('Tier', letter || '?'), A('80 Plus', dbrow.cert || L('non certifiée', 'not certified')));
+        const effMap = { G: L('Or', 'Gold'), S: L('Argent', 'Silver'), B: L('Bronze', 'Bronze'), W: L('Blanc', 'White'), T: L('Titane', 'Titanium'), P: L('Platine', 'Platinum'), N: L('Aucune', 'None') };
+        const effTxt = dbrow.eff ? (effMap[dbrow.eff] || dbrow.eff) : '?';
+        const atxNew = /3\./.test(dbrow.atx || '');
+        add(psuId, 'psur', L('Fabrication', 'Build'), atxNew ? 'ok' : 'na',
+          atxNew ? L(`${dbrow.atx} — compatible 12V-2×6 / connecteurs récents`, `${dbrow.atx} — 12V-2×6 / modern connectors ready`)
+            : L(`${dbrow.atx || 'ATX 2.x'} — ancienne norme, adaptateur possible`, `${dbrow.atx || 'ATX 2.x'} — older standard, adapter may be needed`),
+          A('ODM', dbrow.odm || '?'), A(L('Efficacité', 'Efficiency'), effTxt));
+        const mod = dbrow.mod;
+        const mods = mod === 'Full' ? 'ok' : (mod === 'Semi' ? 'warn' : (mod === 'No' ? 'na' : 'warn'));
+        const modt = mod === 'Full' ? L('Câbles modulaires — câblage libre', 'Modular cables — free wiring')
+          : mod === 'Semi' ? L('Modularité partielle — câbles principaux fixes', 'Partial modularity — main cables fixed')
           : L('Câbles fixes — prévoir le passage', 'Fixed cables — plan the routing');
         add(psuId, 'psum', L('Modularité', 'Modularity'), mods, modt,
-          A('Câbles', dbrow.mod === 'Full' ? L('modulaires', 'modular') : dbrow.mod === 'Semi' ? L('partiels', 'partial') : L('fixes', 'fixed')), null);
+          A('Câbles', mod === 'Full' ? L('modulaires', 'modular') : mod === 'Semi' ? L('partiels', 'partial') : L('fixes', 'fixed')), null);
       } else {
         add(psuId, 'psuq', L('Qualité alim', 'PSU quality'), 'warn',
-          L('Non testée dans la base PSU (maj 2019) — modèle récent ? Qualité à évaluer', 'Not reviewed in the PSU DB (2019) — recent unit? Assess quality'),
-          A('80 Plus', P[psuId].ds && P[psuId].ds.cert80 ? String(P[psuId].ds.cert80).toUpperCase() : '?'), null);
+          L('Non listée dans la tier list PSU (2025) — qualité à évaluer', 'Not in the PSU tier list (2025) — assess quality'),
+          A('80 Plus', psuDs.cert80 ? String(psuDs.cert80).toUpperCase() : '?'), null);
+        const atxDs = psuDs.atx || '';
+        add(psuId, 'psur', L('Fabrication', 'Build'), /3\./.test(atxDs) ? 'ok' : 'warn',
+          /3\./.test(atxDs) ? L('ATX 3.x détectée dans la fiche', 'ATX 3.x found in datasheet') : L('Fabrication/ODM inconnus — vérifiez', 'Build/ODM unknown — verify'),
+          A('ATX', atxDs || '?'), A('ODM', '?'));
       }
-      /* dims / fit vs case */
-      const pL = dbrow ? (dbrow.L || 0) : ((P[psuId].ds && P[psuId].ds.length) || 0);
+      /* format / fit vs case (the tier list has no dims → datasheet length + format) */
+      const pL = (P[psuId].ds && P[psuId].ds.length) || 0;
+      const fmt = dbrow ? (dbrow.ff || '') : '';
+      const fmtNote = fmt ? ' · ' + fmt : '';
       const caseOk = caseId ? P[caseId].hasDs : false;
       const maxPsu = caseOk ? (P[caseId].ds.casePsuMax || 0) : 0;
-      const cDims = caseOk ? (P[caseId].ds.dims || null) : null;
-      const dimLbl = L('Taille alim', 'PSU size');
-      if (!caseId) add(psuId, 'psud', dimLbl, 'na', L('Boîtier absent — place à vérifier', 'No case — fit to verify'), A('Longueur', pL ? pL + ' mm' : '?'), null);
-      else if (!caseOk) add(psuId, 'psud', dimLbl, 'warn', L('Datasheet boîtier absente — place à vérifier', 'Missing case datasheet — fit to verify'), A('Longueur', pL ? pL + ' mm' : '?'), A('Boîtier', P[caseId].p.name || ''));
+      const dimLbl = L('Format alim', 'PSU format');
+      if (!caseId) add(psuId, 'psud', dimLbl, 'na', L('Boîtier absent — place à vérifier', 'No case — fit to verify') + fmtNote, A('Format', fmt || (pL ? pL + ' mm' : '?')), null);
+      else if (!caseOk) add(psuId, 'psud', dimLbl, 'warn', L('Datasheet boîtier absente — place à vérifier', 'Missing case datasheet — fit to verify') + fmtNote, A(L('Longueur', 'Length'), pL ? pL + ' mm' : '?'), A('Boîtier', P[caseId].p.name || ''));
       else if (maxPsu && pL) {
-        if (pL <= maxPsu) add(psuId, 'psud', dimLbl, 'ok', L(`${pL} ≤ ${maxPsu} mm (clearance boîtier)`, `${pL} ≤ ${maxPsu} mm (case clearance)`), A('Longueur', pL + ' mm'), A('Clearance', maxPsu + ' mm'));
-        else add(psuId, 'psud', dimLbl, 'err', L(`${pL} mm > clearance boîtier ${maxPsu} mm !`, `${pL} mm > case clearance ${maxPsu} mm!`), A('Longueur', pL + ' mm'), A('Clearance', maxPsu + ' mm'));
-      } else if (cDims && pL) {
-        const cs = [...cDims].sort((a, b) => a - b);
-        const ps = [dbrow.L, dbrow.W, dbrow.H].filter(n => n > 0).sort((a, b) => a - b);
-        const pc = (dbrow.ff === 'SFX' || dbrow.ff === 'SFX-L' || dbrow.ff === 'TFX' || dbrow.ff === 'FLEX') && !/sfx/i.test(P[caseId].ds.raw || '') ? ' SFX' : '';
-        const fits = ps.length === 3 && ps.every((v, i) => v <= cs[i]);
-        if (fits) add(psuId, 'psud', dimLbl, 'ok', L(`Encombrement ~OK dans le boîtier (${ps[0]}/${ps[1]}/${ps[2]} ≤ ${cs[0]}/${cs[1]}/${cs[2]})${pc ? ' — format ' + dbrow.ff : ''}`, `Size ~OK in case (${ps[0]}/${ps[1]}/${ps[2]} ≤ ${cs[0]}/${cs[1]}/${cs[2]})${pc ? ' — ' + dbrow.ff + ' form' : ''}`), A('Alim', `${dbrow.L}×${dbrow.W}×${dbrow.H}`), A('Boîtier', `${cDims[0]}×${cDims[1]}×${cDims[2]}`, caseId));
-        else add(psuId, 'psud', dimLbl, 'warn', L(`Encombrement limite — vérifiez la place (${ps[0]}/${ps[1]}/${ps[2]} vs ${cs[0]}/${cs[1]}/${cs[2]})${pc ? pc : ''}`, `Tight fit — verify (${ps[0]}/${ps[1]}/${ps[2]} vs ${cs[0]}/${cs[1]}/${cs[2]})${pc ? pc : ''}`), A('Alim', `${dbrow.L}×${dbrow.W}×${dbrow.H}`), A('Boîtier', `${cDims[0]}×${cDims[1]}×${cDims[2]}`, caseId));
+        if (pL <= maxPsu) add(psuId, 'psud', dimLbl, 'ok', L(`${pL} ≤ ${maxPsu} mm (clearance boîtier)`, `${pL} ≤ ${maxPsu} mm (case clearance)`) + fmtNote, A(L('Longueur', 'Length'), pL + ' mm'), A('Clearance', maxPsu + ' mm'));
+        else add(psuId, 'psud', dimLbl, 'err', L(`${pL} mm > clearance boîtier ${maxPsu} mm !`, `${pL} mm > case clearance ${maxPsu} mm!`) + fmtNote, A(L('Longueur', 'Length'), pL + ' mm'), A('Clearance', maxPsu + ' mm'));
+      } else if (fmt && !pL) {
+        const caseRaw = (P[caseId].ds && P[caseId].ds.raw) || '';
+        const caseSfxOnly = /sfx|mini[- ]?itx|flex|tfx/i.test(caseRaw) && !/atx/i.test(caseRaw);
+        const isSfxPsu = fmt === 'SFX' || fmt === 'SFX-L' || fmt === 'TFX' || fmt === 'FLEX';
+        if (isSfxPsu && caseSfxOnly) add(psuId, 'psud', dimLbl, 'ok', L(`Format ${fmt} adapté au boîtier compact`, `Format ${fmt} fits compact case`), A('Format', fmt), A('Boîtier', P[caseId].p.name || ''));
+        else if (fmt === 'ATX' && caseSfxOnly) add(psuId, 'psud', dimLbl, 'err', L('Format ATX incompatible avec un boîtier ITX/SFX uniquement', 'ATX format incompatible with an ITX/SFX-only case'), A('Format', 'ATX'), A('Boîtier', P[caseId].p.name || ''));
+        else add(psuId, 'psud', dimLbl, 'warn', L(`Datasheet alim absente — vérifiez la place (${fmt})`, `Missing PSU datasheet — verify fit (${fmt})`), A('Format', fmt), A('Boîtier', P[caseId].p.name || ''));
       } else {
-        add(psuId, 'psud', dimLbl, pL ? 'warn' : 'na',
-          L(pL ? `Longueur alim ${pL} mm — clearance boîtier à vérifier (non précisée)` : 'Longueur alim inconnue — vérifiez la place dans le boîtier',
-            pL ? `PSU length ${pL} mm — case clearance to verify (not listed)` : 'Unknown PSU length — verify fit'),
-          A('Longueur', pL ? pL + ' mm' : '?'), A('Clearance', maxPsu ? maxPsu + ' mm' : '?'));
+        add(psuId, 'psud', dimLbl, 'na', L('Dimensions alim non listées — vérifiez la place', 'PSU dimensions not listed — verify fit'), A('Format', fmt || '?'), A(L('Longueur', 'Length'), pL ? pL + ' mm' : '?'));
       }
     }
+    /* ---- Schuko outlet capacity: multiprises & UPS ---- */
+    const qtyOf = def => byDef(def).reduce((s, id) => s + (Number(P[id].qty) || 1), 0);
+    const mainsExtra = ['printer', 'speakers', 'dock', 'router', 'switch', 'nas', 'extstorage'];
+    const screenQty = qtyOf('screen1');
+    const pcQty = psuId ? 1 : 0;
+    const otherQty = mainsExtra.reduce((s, d) => s + qtyOf(d), 0);
+    const upsPresent = byDef('ups').length > 0;
+    const mpPresent = byDef('multiprise').length > 0;
+    const batteryQty = screenQty + pcQty; // PC + screens that should sit on the UPS
+    const outletsOf = id => {
+      const raw = (P[id].ds && P[id].ds.raw) || '';
+      let m = raw.match(/(\d+)\s*(?:prises?|sockets?|outlets?|sorties?|ports?)/i);
+      if (!m) m = raw.match(/(?:prises?|sockets?|outlets?|sorties?|ports?)[^\d]{0,8}(\d+)/i);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+    if (mpPresent) byDef('multiprise').forEach(id => {
+      const need = otherQty + (upsPresent ? 1 : 0);
+      const have = outletsOf(id);
+      const LBL = L('Prises Schuko', 'Schuko outlets');
+      const base = upsPresent
+        ? L(`Onduleur branché sur la multiprise : ${need} prise(s) utilisée(s)${have ? ' / ' + have : ''}${batteryQty ? ' — PC/écrans sur l’onduleur' : ''}`,
+            `UPS plugged into the strip: ${need} socket(s) used${have ? ' / ' + have : ''}${batteryQty ? ' — PC/screens on the UPS' : ''}`)
+        : L(`${need} appareil(s) sur secteur (PC, écrans, périphériques)${have ? ' / ' + have + ' prises' : ''}`,
+            `${need} mains device(s) (PC, screens, peripherals)${have ? ' / ' + have + ' sockets' : ''}`);
+      if (have && need > have) add(id, 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} disponibles — multiprise supplémentaire !`, `${need} sockets needed > ${have} available — extra strip needed!`), A('Appareils', need), A('Prises', have));
+      else if (have) add(id, 'schuko', LBL, OK, base, A('Appareils', need), A('Prises', have));
+      else add(id, 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — socket count to verify'), A('Appareils', need), A('Prises', '?'));
+    });
+    if (upsPresent) byDef('ups').forEach(id => {
+      const need = batteryQty;
+      const have = outletsOf(id);
+      const LBL = L('Prises onduleur', 'UPS outlets');
+      const base = mpPresent
+        ? L(`Onduleur sur multiprise — ${need} appareil(s) sur batterie (PC + écrans)${have ? ' / ' + have + ' prises' : ''}`,
+            `UPS on the strip — ${need} device(s) on battery (PC + screens)${have ? ' / ' + have + ' outlets' : ''}`)
+        : L(`${need} appareil(s) sur batterie (PC + écrans)${have ? ' / ' + have + ' prises' : ''}`,
+            `${need} device(s) on battery (PC + screens)${have ? ' / ' + have + ' outlets' : ''}`);
+      if (have && need > have) add(id, 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} — répartir PC/écrans`, `${need} outlets needed > ${have} — split PC/screens`), A('Batterie', need), A('Prises', have));
+      else if (have) add(id, 'schuko', LBL, OK, base, A('Batterie', need), A('Prises', have));
+      else add(id, 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — outlet count to verify'), A('Batterie', need), A('Prises', '?'));
+    });
     /* ---- Case fans ---- */
     const PC_PARTS = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
     const isFanSlot = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));
