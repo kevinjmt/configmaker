@@ -862,6 +862,8 @@ function slotCard(id) {
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i></button>
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i></button>
       ${['mb', 'ssd1', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i></button>` : ''}
+      ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (Raison Bassig DB)' : 'Qualité & fiabilité alim (base Raison Bassig)'}"><i class="fa-solid fa-ranking-star"></i></button>` : ''}
+      ${p && p.manual ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i></button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i></button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i></button>
     </div>
@@ -950,10 +952,61 @@ function slotAction(id, act) {
     toast('issue is known, i am trying to fix it :)');
   }
   else if (act === 'pcie') openPcieSim();
+  else if (act === 'psucompare') openPsuCompare(id);
+  else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); }
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'refetch') refreshOnePrice(id);
   else if (act === 'compat') openCompatDetail(id);
   else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
+}
+
+/* ---------- PSU quality & reliability (vendored Raison Bassig DB, updated 2019) ---------- */
+function psuRow(label, status, value) {
+  const st = status || 'na';
+  const ic = st === 'ok' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus';
+  return `<div class="list-row"><strong class="grow">${esc(label)}</strong><span class="compat-badge ${st}"><i class="fa-solid fa-${ic}"></i>${esc(value)}</span></div>`;
+}
+function psuVerdict(r) {
+  const score = Math.max(r.jg || 0, r.kg || 0, r.tpu || 0);
+  if (score >= 9) return { st: 'ok', txt: `${score} / 10` };
+  if (r.tier === 'I' || r.tier === 'II') return { st: 'ok', txt: `tier ${r.tier}` };
+  if (score >= 8) return { st: 'warn', txt: `${score} / 10` };
+  if (r.tier === 'III' || r.tier === 'IV') return { st: 'warn', txt: `tier ${r.tier}` };
+  return { st: 'na', txt: '—' };
+}
+function openPsuCompare(slotId) {
+  const s = state.slots[slotId], p = sel(s); if (!p) return;
+  let capW = (Number(p.capW) || 0) || ((Compat.parse('psu', p.name, p.specs || '') || {}).capW || 0);
+  const r = (typeof PsuDb !== 'undefined') ? PsuDb.match(p.name, capW) : null;
+  const rows = [];
+  if (r) {
+    const score = Math.max(r.jg || 0, r.kg || 0, r.tpu || 0);
+    const v = psuVerdict(r);
+    const cert = r.cert ? r.cert.toUpperCase() : 'NOT CERT';
+    rows.push(psuRow(lang === 'en' ? 'Effective 80 Plus' : '80 Plus réel', cert === 'NOT CERT' ? 'warn' : 'ok', cert));
+    rows.push(psuRow(lang === 'en' ? 'Prior tests' : 'Tests presse', v.st, v.txt));
+    rows.push(psuRow(lang === 'en' ? 'PCB tier' : 'Tier plateforme', r.tier ? (r.tier === 'I' || r.tier === 'II' ? 'ok' : 'warn') : 'na', r.tier ? 'tier ' + r.tier : lang === 'en' ? 'none' : 'sans'));
+    rows.push(psuRow(lang === 'en' ? 'Warranty' : 'Garantie', (r.war || 0) >= 7 ? 'ok' : (r.war || 0) >= 3 ? 'warn' : 'na', (r.war || 0) >= 3 ? `${r.war} ${lang === 'en' ? 'yrs' : 'ans'}` : '?'));
+    rows.push(psuRow(lang === 'en' ? 'Modularity' : 'Modularité', r.mod === 'Full' ? 'ok' : r.mod === 'Semi' ? 'warn' : 'na', r.mod === 'Full' ? (lang === 'en' ? 'Full' : 'Complète') : r.mod === 'Semi' ? (lang === 'en' ? 'Partial' : 'Partielle') : (lang === 'en' ? 'Fixed' : 'Fixe')));
+    rows.push(psuRow(lang === 'en' ? 'Made by' : 'Fabriqué par', r.oem ? 'ok' : 'na', r.oem || '?'));
+    rows.push(psuRow(lang === 'en' ? 'Size (L×W×H)' : 'Taille (L×P×H)', 'na', r.L && r.W && r.H ? `${r.L} × ${r.W} × ${r.H} mm${r.ff === 'SFX' || r.ff === 'SFX-L' || r.ff === 'TFX' ? ` (${r.ff})` : ''}` : '?'));
+    if (r.mtbf) rows.push(psuRow('MTBF', 'na', Math.round(r.mtbf / 1000) + 'K h'));
+    rows.push(psuRow(lang === 'en' ? 'Product status' : 'Statut produit', r.status === 'GA' ? 'ok' : 'warn', r.status === 'GA' ? (lang === 'en' ? 'Sold' : 'Commercialisée') + (r.yr ? ' · ' + r.yr : '') : (lang === 'en' ? 'Discontinued' : 'Fin de série') + (r.yr ? ' · ' + r.yr : '')));
+  }
+  const nearest = r ? [] : ((typeof PsuDb !== 'undefined') ? PsuDb.nearest(capW || (p.watts || 0), null) : []);
+  const pretty = rr => esc(rr.model.replace(/\s*\([^)]*\)/g, '').replace(rr.brand, '').trim() || rr.model);
+  const verdictNote = !r ? '' : psuVerdict(r).st === 'warn'
+    ? `<p class="hint">${lang === 'en' ? 'Mid-range unit — budget/gaming OK, prefer better for heavy loads.' : 'Milieu de gamme — budget/jouer OK, viser mieux en forte charge.'}</p>`
+    : psuVerdict(r).st === 'ok' ? `<p class="hint">${lang === 'en' ? 'Reviewed as a solid unit.' : 'Testée comme une unité de confiance.'}</p>` : '';
+  const matchedHtml = r ? `
+      <p class="compat-badge ok"><i class="fa-solid fa-database"></i>${esc(r.brand)} — ${pretty(r)}</p>${verdictNote}${rows.join('')}
+      <p class="hint" style="margin-top:8px"><i class="fa-solid fa-database"></i> ${lang === 'en' ? 'Raison John Bassig PSU database (updated 05/2019, 873 units)' : 'Base PSU Raison John Bassig (maj 05/2019, 873 modèles)'}</p>`
+    : `
+      <p class="compat-badge warn"><i class="fa-solid fa-triangle-exclamation"></i>${lang === 'en' ? 'Not reviewed in the PSU database (2019) — modern unit? Quality unknown.' : 'Non testée dans la base PSU (2019) — modèle récent ? Qualité inconnue.'}</p>
+      ${capW ? psuRow(lang === 'en' ? 'Detected wattage' : 'Puissance détectée', 'na', capW + ' W') : ''}
+      ${nearest.length ? `<p class="hint" style="margin-top:10px">${lang === 'en' ? 'Nearest reviewed units:' : 'Modèles testés voisins :'}</p>${nearest.map(n => `<div class="list-row"><span class="grow">${esc(n.brand)} — ${pretty(n)}</span><span class="compat-badge na"><i class="fa-solid fa-plug"></i>${n.watt} W</span><span class="compat-badge na"><i class="fa-solid fa-certificate"></i>${esc(n.cert || '?')}</span></div>`).join('')}` : ''}`;
+  openModal(lang === 'en' ? 'PSU — quality & reliability' : 'Alim — qualité & fiabilité', `
+    <p class="hint"><strong>${esc(p.name)}</strong> — ${capW ? capW + ' W' : lang === 'en' ? 'wattage unknown' : 'puissance inconnue'}</p>${matchedHtml}`);
 }
 async function refreshOnePrice(slotId) {
   const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
@@ -1308,6 +1361,7 @@ function openPicker(id, mode = 'replace') {
   const s = state.slots[id], cur = sel(s), d = defOf(s);
   const baseLabel = (SLOT_NAMES[lang] && SLOT_NAMES[lang][s.defId]) || SLOT_NAMES.fr[s.defId] || s.defId;
   $('#idealoQuery').value = (cur && cur.name) || `${baseLabel} ${d.q || ''}`.trim();
+  $('#idealoClear').classList.toggle('hidden', !$('#idealoQuery').value);
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const key = slotCatKey(id);
   const remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
@@ -1318,7 +1372,7 @@ function openPicker(id, mode = 'replace') {
     const a = $('#pickerIdealoSearch'); if (a) a.href = remembered;
     const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(remembered, '_blank', 'noopener');
     const mq = remembered.match(/prechcat\.html\?q=([^&]*)/);
-    if (mq) { try { $('#idealoQuery').value = decodeURIComponent(mq[1]); } catch { /* ignore */ } }
+    if (mq) { try { $('#idealoQuery').value = decodeURIComponent(mq[1]); } catch { /* ignore */ } $('#idealoClear').classList.toggle('hidden', !$('#idealoQuery').value); }
   }
   $('#pickerPanel').classList.remove('hidden');
   $('#summaryPanel').classList.add('hidden');
@@ -1359,12 +1413,13 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld"><label>${lang === 'en' ? 'PSU/UPS capacity (W, 0=auto)' : 'Puissance alim/onduleur (W, 0=auto)'}</label><input id="f_capW" type="number" min="0" step="1" value="${p.capW || ''}" placeholder="750"><div class="hint" id="f_capHint"></div></div>
       <div class="fld full"><label>${lang === 'en' ? 'Quick specs (one per line — paste from Idealo top)' : 'Specs rapides (une par ligne — copiées du haut de la fiche Idealo)'}</label><textarea id="f_specs" rows="3" placeholder="8 cœurs / 16 threads&#10;5,0 GHz boost, AM5">${esc(p.specs)}</textarea></div>
       <div class="fld full"><label>URL Idealo</label><input id="f_idealo" value="${esc(p.idealo)}" placeholder="https://www.idealo.fr/…"></div>
-      <div class="fld full"><label>${lang === 'en' ? 'Manual URL' : 'URL du manuel'}</label><input id="f_manual" value="${esc(p.manual)}" placeholder="https://…pdf"></div>
+      <div class="fld full"><label>${lang === 'en' ? 'Manual URL' : 'URL du manuel'} <button type="button" class="mini-btn" id="f_manualOpen" title="${lang === 'en' ? 'Open manual in new tab' : 'Ouvrir le manuel dans un nouvel onglet'}" ${p.manual ? '' : 'disabled'}><i class="fa-solid fa-arrow-up-right-from-square"></i></button></label><input id="f_manual" value="${esc(p.manual)}" placeholder="https://…pdf"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Store URL (offer link)' : 'URL boutique (lien de l’offre)'}</label><input id="f_store" value="${esc(p.store)}" placeholder="https://…"></div>
     </div>
     <div class="btn-row"><button class="btn btn-primary" id="f_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save fiche' : 'Enregistrer'}</button>
     ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
+  $('#f_manualOpen').onclick = () => { const u = $('#f_manual').value.trim(); if (u) window.open(u, '_blank', 'noopener'); };
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
   if (opts.focus === 'idealo') setTimeout(() => $('#f_idealo').focus(), 50);
   try {
@@ -2162,7 +2217,23 @@ function doSave() {
   }
   state.name = String(state.name || '').trim() || 'Ma Config';
   const nameInput = $('#configName'); if (nameInput) nameInput.value = state.name;
-  state.version = stampVersion();
+  const def = stampVersion();
+  openModal(lang === 'en' ? 'Save this config' : 'Enregistrer cette config', `
+    <p class="hint">${lang === 'en' ? 'Name this saved version (kept in history, default = date & time):' : 'Nom de cette version sauvegardée (gardée dans l’historique, par défaut date & heure) :'}</p>
+    <div class="fld"><input id="s_ver" value="${esc(def)}" autocomplete="off" spellcheck="false"></div>
+    <div class="btn-row"><button class="btn" id="s_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>
+    <button class="btn btn-primary" id="s_go"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save' : 'Enregistrer'}</button></div>`);
+  $('#s_cancel').onclick = closeModal;
+  $('#s_ver').focus(); $('#s_ver').select();
+  $('#s_ver').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#s_go').click(); } };
+  $('#s_go').onclick = () => {
+    const label = $('#s_ver').value.trim() || def;
+    closeModal();
+    saveSnapshot(label);
+  };
+}
+function saveSnapshot(label) {
+  state.version = label;
   $('#versionChip').textContent = 'v' + state.version;
   if (!persistRetry()) {
     toast(lang === 'en' ? 'Storage full — config NOT saved (export JSON as backup)' : 'Stockage plein — config NON sauvegardée (exportez en JSON)');
@@ -2173,7 +2244,7 @@ function doSave() {
   const cfgs = load(LS.configs, {});
   cfgs[state.name] = cfgs[state.name] || [];
   if (cfgs[state.name].length >= 100) cfgs[state.name] = cfgs[state.name].slice(-99); // bound per-config history
-  cfgs[state.name].push({ version: state.version, savedAt: Date.now(), name: state.name, budget: state.budget, total: totals().total, snapshot: JSON.parse(JSON.stringify(state)) });
+  cfgs[state.name].push({ version: state.version, label, savedAt: Date.now(), name: state.name, budget: state.budget, total: totals().total, snapshot: JSON.parse(JSON.stringify(state)) });
   if (save(LS.configs, cfgs) !== true) {
     toast(lang === 'en' ? 'Storage full — snapshot NOT saved (draft is safe)' : 'Stockage plein — instantané NON sauvegardé (brouillon à jour)');
     try { download(state.name + '.configmaker.json', JSON.stringify({ state, exportedAt: new Date().toISOString() }, null, 2), 'application/json'); } catch { /* ignore */ }
@@ -2253,14 +2324,50 @@ function openLoad() {
 }
 function openHistory() {
   const cfgs = load(LS.configs, {})[state.name] || [];
-  openModal((lang === 'en' ? 'History — ' : 'Historique — ') + state.name, cfgs.length ? [...cfgs].reverse().map((v, i) => `
-    <div class="list-row"><span class="grow"><strong>v${esc(v.version)}</strong><br><small style="color:var(--muted)">${new Date(v.savedAt).toLocaleString()} · ${eur(v.total)} · budget ${eur(v.budget)}</small></span>
-    <button class="mini-btn" data-r="${cfgs.length - 1 - i}"><i class="fa-solid fa-rotate-left"></i> ${lang === 'en' ? 'Restore' : 'Restaurer'}</button></div>`).join('')
-    : `<p class="hint">${lang === 'en' ? 'No saves yet for this config.' : 'Aucune sauvegarde pour cette config.'}</p>`);
+  const render = arr => {
+    return arr.length ? arr.map(([v, i]) => `
+    <div class="list-row"><span class="grow"><strong>v${esc(v.label || v.version)}</strong><br><small style="color:var(--muted)">${new Date(v.savedAt).toLocaleString()} · ${eur(v.total)} · budget ${eur(v.budget)}</small></span>
+    <button class="mini-btn" data-r="${i}"><i class="fa-solid fa-rotate-left"></i> ${lang === 'en' ? 'Restore' : 'Restaurer'}</button>
+    <button class="mini-btn danger" data-d="${i}" title="${lang === 'en' ? 'Remove this save' : 'Supprimer cette sauvegarde'}"><i class="fa-solid fa-trash"></i></button></div>`).join('')
+    : `<p class="hint">${lang === 'en' ? 'No saves yet for this config.' : 'Aucune sauvegarde pour cette config.'}</p>`;
+  };
+  const rev = [...cfgs].reverse().map((v, i) => [v, cfgs.length - 1 - i]);
+  openModal((lang === 'en' ? 'History — ' : 'Historique — ') + state.name, render(rev));
   $$('#modalBody [data-r]').forEach(b => b.onclick = () => {
     const v = cfgs[Number(b.dataset.r)];
     state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
   });
+  // remove one save from history: 2-step inline confirm (same pattern as welcome recents)
+  const armDel = b => {
+    if (b.dataset.arm !== '1') {
+      b.dataset.arm = '1';
+      b.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${lang === 'en' ? 'Confirm?' : 'Sûr ?'}`;
+      b.title = lang === 'en' ? 'Click again to confirm deletion' : 'Cliquez encore pour confirmer';
+      setTimeout(() => { if (b.isConnected && b.dataset.arm === '1') { b.dataset.arm = ''; b.innerHTML = '<i class="fa-solid fa-trash"></i>'; } }, 3500);
+      return;
+    }
+    const idx = Number(b.dataset.d);
+    const cfgsAll = load(LS.configs, {});
+    const arr = cfgsAll[state.name];
+    if (Array.isArray(arr) && arr[idx]) {
+      arr.splice(idx, 1);
+      const saveOk = save(LS.configs, cfgsAll) !== false;
+      const rev2 = [...arr].reverse().map((v, i) => [v, arr.length - 1 - i]);
+      $('#modalBody').innerHTML = render(rev2);
+      wire();
+      toast(saveOk ? (lang === 'en' ? 'Save removed from history' : 'Sauvegarde supprimée de l\u2019historique') : (lang === 'en' ? 'Deletion failed' : 'Suppression échouée'));
+    }
+  };
+  const wire = () => {
+    $$('#modalBody [data-r]').forEach(b => b.onclick = () => {
+      const arrNow = (load(LS.configs, {})[state.name]) || [];
+      const v = arrNow[Number(b.dataset.r)];
+      if (!v) return;
+      state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
+    });
+    $$('#modalBody [data-d]').forEach(b => { b.onclick = () => armDel(b); });
+  };
+  wire();
 }
 /* ---------- Welcome popup : creer / charger / construire avec IA ---------- */
 function aiSlotOptions() {
@@ -2470,9 +2577,8 @@ function aiSetComp(comp, st) {
   if (st === 'search') { comp.classList.add('st-search'); if (ic) ic.className = 'fa-solid fa-magnifying-glass'; }
   else if (st === 'import') { comp.classList.add('st-import'); if (ic) ic.className = 'fa-solid fa-download'; }
   else if (st === 'done') { comp.classList.add('st-done'); if (ic) ic.className = 'fa-solid fa-check'; }
-  else if (st === 'warn') { comp.classList.add('st-warn'); if (ic) ic.className = 'fa-solid fa-triangle-exclamation'; }
-  else if (ic) ic.className = 'fa-solid fa-circle';
 }
+function aiPhoto(comp, url) { const ic = comp && comp.querySelector('.wcomp-ic'); if (ic && url) ic.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy">`; }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
 function aiManualPick(slot, query, link) {
   return new Promise(async resolve => {
@@ -2491,7 +2597,7 @@ function aiManualPick(slot, query, link) {
       return;
     }
     res.innerHTML = `<p class="hint">${esc(query)} — ${items.length} ${esc(t('welcome.results'))}</p>` +
-      items.slice(0, 12).map((it, i) => `<div class="pick-card"><div class="pi"><div class="pn">${esc(it.name)}</div><div class="ps">${esc(it.specs || '')}</div></div><span class="pp">${it.price ? eur(it.price) : ''}</span><button class="mini-btn" data-pick="${i}">${esc(t('welcome.choose'))}</button></div>`).join('') +
+      items.slice(0, 12).map((it, i) => `<div class="pick-card">${it.img ? `<img class="pick-img" src="${esc(it.img)}" alt="" loading="lazy">` : ''}<div class="pi"><div class="pn">${esc(it.name)}</div><div class="ps">${esc(it.specs || '')}</div></div><span class="pp">${it.price ? eur(it.price) : ''}</span><button class="mini-btn" data-pick="${i}">${esc(t('welcome.choose'))}</button></div>`).join('') +
       `<div class="btn-row"><button class="mini-btn" id="wSkip">${esc(t('welcome.skip'))}</button></div>`;
     res.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
       const it = items[Number(b.dataset.pick)];
@@ -2544,13 +2650,13 @@ async function aiBuild(items) {
       const picked = await aiManualPick(slot, it.ref, it.link);
       if (my !== aiRunId) { stopped = true; break; }
       if (!picked) { skipped.push(it); continue; }
-      aiSetComp(comps[i], 'done'); ok++;
+      aiSetComp(comps[i], 'done'); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
       continue;
     }
     aiSetComp(comps[i], 'import');
     await importAiProduct(slot, found.item, found.link);
     if (my !== aiRunId) { stopped = true; break; }
-    aiSetComp(comps[i], 'done'); ok++;
+    aiSetComp(comps[i], 'done'); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
   }
   aiBuilding = false;
   persist(); refresh();
@@ -2872,6 +2978,13 @@ function bind() {
     loadIdealoList(url);
   };
   $('#idealoGo').onclick = goIdealo;
+  $('#idealoClear').onclick = () => {
+    $('#idealoQuery').value = '';
+    $('#idealoClear').classList.add('hidden');
+    $('#idealoQuery').focus();
+    goIdealo();
+  };
+  $('#idealoQuery').addEventListener('input', e => $('#idealoClear').classList.toggle('hidden', !e.target.value));
   $('#idealoQuery').addEventListener('keydown', e => { if (e.key === 'Enter') goIdealo(); });
   $('#idealoFilter').addEventListener('input', e => { idealQ = e.target.value; idealShown = IDEAL_PAGE; renderIdealo(); });
   $('#idealoSort').addEventListener('change', e => {
