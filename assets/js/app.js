@@ -2718,6 +2718,49 @@ function hasUnsavedWork() {
   try { if (JSON.stringify(state) === JSON.stringify(defaultState())) return false; } catch { /* ignore */ }
   return true;
 }
+/* Human-readable list of what differs between the current draft and the last save. */
+function describeChanges() {
+  const out = [];
+  let prev = null;
+  try { prev = lastSavedJson ? JSON.parse(lastSavedJson) : null; } catch { prev = null; }
+  const order = st => (st && st.order) ? st.order : Object.keys((st && st.slots) || {});
+  const labelOf = (id, st) => {
+    const s = st && st.slots && st.slots[id];
+    return (s && s.customLabel) || (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
+  };
+  const chosen = (id, st) => {
+    const s = st && st.slots && st.slots[id];
+    if (!s) return null;
+    return (s.products || []).find(x => x.id === s.selectedId) || null;
+  };
+  const title = p => {
+    if (!p) return null;
+    return String(p.name || p.manual || p.idealo || '…').trim() || '…';
+  };
+  if (!prev) {
+    // Never saved: everything currently chosen is unsaved.
+    order(state).forEach(id => { const p = chosen(id, state); if (p) out.push({ k: 'add', txt: `${labelOf(id, state)} : ${title(p)}` }); });
+    return out;
+  }
+  if ((prev.name || '') !== (state.name || '')) out.push({ k: 'meta', txt: `${lang === 'en' ? 'Name' : 'Nom'} : ${prev.name || '—'} → ${state.name || '—'}` });
+  if ((Number(prev.budget) || 0) !== (Number(state.budget) || 0)) out.push({ k: 'meta', txt: `${lang === 'en' ? 'Budget' : 'Budget'} : ${eur(prev.budget)} → ${eur(state.budget)}` });
+  const ids = new Set([...order(prev), ...order(state)]);
+  ids.forEach(id => {
+    const before = chosen(id, prev), after = chosen(id, state);
+    const bl = labelOf(id, prev), al = labelOf(id, state);
+    if (bl !== al && before && after) out.push({ k: 'meta', txt: `${lang === 'en' ? 'Label' : 'Libellé'} : ${bl} → ${al}` });
+    if (!before && !after) return;
+    if (!before && after) { out.push({ k: 'add', txt: `${al} : ${title(after)}` }); return; }
+    if (before && !after) { out.push({ k: 'del', txt: `${bl} : ${title(before)}` }); return; }
+    const bt = title(before), at = title(after);
+    if (bt !== at) { out.push({ k: 'chg', txt: `${al} : ${bt} → ${at}` }); return; }
+    const bq = Number(before.qty) || 1, aq = Number(after.qty) || 1;
+    if (bq !== aq) { out.push({ k: 'chg', txt: `${al} : ${lang === 'en' ? 'qty' : 'qté'} ${bq} → ${aq}` }); return; }
+    const bu = unitTotal(before), au = unitTotal(after);
+    if (Math.abs(bu - au) > 0.005) out.push({ k: 'chg', txt: `${al} : ${eur(bu)} → ${eur(au)}` });
+  });
+  return out;
+}
 /* Save gate: before any action that replaces/wipes the draft, offer to save it first.
    run() executes after Save or Discard; onCancel (default: close) restores the current UI. */
 function guardUnsaved(run, onCancel) {
@@ -2727,9 +2770,16 @@ function guardUnsaved(run, onCancel) {
   const total = totals().total;
   const nParts = state.order.filter(id => { const s = state.slots[id]; return s && sel(s); }).length;
   const def = stampVersion();
+  const CHG_ICON = { add: 'fa-solid fa-circle-plus', del: 'fa-solid fa-circle-minus', chg: 'fa-solid fa-pen-to-square', meta: 'fa-solid fa-sliders' };
+  let changes = [];
+  try { changes = describeChanges(); } catch { changes = []; }
+  const changeHtml = changes.length
+    ? `<ul class="chglist">${changes.map(c => `<li class="c-${c.k}"><i class="${CHG_ICON[c.k] || 'fa-solid fa-circle'}"></i><span>${esc(c.txt)}</span></li>`).join('')}</ul>`
+    : `<p class="hint">${lang === 'en' ? 'No detailed diff (prices or metadata were updated in the background).' : 'Pas de détail (prix ou métadonnées actualisés en arrière-plan).'}</p>`;
   openModal(lang === 'en' ? 'Unsaved changes' : 'Modifications non sauvegardées', `
     <p>${lang === 'en' ? 'Your current config is not saved — these changes will be lost:' : 'Votre config actuelle n’est pas sauvegardée — ces modifications seront perdues :'}</p>
     <div class="list-row"><span class="grow"><strong>${esc(state.name)}</strong><br><small style="color:var(--muted)">${state.version ? 'v' + esc(state.version) : (lang === 'en' ? 'unsaved' : 'non sauvée')} · ${eur(total)} · ${nParts} ${lang === 'en' ? 'part(s)' : 'composant(s)'}</small></span></div>
+    ${changeHtml}
     <p class="hint">${lang === 'en' ? 'Save it (kept in history) or discard it to continue.' : 'Sauvegardez-la (gardée dans l’historique) ou abandonnez pour continuer.'}</p>
     <div class="fld"><label>${lang === 'en' ? 'Save as' : 'Enregistrer sous'}</label><input id="g_ver" value="${esc(def)}" autocomplete="off" spellcheck="false"></div>
     <div class="btn-row"><button class="btn" id="g_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>

@@ -357,6 +357,15 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .wcomp-ic img{width:100%;height:100%;object-fit:contain;border-radius:8px}
 .picker-links{display:flex;gap:8px;flex-wrap:wrap}
 .hint{font-size:.8rem;color:var(--muted);margin:6px 0}
+/* Save-gate: what changed since the last save */
+.chglist{list-style:none;margin:10px 0;padding:8px 10px;display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--bg-soft)}
+.chglist li{display:flex;gap:9px;align-items:baseline;font-size:.86rem;font-weight:700;color:var(--ink-2)}
+.chglist li i{flex:0 0 auto;width:15px;text-align:center;font-size:.82rem;transform:translateY(1px)}
+.chglist li.c-add{color:var(--success)}.chglist li.c-add i{color:var(--success)}
+.chglist li.c-del{color:var(--danger)}.chglist li.c-del i{color:var(--danger)}
+.chglist li.c-chg{color:var(--warning)}.chglist li.c-chg i{color:var(--warning)}
+.chglist li.c-meta{color:var(--muted)}.chglist li.c-meta i{color:var(--muted)}
+.chglist li span{min-width:0}
 .picker-list{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow:auto}
 .pick-card{display:flex;gap:12px;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--surface);align-items:center}
 .pick-card.current{border-color:var(--brand)}
