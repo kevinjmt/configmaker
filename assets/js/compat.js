@@ -643,7 +643,8 @@ const Compat = (() => {
     });
     const psuTotal = Math.round(items.filter(i => i.psu).reduce((s, i) => s + i.w, 0) * 10) / 10;
     const upsTotal = Math.round(items.filter(i => i.ups).reduce((s, i) => s + i.w, 0) * 10) / 10;
-    const plugs = screenIds.length + byDef('printer').length + (psuTotal > 0 ? 1 : 0);
+    const consoleCount = order.filter(id => P[id] && /console|playstation|\bps[345]\b|xbox|nintendo/i.test(P[id].p.name || '')).reduce((s, id) => s + (Number(P[id].qty) || 1), 0);
+    const plugs = screenIds.length + consoleCount + byDef('printer').length + (psuTotal > 0 ? 1 : 0);
     let psu = { capW: 0, cert: 'none', certLabel: '—', factor: EFF80.none, usableW: 0 };
     if (psuId) {
       const cap = psuCapW(P[psuId].p, P[psuId].ds || {});
@@ -1068,47 +1069,71 @@ const Compat = (() => {
         add(psuId, 'psud', dimLbl, 'na', L('Dimensions alim non listées — vérifiez la place', 'PSU dimensions not listed — verify fit'), A('Format', fmt || '?'), A(L('Longueur', 'Length'), pL ? pL + ' mm' : '?'));
       }
     }
-    /* ---- Schuko outlet capacity: multiprises & UPS ---- */
+    /* ---- Schuko outlet capacity: multiprises & UPS ----
+       UPS-worthy devices (PC, screens, consoles) go on the UPS when present,
+       otherwise everything mains goes on the strip. Other mains peripherals
+       (printer, speakers, dock, network, NAS, external storage) stay on the strip. */
     const qtyOf = def => byDef(def).reduce((s, id) => s + (Number(P[id].qty) || 1), 0);
     const mainsExtra = ['printer', 'speakers', 'dock', 'router', 'switch', 'nas', 'extstorage'];
+    const isConsole = id => P[id] && /console|playstation|\bps[345]\b|xbox|nintendo/i.test(P[id].p.name || '');
     const screenQty = qtyOf('screen1');
     const pcQty = psuId ? 1 : 0;
+    const consoleQty = order.filter(id => isConsole(id)).reduce((s, id) => s + (Number(P[id].qty) || 1), 0);
     const otherQty = mainsExtra.reduce((s, d) => s + qtyOf(d), 0);
-    const upsPresent = byDef('ups').length > 0;
-    const mpPresent = byDef('multiprise').length > 0;
-    const batteryQty = screenQty + pcQty; // PC + screens that should sit on the UPS
+    const batteryQty = pcQty + screenQty + consoleQty; // UPS-worthy: PC + screens + consoles
+    const allMainsQty = batteryQty + otherQty;
+    const upsIds = byDef('ups');
+    const mpIds = byDef('multiprise');
+    const upsPresent = upsIds.length > 0;
+    const mpPresent = mpIds.length > 0;
     const outletsOf = id => {
       const raw = (P[id].ds && P[id].ds.raw) || '';
       let m = raw.match(/(\d+)\s*(?:prises?|sockets?|outlets?|sorties?|ports?)/i);
       if (!m) m = raw.match(/(?:prises?|sockets?|outlets?|sorties?|ports?)[^\d]{0,8}(\d+)/i);
       return m ? parseInt(m[1], 10) : 0;
     };
-    if (mpPresent) byDef('multiprise').forEach(id => {
-      const need = otherQty + (upsPresent ? 1 : 0);
-      const have = outletsOf(id);
+    const outletsTotal = ids => ids.reduce((s, id) => s + outletsOf(id), 0);
+    const outletsUnknown = ids => ids.some(id => !outletsOf(id));
+    /* Multiprises: outlet capacity is pooled across every strip in the build. */
+    if (mpPresent) {
+      const need = upsPresent ? otherQty + upsIds.length : allMainsQty; // each UPS occupies a strip socket
+      const have = outletsTotal(mpIds);
+      const unknown = outletsUnknown(mpIds);
       const LBL = L('Prises Schuko', 'Schuko outlets');
-      const base = upsPresent
-        ? L(`Onduleur branché sur la multiprise : ${need} prise(s) utilisée(s)${have ? ' / ' + have : ''}${batteryQty ? ' — PC/écrans sur l’onduleur' : ''}`,
-            `UPS plugged into the strip: ${need} socket(s) used${have ? ' / ' + have : ''}${batteryQty ? ' — PC/screens on the UPS' : ''}`)
-        : L(`${need} appareil(s) sur secteur (PC, écrans, périphériques)${have ? ' / ' + have + ' prises' : ''}`,
-            `${need} mains device(s) (PC, screens, peripherals)${have ? ' / ' + have + ' sockets' : ''}`);
-      if (have && need > have) add(id, 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} disponibles — multiprise supplémentaire !`, `${need} sockets needed > ${have} available — extra strip needed!`), A('Appareils', need), A('Prises', have));
-      else if (have) add(id, 'schuko', LBL, OK, base, A('Appareils', need), A('Prises', have));
-      else add(id, 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — socket count to verify'), A('Appareils', need), A('Prises', '?'));
-    });
-    if (upsPresent) byDef('ups').forEach(id => {
+      const mpTxt = mpIds.length > 1 ? L(` — ${mpIds.length} multiprises (prises cumulées)`, ` — ${mpIds.length} strips (outlets pooled)`) : '';
+      const base = (upsPresent
+        ? L(`Onduleur branché sur la multiprise : ${need} prise(s)${have ? ' / ' + have : ''} — PC/écrans/consoles sur l’onduleur`,
+            `UPS plugged into the strip: ${need} socket(s)${have ? ' / ' + have : ''} — PC/screens/consoles on the UPS`)
+        : L(`${need} appareil(s) sur secteur (PC, écrans, consoles, périphériques)${have ? ' / ' + have + ' prises' : ''}`,
+            `${need} mains device(s) (PC, screens, consoles, peripherals)${have ? ' / ' + have + ' sockets' : ''}`)) + mpTxt;
+      if (unknown) add(mpIds[0], 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — socket count to verify'), A('Appareils', need), A('Prises', have || '?'));
+      else if (need > have) add(mpIds[0], 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} disponibles — multiprise supplémentaire !`, `${need} sockets needed > ${have} available — extra strip needed!`) + mpTxt, A('Appareils', need), A('Prises', have));
+      else add(mpIds[0], 'schuko', LBL, OK, base, A('Appareils', need), A('Prises', have));
+      mpIds.slice(1).forEach(id => add(id, 'schuko', LBL, OK,
+        L(`Multiprise mutualisée — ${outletsOf(id) || '?'} prise(s) ajoutée(s) au pool (${have || '?'} au total)`,
+          `Pooled strip — ${outletsOf(id) || '?'} socket(s) added to the pool (${have || '?'} total)`),
+        A('Pool', have || '?'), A('Prises', outletsOf(id) || '?')));
+    }
+    /* UPS: battery outlets are pooled across every UPS unit. */
+    if (upsPresent) {
       const need = batteryQty;
-      const have = outletsOf(id);
+      const have = outletsTotal(upsIds);
+      const unknown = outletsUnknown(upsIds);
       const LBL = L('Prises onduleur', 'UPS outlets');
-      const base = mpPresent
-        ? L(`Onduleur sur multiprise — ${need} appareil(s) sur batterie (PC + écrans)${have ? ' / ' + have + ' prises' : ''}`,
-            `UPS on the strip — ${need} device(s) on battery (PC + screens)${have ? ' / ' + have + ' outlets' : ''}`)
-        : L(`${need} appareil(s) sur batterie (PC + écrans)${have ? ' / ' + have + ' prises' : ''}`,
-            `${need} device(s) on battery (PC + screens)${have ? ' / ' + have + ' outlets' : ''}`);
-      if (have && need > have) add(id, 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} — répartir PC/écrans`, `${need} outlets needed > ${have} — split PC/screens`), A('Batterie', need), A('Prises', have));
-      else if (have) add(id, 'schuko', LBL, OK, base, A('Batterie', need), A('Prises', have));
-      else add(id, 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — outlet count to verify'), A('Batterie', need), A('Prises', '?'));
-    });
+      const upsTxt = upsIds.length > 1 ? L(` — ${upsIds.length} onduleurs (prises cumulées)`, ` — ${upsIds.length} UPS (outlets pooled)`) : '';
+      const base = (mpPresent
+        ? L(`Onduleur sur multiprise — ${need} appareil(s) sur batterie (PC + écrans + consoles)${have ? ' / ' + have + ' prises' : ''}`,
+            `UPS on the strip — ${need} device(s) on battery (PC + screens + consoles)${have ? ' / ' + have + ' outlets' : ''}`)
+        : L(`${need} appareil(s) sur batterie (PC + écrans + consoles)${have ? ' / ' + have + ' prises' : ''}`,
+            `${need} device(s) on battery (PC + screens + consoles)${have ? ' / ' + have + ' outlets' : ''}`)) + upsTxt;
+      if (unknown) add(upsIds[0], 'schuko', LBL, WARN, base + L(' — nombre de prises à confirmer', ' — outlet count to verify'), A('Batterie', need), A('Prises', have || '?'));
+      else if (need > have) add(upsIds[0], 'schuko', LBL, ERR, L(`${need} prises nécessaires > ${have} — répartir PC/écrans/consoles`, `${need} outlets needed > ${have} — split PC/screens/consoles`) + upsTxt, A('Batterie', need), A('Prises', have));
+      else add(upsIds[0], 'schuko', LBL, OK, base, A('Batterie', need), A('Prises', have));
+      upsIds.slice(1).forEach(id => add(id, 'schuko', LBL, OK,
+        L(`Onduleur mutualisé — ${outletsOf(id) || '?'} prise(s) ajoutée(s) au pool (${have || '?'} au total)`,
+          `Pooled UPS — ${outletsOf(id) || '?'} outlet(s) added to the pool (${have || '?'} total)`),
+        A('Pool', have || '?'), A('Prises', outletsOf(id) || '?')));
+    }
     /* ---- Case fans ---- */
     const PC_PARTS = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
     const isFanSlot = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));

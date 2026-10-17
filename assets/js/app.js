@@ -1644,42 +1644,56 @@ function pieSVG(items, size = 150) {
   });
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img">${paths}<circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.22}" fill="var(--surface)"/></svg>`;
 }
-/* ---------- Usage & tarification (24h grids) ---------- */
+/* ---------- Usage & tarification (weekly 7×24 grids, index = day*24 + hour) ---------- */
+const WEEK_DAYS = { fr: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'], en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] };
 function usagePrefs() {
   const p = load(LS.prefs, {});
-  const usage = Array.isArray(p.usage) && p.usage.length === 24 ? p.usage.map(x => (x ? 1 : 0)) : Array.from({ length: 24 }, (_, i) => (i >= 18 && i <= 21 ? 1 : 0));
-  const tarif = Array.isArray(p.tarif) && p.tarif.length === 24 ? p.tarif.map(x => (x ? 1 : 0)) : Array(24).fill(1);
+  const norm = (arr, fillFn) => {
+    if (Array.isArray(arr) && arr.length === 168) return arr.map(x => (x ? 1 : 0));
+    if (Array.isArray(arr) && arr.length === 24) { const o = []; for (let d = 0; d < 7; d++) o.push(...arr.map(x => (x ? 1 : 0))); return o; }
+    return fillFn();
+  };
+  const usage = norm(p.usage, () => { const a = Array(168).fill(0); for (let d = 0; d < 7; d++) for (let h = 18; h <= 21; h++) a[d * 24 + h] = 1; return a; });
+  const tarif = norm(p.tarif, () => Array(168).fill(1));
   const priceHP = Number(p.priceHP) > 0 ? Number(p.priceHP) : 0.2146;
   const priceHC = Number(p.priceHC) > 0 ? Number(p.priceHC) : 0.1696;
   return { usage, tarif, priceHP, priceHC };
 }
 function saveUsagePrefs(u) { save(LS.prefs, { ...load(LS.prefs, {}), usage: u.usage, tarif: u.tarif, priceHP: u.priceHP, priceHC: u.priceHC }); }
-function usageAnnualKwh(powerW, st) {
-  const hours = st.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
-  return { hours, kwh: powerW * hours * 365 / 1000 };
-}
+function usageWeeklyHours(st) { return st.usage.reduce((a, b) => a + (b ? 1 : 0), 0); }
+function usageDailyHours(st) { return usageWeeklyHours(st) / 7; }
+function usageAnnualKwh(powerW, st) { return powerW * usageDailyHours(st) * 365 / 1000; }
 function usageAnnualCost(powerW, st) {
   let cost = 0;
-  for (let h = 0; h < 24; h++) if (st.usage[h]) cost += powerW * 365 / 1000 * (st.tarif[h] ? st.priceHP : st.priceHC);
+  const occ = 365 / 7; // each weekday recurs ~52.14 times per year
+  for (let i = 0; i < 168; i++) if (st.usage[i]) cost += powerW * occ / 1000 * (st.tarif[i] ? st.priceHP : st.priceHC);
   return cost;
 }
 function openUsageEditor() {
   const st = usagePrefs();
   let tab = 'usage';
+  const days = WEEK_DAYS[lang] || WEEK_DAYS.fr;
   const hh = i => String(i).padStart(2, '0');
-  const grid = (kind, arr) => `<div class="hour-grid" data-kind="${kind}">${arr.map((v, i) => `<button type="button" class="hour-sq ${kind === 'tarif' ? (v ? 'hp' : 'hc') : (v ? 'on' : '')}" data-i="${i}" title="${hh(i)}h">${hh(i)}</button>`).join('')}</div>`;
+  const cal = kind => {
+    const head = `<span class="wk-corner"></span>` + days.map(d => `<span class="wk-dayh">${d}</span>`).join('');
+    const rows = Array.from({ length: 24 }, (_, h) => `<span class="wk-hour">${hh(h)}h</span>` + days.map((_, di) => {
+      const i = di * 24 + h; const v = kind === 'tarif' ? st.tarif[i] : st.usage[i];
+      return `<button type="button" class="day-sq ${kind === 'tarif' ? (v ? 'hp' : 'hc') : (v ? 'on' : '')}" data-i="${i}" title="${days[di]} ${hh(h)}h"></button>`;
+    }).join('')).join('');
+    return `<div class="wk" data-kind="${kind}">${head}${rows}</div>`;
+  };
   const paneUsage = () => `
-    <p class="hint">${lang === 'en' ? 'Click the hours the PC is used each day (on/off).' : 'Cliquez les heures d’utilisation du PC par jour (marche/arrêt).'}</p>
-    ${grid('usage', st.usage)}
-    <p class="hint" style="margin-top:8px"><span id="u_usageCount">${st.usage.filter(Boolean).length}</span> ${lang === 'en' ? 'h/day used' : 'h/jour utilisées'}</p>`;
+    <p class="hint">${lang === 'en' ? 'Click the hours the PC is used, for each day of the week (on/off).' : 'Cliquez les heures d’utilisation du PC, pour chaque jour de la semaine (marche/arrêt).'}</p>
+    ${cal('usage')}
+    <p class="hint" style="margin-top:8px"><span id="u_usageCount">${usageWeeklyHours(st)}</span> ${lang === 'en' ? 'h/week' : 'h/semaine'} · <span id="u_usageDaily">${usageDailyHours(st).toFixed(1)}</span> ${lang === 'en' ? 'h/day avg' : 'h/jour moy.'}</p>`;
   const paneTarif = () => `
     <p class="hint">${lang === 'en' ? 'Toggle each hour: light orange = peak (HP), green = off-peak (HC).' : 'Basculez chaque heure : orange clair = heures pleines (HP), vert = heures creuses (HC).'}</p>
-    ${grid('tarif', st.tarif)}
+    ${cal('tarif')}
     <div class="form-grid" style="margin-top:10px">
       <div class="fld"><label>${lang === 'en' ? 'Peak price (€/kWh)' : 'Heures pleines (€/kWh)'}</label><input id="u_hp" type="number" min="0" step="0.0001" value="${st.priceHP}"></div>
       <div class="fld"><label>${lang === 'en' ? 'Off-peak price (€/kWh)' : 'Heures creuses (€/kWh)'}</label><input id="u_hc" type="number" min="0" step="0.0001" value="${st.priceHC}"></div>
     </div>
-    <p class="hint" style="margin-top:8px"><span id="u_tarifCount">${st.tarif.filter(Boolean).length} HP · ${24 - st.tarif.filter(Boolean).length} HC</span></p>`;
+    <p class="hint" style="margin-top:8px"><span id="u_tarifCount">${st.tarif.filter(Boolean).length} HP · ${168 - st.tarif.filter(Boolean).length} HC</span></p>`;
   openModal(lang === 'en' ? 'PC usage & pricing' : 'Usage & tarification PC', `
     <div class="usage-tabs">
       <button type="button" class="usage-tab active" data-tab="usage">${lang === 'en' ? 'Usage' : 'Utilisation'}</button>
@@ -1687,20 +1701,21 @@ function openUsageEditor() {
     </div>
     <div class="usage-pane" data-pane="usage">${paneUsage()}</div>
     <div class="usage-pane" data-pane="tarif" style="display:none">${paneTarif()}</div>
-    <div class="btn-row"><button class="btn btn-primary" id="u_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save' : 'Enregistrer'}</button></div>`);
+    <div class="btn-row"><button class="btn btn-primary" id="u_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save' : 'Enregistrer'}</button></div>`, 'modal-wide');
   const host = $('#modalBody');
   const updCounts = () => {
-    const uc = $('#u_usageCount'); if (uc) uc.textContent = st.usage.filter(Boolean).length;
-    const tc = $('#u_tarifCount'); if (tc) tc.textContent = `${st.tarif.filter(Boolean).length} HP · ${24 - st.tarif.filter(Boolean).length} HC`;
+    const uc = $('#u_usageCount'); if (uc) uc.textContent = usageWeeklyHours(st);
+    const ud = $('#u_usageDaily'); if (ud) ud.textContent = usageDailyHours(st).toFixed(1);
+    const tc = $('#u_tarifCount'); if (tc) tc.textContent = `${st.tarif.filter(Boolean).length} HP · ${168 - st.tarif.filter(Boolean).length} HC`;
   };
   host.querySelectorAll('.usage-tab').forEach(b => b.onclick = () => {
     tab = b.dataset.tab;
     host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
     host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
   });
-  host.querySelectorAll('.hour-sq').forEach(b => b.onclick = () => {
+  host.querySelectorAll('.day-sq').forEach(b => b.onclick = () => {
     const i = Number(b.dataset.i);
-    const kind = b.closest('.hour-grid').dataset.kind;
+    const kind = b.closest('.wk').dataset.kind;
     if (kind === 'usage') { st.usage[i] = st.usage[i] ? 0 : 1; b.classList.toggle('on', !!st.usage[i]); }
     else { st.tarif[i] = st.tarif[i] ? 0 : 1; b.classList.toggle('hp', !!st.tarif[i]); b.classList.toggle('hc', !st.tarif[i]); }
     updCounts();
@@ -1786,8 +1801,8 @@ function renderSumExtra() {
       const list = pw.items.filter(i => i.w > 0);
       const totP = pw.psuTotal, totU = pw.upsTotal;
       const UP = usagePrefs();
-      const usedHours = UP.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
-      const kwh = totU * usedHours * 365 / 1000;
+      const usedHours = usageDailyHours(UP);
+      const kwh = usageAnnualKwh(totU, UP);
       const eurY = usageAnnualCost(totU, UP), eurM = eurY / 12;
       const secOf = id => { const s = state.slots[id]; return s ? defOf(s).sec : 'others'; };
       const pwSecs = ['pc', 'setup', 'others'].map(sec => {
@@ -1820,8 +1835,8 @@ function renderSumExtra() {
       ${allocHtml}
       <div class="sum-totals">
         <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${totP} W</span></span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens)' : 'Charge onduleur (PC+écrans)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${totU} W</strong></span></div>
-        <div class="sum-line"><span>kWh / ${usedHours}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span class="tot-right">${eur(eurY)}/an</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens+consoles)' : 'Charge onduleur (PC+écrans+consoles)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${totU} W</strong></span></div>
+        <div class="sum-line"><span>kWh / ${usedHours.toFixed(1)}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span class="tot-right">${eur(eurY)}/an</span></div>
         <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${eur(eurM)}/mois</span></span></div>
       </div>
       <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
@@ -2923,7 +2938,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.51', `
+  openModal('Changelog — v2.52', `
+    <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
     <div class="chlog"><h3>v2.49 — Compatibilité via datasheets</h3><p class="hint">Vérification basée uniquement sur les fiches techniques Idealo (## Détails du produit) : bouton … avec popup détaillée et comparaisons de specs façon VS, bouton Vérifié (pastille vert clair,une seule coche), vitesse/capacité RAM max depuis la datasheet CM, watercooling (taille radiateur), M.2 2230/2242/2260/2280/22110, connectique écrans/clavier/souris/casque/dock (HDMI/DP/USB-C/USB-A/Bluetooth/Jack).</p></div>
