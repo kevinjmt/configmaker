@@ -73,6 +73,7 @@ const SLOT_DEFS = [
   { id: 'dock', sec: 'setup', icon: 'lucide:monitor-smartphone', q: "station d'accueil", w: 45, extra: true },
   { id: 'printer', sec: 'setup', icon: 'lucide:printer', q: 'imprimante', w: 30, extra: true },
   { id: 'extstorage', sec: 'setup', icon: 'lucide:database', q: 'disque dur externe', w: 8, extra: true },
+  { id: 'extssd', sec: 'setup', icon: 'lucide:hard-drive', q: 'SSD externe', w: 0, extra: true },
   { id: 'speakers', sec: 'setup', icon: 'lucide:speaker', q: 'enceintes PC', w: 20, extra: true },
   { id: 'webcam', sec: 'setup', icon: 'lucide:webcam', q: 'webcam', w: 3, extra: true },
   { id: 'soundcard', sec: 'setup', icon: 'lucide:audio-lines', q: 'carte son externe USB', w: 3, extra: true },
@@ -190,8 +191,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Stockage externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External storage', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Disque dur externe', extssd: 'SSD externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External hard drive', extssd: 'External SSD', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -1053,7 +1054,7 @@ async function refreshOnePrice(slotId) {
   persist(); refresh(); hideProgress();
 }
 const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'netcard', 'os', 'soft'];
-const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
+const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extssd', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
   const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
   const byId = Object.fromEntries(SLOT_DEFS.map(d => [d.id, d]));
@@ -1122,36 +1123,37 @@ const IDEALO_CATS = [
   { key: 'cpu', label: 'Processeurs', url: 'https://www.idealo.fr/cat/3019/processeurs.html' },
   { key: 'mb', label: 'Cartes mères', url: 'https://www.idealo.fr/cat/3018/cartes-meres.html' },
   { key: 'ram', label: 'Barrettes RAM', url: 'https://www.idealo.fr/cat/4552/barrettes-de-ram.html' },
-  { key: 'cooler', label: 'Refroidissement', url: 'https://www.idealo.fr/scat/3206/refroidisseurs-ventilateurs.html' },
+  { key: 'cooler', label: 'Refroidissement', url: 'https://www.idealo.fr/cat/5156/ventilateurs-processeurs.html' },
   { key: 'ssd', label: 'SSD', url: 'https://www.idealo.fr/cat/14613/ssd.html' },
-  { key: 'gpu', label: 'Cartes graphiques', url: 'https://www.idealo.fr/cat/16073/cartes-graphiques.html' },
+  { key: 'gpu', label: 'Cartes graphiques', url: 'https://www.idealo.fr/cat/16073F1311515/cartes-graphiques.html' },
   { key: 'case', label: 'Boîtiers PC', url: 'https://www.idealo.fr/cat/3090/boitiers-pc.html' },
-  { key: 'psu', label: 'Alimentations', url: 'https://www.idealo.fr/cat/5432/alimentation-pc.html' },
+  { key: 'psu', label: 'Alimentations', url: 'https://www.idealo.fr/cat/5432F792071/alimentation-pc.html' },
   { key: 'os', label: "Systèmes d'exploitation", url: 'https://www.idealo.fr/cat/10052/systemes-d-exploitation.html' },
   { key: 'desk', label: 'Bureaux', url: 'https://www.idealo.fr/cat/14953/bureaux.html' },
-  { key: 'chair', label: 'Fauteuils gamer', url: 'https://www.idealo.fr/cat/26049/fauteuils-gamer.html' },
+  { key: 'chair', label: 'Chaises de bureau', url: 'https://www.idealo.fr/cat/14952/chaises-de-bureau.html' },
   { key: 'screen', label: 'Écrans', url: 'https://www.idealo.fr/cat/3832/moniteurs.html' },
-  { key: 'keyboard', label: 'Claviers', url: 'https://www.idealo.fr/cat/3047/claviers-ordinateur.html' },
+  { key: 'keyboard', label: 'Claviers', url: 'https://www.idealo.fr/cat/3047/claviers-ordinateur.html?q=clavier' },
   { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
   { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
-  { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172/casques-gamer.html' },
+  { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172F1160494/casques-gamer.html' },
   { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/liste/122968612/pate-thermique-cpu.html' },
   { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
   { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
   { key: 'psucables', label: "Câbles d'alimentation", url: 'https://www.idealo.fr/cat/5694F3384068/cables-adaptateurs-pc.html' },
   { key: 'soft', label: 'Logiciels', url: 'https://www.idealo.fr/scat/3330/logiciels.html' },
   { key: 'ups', label: 'Onduleurs', url: 'https://www.idealo.fr/cat/3107/onduleurs.html' },
-  { key: 'multiprise', label: 'Multiprises', url: 'https://www.idealo.fr/cat/12892/multiprises.html' },
+  { key: 'multiprise', label: 'Multiprises', url: 'https://www.idealo.fr/cat/12892F104352520/multiprises.html' },
   { key: 'switch', label: 'Switches', url: 'https://www.idealo.fr/cat/3104/switches.html' },
   { key: 'router', label: 'Routeurs', url: 'https://www.idealo.fr/cat/3099/routeurs.html' },
   { key: 'gamepad', label: 'Manettes', url: 'https://www.idealo.fr/cat/3014/manettes-de-jeux.html' },
   { key: 'nas', label: 'Serveurs NAS', url: 'https://www.idealo.fr/cat/9272/serveurs-nas.html' },
-  { key: 'graphictab', label: 'Tablettes graphiques', url: 'https://www.idealo.fr/prechcat.html?q=tablette%20graphique' },
+  { key: 'graphictab', label: 'Tablettes graphiques', url: 'https://www.idealo.fr/cat/8552/tablettes-graphiques-accessoires.html' },
   { key: 'usbstick', label: 'Clés USB', url: 'https://www.idealo.fr/cat/4312/cles-usb.html' },
   { key: 'memcard', label: 'Cartes mémoire', url: 'https://www.idealo.fr/cat/4734/cartes-memoire.html' },
   { key: 'dock', label: "Stations d'accueil", url: 'https://www.idealo.fr/cat/10792/stations-d-accueil-pour-ordinateurs-portables.html' },
   { key: 'printer', label: 'Imprimantes', url: 'https://www.idealo.fr/cat/3309/imprimantes-multifonctions.html' },
-  { key: 'extstorage', label: 'Stockage externe', url: 'https://www.idealo.fr/cat/7712/disques-durs-externes.html' },
+  { key: 'extstorage', label: 'Disques durs externes', url: 'https://www.idealo.fr/cat/7712/disques-durs-externes.html' },
+  { key: 'extssd', label: 'SSD externes', url: 'https://www.idealo.fr/cat/14613F1338461/ssd.html' },
   { key: 'speakers', label: 'Enceintes PC', url: 'https://www.idealo.fr/cat/3287/haut-parleurs-pc.html' },
   { key: 'webcam', label: 'Webcams', url: 'https://www.idealo.fr/cat/16313/webcams.html' },
   { key: 'soundcard', label: 'Cartes son', url: 'https://www.idealo.fr/cat/3092/cartes-son.html' },
@@ -1159,8 +1161,9 @@ const IDEALO_CATS = [
   { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
   { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', extssd: 'extssd', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
+let pickerSeq = 0; // invalidates a pending dynamic-default resolution when the picker changes
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0, idealLoadingMore = false;
 function slotCatKey(slotId) {
   if (slotId.startsWith('ssd_')) return 'ssd';
@@ -1169,13 +1172,79 @@ function slotCatKey(slotId) {
   const s = state.slots[slotId];
   return (s && SLOT_CAT[s.defId]) || 'root';
 }
-function loadCategory(key) {
+/* Default Idealo page per category; mb/ram depend on the rest of the build. */
+const MB_SOCKET_CATS = {
+  AM5: 'https://www.idealo.fr/cat/3018F103797439/cartes-meres.html',
+  AM4: 'https://www.idealo.fr/cat/3018F8155199/cartes-meres.html',
+  LGA1700: 'https://www.idealo.fr/cat/3018F103797438/cartes-meres.html',
+  LGA1770: 'https://www.idealo.fr/cat/3018F103797438/cartes-meres.html',
+  LGA1851: 'https://www.idealo.fr/cat/3018F106264935/cartes-meres.html',
+  sTR5: 'https://www.idealo.fr/cat/3018F106264936/cartes-meres.html',
+};
+const RAM_TYPE_CATS = {
+  DDR5: 'https://www.idealo.fr/cat/4552F102299808/barrettes-de-ram.html',
+  DDR4: 'https://www.idealo.fr/cat/4552F102193212/barrettes-de-ram.html',
+};
+function catUrl(key) { return (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url; }
+function applyCatUrl(key, url) {
   const c = IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0];
   currentCatKey = c.key;
   currentCatLabel = c.label;
-  currentIdealoUrl = c.url;
-  const a = $('#pickerIdealoSearch'); if (a) a.href = c.url;
-  const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(c.url, '_blank', 'noopener');
+  currentIdealoUrl = url || c.url;
+  const a = $('#pickerIdealoSearch'); if (a) a.href = currentIdealoUrl;
+  const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(currentIdealoUrl, '_blank', 'noopener');
+}
+function loadCategory(key) { applyCatUrl(key, catUrl(key)); }
+/* Socket token from a CPU datasheet. Compat covers AM5/AM4/1700/1851; 1770 & sTR5 need a raw scan. */
+function cpuSocketToken(md) {
+  const s = String(md || '');
+  try {
+    const so = (Compat.parseDatasheet(s).sockets || []).map(x => x.toUpperCase());
+    if (so.includes('AM5')) return 'AM5';
+    if (so.includes('AM4')) return 'AM4';
+    if (so.includes('1851')) return 'LGA1851';
+    if (so.includes('1700')) return 'LGA1700';
+  } catch { /* ignore */ }
+  if (/\bs?TR5\b/i.test(s)) return 'sTR5';
+  if (/\b1770\b/i.test(s)) return 'LGA1770';
+  if (/\b1851\b/i.test(s)) return 'LGA1851';
+  if (/\b1700\b/i.test(s)) return 'LGA1700';
+  return null;
+}
+/* Wait for a component's datasheet: reuse any in-flight fetch, otherwise fetch it (Idealo caches). */
+async function ensureDatasheet(p) {
+  if (!p) return '';
+  if (p.datasheet) return p.datasheet;
+  if (!p.idealo || typeof Idealo === 'undefined') return '';
+  try {
+    if (dsLoading.has(p.id)) {
+      for (let i = 0; i < 60 && dsLoading.has(p.id); i++) await new Promise(r => setTimeout(r, 250));
+      if (p.datasheet) return p.datasheet;
+    }
+    const d = await Idealo.product(p.idealo);
+    if (d && !d.error && d.datasheet) { p.datasheet = d.datasheet; persist(); compatCache = null; return p.datasheet; }
+  } catch { /* ignore */ }
+  return '';
+}
+async function cpuSocketKey() {
+  const s = state.slots.cpu, p = s && sel(s);
+  if (!p) return null;
+  const md = await ensureDatasheet(p);
+  return md ? cpuSocketToken(md) : null;
+}
+async function mbDdrKey() {
+  const s = state.slots.mb, p = s && sel(s);
+  if (!p) return null;
+  const md = await ensureDatasheet(p);
+  if (!md) return null;
+  try { return Compat.parseDatasheet(md).ddr || null; } catch { return null; }
+}
+/* String for plain categories; Promise for mb/ram (needs another component's datasheet first). */
+function defaultCatUrl(key) {
+  const base = catUrl(key);
+  if (key === 'mb') return cpuSocketKey().then(k => MB_SOCKET_CATS[k] || base);
+  if (key === 'ram') return mbDdrKey().then(k => RAM_TYPE_CATS[k] || base);
+  return base;
 }
 const IDEAL_PAGE = 12;
 function idealKey(it) { return (it.url || it.img || ((it.name || '') + '|' + (it.price || 0))) + ''; }
@@ -1374,6 +1443,20 @@ function chooseIdealoItem(it, opts = {}) {
   Promise.allSettled(enrichments).then(() => { try { if (opts.onDone) opts.onDone(); } catch { /* ignore */ } });
 }
 let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
+/* Show the loading state while a dynamic default page is resolved. */
+function showPickerPending() {
+  idealBase = ''; idealUrl = ''; idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE; idealNextUrl = null;
+  idealErr = ''; idealCached = false; idealBusy = true; idealLoadingMore = false;
+  renderIdealo();
+}
+/* Load a category's default page; waits for a dependency (cpu for mb, mb for ram) when needed. */
+function resolveDefaultCat(key, seq) {
+  const u = defaultCatUrl(key);
+  if (typeof u === 'string') { applyCatUrl(key, u); loadIdealoList(u); return; }
+  showPickerPending();
+  u.then(url => { if (seq !== pickerSeq) return; applyCatUrl(key, url); loadIdealoList(url); })
+   .catch(() => { if (seq !== pickerSeq) return; const b = catUrl(key); applyCatUrl(key, b); loadIdealoList(b); });
+}
 function openPicker(id, mode = 'replace') {
   pickerMode = mode;
   activeSlot = id;
@@ -1384,12 +1467,10 @@ function openPicker(id, mode = 'replace') {
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const key = slotCatKey(id);
   const remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
-  const url = remembered || (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url;
+  const seq = ++pickerSeq;
   loadCategory(key);
   if (remembered) { // same Idealo page as the base slot (e.g. internal SSDs, not portable ones)
-    currentIdealoUrl = remembered;
-    const a = $('#pickerIdealoSearch'); if (a) a.href = remembered;
-    const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(remembered, '_blank', 'noopener');
+    applyCatUrl(key, remembered);
     const mq = remembered.match(/prechcat\.html\?q=([^&]*)/);
     if (mq) { try { $('#idealoQuery').value = decodeURIComponent(mq[1]); } catch { /* ignore */ } $('#idealoClear').classList.toggle('hidden', !$('#idealoQuery').value); }
   }
@@ -1401,7 +1482,8 @@ function openPicker(id, mode = 'replace') {
     chip.classList.toggle('hidden', pickerMode !== 'add');
     if (pickerMode === 'add') $('#pickerModeTxt').textContent = t('picker.addMode');
   }
-  loadIdealoList(url);
+  if (remembered) loadIdealoList(remembered);
+  else resolveDefaultCat(key, seq);
   if (window.innerWidth < 960) $('#pickerPanel').scrollIntoView({ behavior: 'smooth' });
 }
 function closePicker() { activeSlot = null; $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); renderSlots(); }
@@ -3309,6 +3391,7 @@ function bind() {
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
     const url = idealoSearchUrl(q);
+    ++pickerSeq; // cancel any pending dynamic-default resolution
     currentIdealoUrl = url;
     $('#pickerIdealoSearch').href = url;
     const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
@@ -3320,7 +3403,10 @@ function bind() {
     $('#idealoQuery').value = '';
     $('#idealoClear').classList.add('hidden');
     $('#idealoQuery').focus();
-    goIdealo();
+    if (!activeSlot) return;
+    const key = slotCatKey(activeSlot);
+    loadCategory(key);
+    resolveDefaultCat(key, ++pickerSeq); // back to the component's default page
   };
   $('#idealoQuery').addEventListener('input', e => $('#idealoClear').classList.toggle('hidden', !e.target.value));
   $('#idealoQuery').addEventListener('keydown', e => { if (e.key === 'Enter') goIdealo(); });
