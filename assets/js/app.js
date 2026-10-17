@@ -133,7 +133,7 @@ const I18N = {
     'welcome.del': 'Supprimer', 'welcome.delConfirm': 'Supprimer cette config ?', 'welcome.yes': 'Oui', 'welcome.no': 'Non',
     'consent.msg': 'Ce site stocke vos configs localement. Accepter ?', 'consent.accept': 'Accepter', 'consent.deny': 'Refuser',
     'consent.saveBlocked': 'Sauvegarde désactivée (stockage refusé) — JSON exporté en secours.', 'consent.deniedHint': 'Stockage refusé : mode mémoire seule.',
-    'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.',
+    'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.power': 'Consommation', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
@@ -185,7 +185,7 @@ const I18N = {
     'welcome.del': 'Delete', 'welcome.delConfirm': 'Delete this config?', 'welcome.yes': 'Yes', 'welcome.no': 'No',
     'consent.msg': 'This site stores your configs locally. Accept?', 'consent.accept': 'Accept', 'consent.deny': 'Decline',
     'consent.saveBlocked': 'Saving disabled (storage declined) — JSON exported as backup.', 'consent.deniedHint': 'Storage declined: memory-only mode.',
-    'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.hint': 'One point is added on each save. Budget is the dotted line.',
+    'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.power': 'Power draw', 'prices.hint': 'One point is added on each save. Budget is the dotted line (total view). Hover the curve for per-date details.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
 };
@@ -1624,6 +1624,35 @@ function focusComponent(id) {
   card.classList.add('flash');
   setTimeout(() => card.classList.remove('flash'), 1400);
 }
+/* ---------- Pie colors: 1 distinct color per component type; duplicates darkened ---------- */
+const TYPE_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#9333ea', '#0891b2', '#ea580c', '#4f46e5', '#0d9488', '#db2777', '#65a30d', '#7c3aed', '#0284c7', '#b45309', '#15803d', '#a21caf', '#0369a1', '#c2410c', '#4338ca', '#be123c'];
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const to = x => Math.round(255 * x).toString(16).padStart(2, '0');
+  return '#' + to(f(0)) + to(f(8)) + to(f(4));
+}
+function typeColor(defId) {
+  let i = SLOT_DEFS.findIndex(d => d.id === defId);
+  if (i < 0) i = 0;
+  if (i < TYPE_COLORS.length) return TYPE_COLORS[i];
+  return hslToHex((i * 137.508) % 360, 62, 44);
+}
+function shade(hex, k) {
+  if (!k) return hex;
+  const m = hex.replace('#', '');
+  const r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
+  const f = Math.max(0.28, 1 - 0.17 * k);
+  const hx = v => Math.round(v * f).toString(16).padStart(2, '0');
+  return '#' + hx(r) + hx(g) + hx(b);
+}
+function buildColors(items) { // items: [{ id, defId }] -> { id: color } (same type => base then darker)
+  const seen = {}, map = {};
+  items.forEach(it => { const k = seen[it.defId] || 0; map[it.id] = shade(typeColor(it.defId), k); seen[it.defId] = k + 1; });
+  return map;
+}
 function pieSVG(items, size = 150) {
   const total = items.reduce((a, b) => a + b.v, 0) || 1;
   const cols = ['#1a8744', '#2fa968', '#7ed491', '#0ca678', '#94d82d', '#1971c2', '#845ef7', '#e8890c', '#e03131', '#868e96'];
@@ -1631,7 +1660,7 @@ function pieSVG(items, size = 150) {
   items.forEach((it, i) => {
     const a1 = a0 + (it.v / total) * Math.PI * 2;
     const r = size / 2, cx = r, cy = r;
-    const col = cols[i % cols.length];
+    const col = it.color || cols[i % cols.length];
     if (it.v <= 0) { return; }
     if ((a1 - a0) >= Math.PI * 2 - 1e-6) {
       // single slice: explicit full circle (coincident-endpoint arcs are degenerate)
@@ -1758,12 +1787,13 @@ function renderSumExtra() {
     const items = secItems(sec);
     if (!items.length) return '';
     const tot = items.reduce((a, b) => a + b.v, 0);
+    const cmap = buildColors(items.map(it => ({ id: it.id, defId: defOf(state.slots[it.id]).id })));
     const rows = items.map((it, i) => {
       const s = state.slots[it.id], p = sel(s);
-      const color = cols[i % cols.length];
+      const color = cmap[it.id];
       return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${lang === 'en' ? 'Show in page' : 'Voir dans la page'}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(p.name)} (${Math.round(it.v / tot * 100)}%)</span></span><span class="di-price"><strong>${eur(it.v)}</strong></span></div>`;
     }).join('');
-    return `<div class="dsec chart-dsec${foldedCharts.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-chead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(tot)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${eur(tot)}</h3>${pieSVG(items)}</div><div class="chart-list">${rows}</div></div>`;
+    return `<div class="dsec chart-dsec${foldedCharts.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-chead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(tot)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${eur(tot)}</h3>${pieSVG(items.map(it => ({ v: it.v, color: cmap[it.id] })))}</div><div class="chart-list">${rows}</div></div>`;
   }).join('');
   $('#sumChartsPane').innerHTML = chartSecs || `<p class="hint">${lang === 'en' ? 'Nothing selected yet.' : 'Rien de sélectionné.'}</p>`;
   const budget = Number(state.budget) || 0;
@@ -1829,12 +1859,13 @@ function renderSumExtra() {
         const items = list.filter(i => secOf(i.id) === sec);
         if (!items.length) return '';
         const tot = Math.round(items.reduce((a, b) => a + b.w, 0) * 10) / 10;
+        const cmap = buildColors(items.map(it => ({ id: it.id, defId: it.defId })));
         const rows = items.map((it, i) => {
           const s = state.slots[it.id];
-          const color = cols[i % cols.length];
+          const color = cmap[it.id];
           return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${(it.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page')}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(it.name)} (${Math.round(it.w / tot * 100)}%)${it.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${it.w} W</strong></span></div>`;
         }).join('');
-        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${tot} W</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${tot} W</h3>${pieSVG(items.map(a => ({ v: a.w })))}</div><div class="chart-list">${rows}</div></div>`;
+        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${tot} W</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${tot} W</h3>${pieSVG(items.map(a => ({ v: a.w, color: cmap[a.id] })))}</div><div class="chart-list">${rows}</div></div>`;
       }).join('');
       let allocHtml = '';
       if (pw.psu.usableW > 0 && totP > 0) {
@@ -1865,9 +1896,10 @@ function renderSumExtra() {
   if (!powerHtml) {
     const UPf = usagePrefs();
     const uh = UPf.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
+    const wmap = buildColors(watts.map(x => ({ id: x.id, defId: defOf(state.slots[x.id]).id })));
     powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
-    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${((tot * uh * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts)}
-    <div class="legend">${watts.map((x, i) => `<span><i class="dot" style="background:${cols[i % cols.length]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
+    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${((tot * uh * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts.map(x => ({ v: x.v, color: wmap[x.id] })))}
+    <div class="legend">${watts.map(x => `<span><i class="dot" style="background:${wmap[x.id]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
   }
   $('#sumPowerPane').innerHTML = powerHtml;
   $('#sumPowerPane').querySelectorAll('.chart-dsec').forEach(dsec => {
@@ -1894,42 +1926,137 @@ function pushHistPoint() {
   const T = totals(); const h = hist();
   const k = state.name || 'Ma Config';
   h[k] = h[k] || [];
-  h[k].push({ t: Date.now(), total: T.total, deliv: T.total });
+  h[k].push({ t: Date.now(), total: T.total, deliv: T.total, watts: wattsOfState(state) });
   if (h[k].length > 200) h[k] = h[k].slice(-200); // bound price history per config
   save(LS.hist, h);
 }
+/* Power draw (W) for a given state/snapshot — used for the consumption history. */
+function wattsOfState(st) {
+  try {
+    if (typeof Compat !== 'undefined' && Compat.powerBreakdown) {
+      const pw = Compat.powerBreakdown({ order: st.order, slots: st.slots, sel, def: defOf, lang });
+      return Math.round(pw.psuTotal);
+    }
+  } catch { /* ignore */ }
+  let w = 0;
+  (st.order || []).forEach(id => { const s = st.slots[id]; if (!s) return; const p = (s.products || []).find(y => y.id === s.selectedId); if (p && defOf(s).sec === 'pc') w += (Number(p.watts) || 0) * (Number(p.qty) || 1); });
+  return Math.round(w);
+}
+function wattsBackfill(h) { // older points (no stored watts) recomputed from matching snapshots, loaded once
+  const cfgs = load(LS.configs, {})[state.name] || [];
+  const snaps = cfgs.map(v => ({ t: v.savedAt || 0, w: null, snap: v.snapshot }));
+  const wattsOf = t0 => {
+    let best = null, bd = 2000;
+    snaps.forEach(s => { const d = Math.abs(s.t - t0); if (d < bd) { bd = d; best = s; } });
+    if (!best) return 0;
+    if (best.w == null) best.w = wattsOfState(best.snap);
+    return best.w;
+  };
+  return h.map(x => ({ t: x.t, v: Number.isFinite(x.watts) ? x.watts : wattsOf(x.t) }));
+}
+function fmtAxisVal(v) {
+  if (phMode === 'power') return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k W' : Math.round(v) + ' W';
+  return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k €' : Math.round(v) + ' €';
+}
+function fmtChartVal(v) { return phMode === 'power' ? (Math.round(v * 10) / 10) + ' W' : eur(v); }
+let priceHover = null, priceGeom = null, priceBound = false;
+function bindPriceHover() {
+  if (priceBound) return; priceBound = true;
+  const cv = $('#priceChart'); if (!cv) return;
+  cv.addEventListener('mousemove', e => {
+    if (!priceGeom || !priceGeom.count) return;
+    const rect = cv.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (cv.width / rect.width);
+    const { xOf, count } = priceGeom;
+    let best = null, bd = 1e9;
+    for (let i = 0; i < count; i++) { const d = Math.abs(xOf(i, count) - px); if (d < bd) { bd = d; best = i; } }
+    if (best !== priceHover) { priceHover = best; drawPrices(); }
+  });
+  cv.addEventListener('mouseleave', () => { if (priceHover !== null) { priceHover = null; drawPrices(); } });
+}
 function drawPrices() {
-  const cv = $('#priceChart'), ctx = cv.getContext('2d');
+  const cv = $('#priceChart'); if (!cv) return;
+  bindPriceHover();
+  const ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height;
   ctx.clearRect(0, 0, W, H);
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  ctx.strokeStyle = dark ? '#333' : '#e3e8e3';
-  for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(40, (H - 20) * i / 5); ctx.lineTo(W - 10, (H - 20) * i / 5); ctx.stroke(); }
+  const grid = dark ? '#333' : '#e3e8e3', axis = dark ? '#9aa0a6' : '#666';
   const h = hist()[state.name] || [];
   const leg = $('#priceLegend'); leg.innerHTML = '';
-  const series = phMode === 'total'
-    ? [{ label: 'Total', color: '#1a8744', pts: h.map(x => ({ t: x.t, v: x.total })) }]
-    : state.order.filter(id => sel(state.slots[id])).map((id, i) => ({ label: slotName(id), color: ['#1a8744', '#1971c2', '#845ef7', '#e8890c', '#e03131', '#0ca678', '#94d82d', '#5c7cfa', '#f06595', '#868e96'][i % 10], pts: seriesForSlot(id) }));
-  const allV = series.flatMap(s => s.pts.map(p => p.v)).concat([Number(state.budget) || 0]);
-  const max = Math.max(...allV, 10), min = 0;
-  const X = i => 40 + (W - 55) * (series[0] && series[0].pts.length > 1 ? i / (series[0].pts.length - 1) : 0.5);
-  // per-slot mode: x by index within each series (aligned on save order) — reuse global index
+  const budgetOn = phMode === 'total';
+  const budget = Number(state.budget) || 0;
+  let series;
+  if (phMode === 'total') {
+    series = [{ label: lang === 'en' ? 'Total' : 'Total', color: '#1a8744', pts: h.map(x => ({ t: x.t, v: x.total })) }];
+  } else if (phMode === 'power') {
+    series = [{ label: t('prices.power'), color: '#0891b2', pts: wattsBackfill(h) }];
+  } else {
+    const perItems = state.order.filter(id => sel(state.slots[id])).map(id => ({ id, defId: defOf(state.slots[id]).id }));
+    const cmap = buildColors(perItems);
+    const cfgs = load(LS.configs, {})[state.name] || [];
+    series = perItems.map(it => ({ label: slotName(it.id), color: cmap[it.id], pts: seriesForSlot(it.id, cfgs) }));
+  }
+  const plotL = 60, plotR = 16, plotT = 14, plotB = 40;
+  const plotW = W - plotL - plotR, plotH = H - plotT - plotB;
+  const points = series.length ? series[0].pts : [];
+  const count = points.length;
+  const allV = series.flatMap(s => s.pts.map(p => p.v)).concat(budgetOn ? [budget] : []);
+  const max = Math.max(...allV, phMode === 'power' ? 50 : 10);
+  const xOf = (i, n = count) => plotL + plotW * (n > 1 ? i / (n - 1) : 0.5);
+  const yOf = v => plotT + plotH - plotH * ((v) / (max || 1));
+  priceGeom = { xOf, count };
+  // vertical scale (values)
+  ctx.font = '11px system-ui, sans-serif'; ctx.lineWidth = 1;
+  const ticks = 4;
+  for (let k = 0; k <= ticks; k++) {
+    const v = max * k / ticks, y = yOf(v);
+    ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(W - plotR, y); ctx.stroke();
+    ctx.fillStyle = axis; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(fmtAxisVal(v), plotL - 6, y);
+  }
+  // horizontal scale (dates)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  if (count) {
+    const step = Math.max(1, Math.ceil(count / 8));
+    for (let i = 0; i < count; i += step) {
+      const d = new Date(points[i].t);
+      ctx.fillStyle = axis; ctx.fillText(d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: '2-digit' }), xOf(i), plotT + plotH + 6);
+    }
+  }
+  ctx.strokeStyle = axis; ctx.beginPath(); ctx.moveTo(plotL, plotT); ctx.lineTo(plotL, plotT + plotH); ctx.lineTo(W - plotR, plotT + plotH); ctx.stroke();
+  // series
   series.forEach(s => {
     ctx.strokeStyle = s.color; ctx.lineWidth = 2.5; ctx.beginPath();
-    s.pts.forEach((p, i) => { const x = 40 + (W - 55) * (s.pts.length > 1 ? i / (s.pts.length - 1) : 0.5); const y = H - 20 - (H - 40) * ((p.v - min) / (max - min || 1)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    s.pts.forEach((p, i) => { const x = xOf(i, s.pts.length), y = yOf(p.v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
     ctx.stroke();
     ctx.fillStyle = s.color;
-    s.pts.forEach((p, i) => { const x = 40 + (W - 55) * (s.pts.length > 1 ? i / (s.pts.length - 1) : 0.5); const y = H - 20 - (H - 40) * ((p.v - min) / (max - min || 1)); ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill(); });
+    s.pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(xOf(i, s.pts.length), yOf(p.v), 3, 0, 7); ctx.fill(); });
     leg.innerHTML += `<span><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
   });
-  // budget line
-  const by = H - 20 - (H - 40) * (((Number(state.budget) || 0) - min) / (max - min || 1));
-  ctx.setLineDash([6, 5]); ctx.strokeStyle = '#e03131'; ctx.beginPath(); ctx.moveTo(40, by); ctx.lineTo(W - 10, by); ctx.stroke(); ctx.setLineDash([]);
-  leg.innerHTML += `<span><i class="dot" style="background:#e03131"></i>Budget (${eur(state.budget)})</span>`;
-  if (!series.length || !series[0].pts.length) leg.innerHTML += `<span style="color:var(--muted)">${lang === 'en' ? 'Save the config to start the history.' : 'Sauvegardez la config pour démarrer l’historique.'}</span>`;
+  // budget line — total mode only
+  if (budgetOn && budget > 0) {
+    const by = yOf(budget);
+    ctx.setLineDash([6, 5]); ctx.strokeStyle = '#e03131'; ctx.beginPath(); ctx.moveTo(plotL, by); ctx.lineTo(W - plotR, by); ctx.stroke(); ctx.setLineDash([]);
+    leg.innerHTML += `<span><i class="dot" style="background:#e03131"></i>${lang === 'en' ? 'Budget' : 'Budget'} (${eur(budget)})</span>`;
+  }
+  // hover crosshair + tooltip
+  const tip = $('#priceTip');
+  if (priceHover != null && priceHover < count) {
+    const x = xOf(priceHover);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = axis; ctx.beginPath(); ctx.moveTo(x, plotT); ctx.lineTo(x, plotT + plotH); ctx.stroke(); ctx.setLineDash([]);
+    series.forEach(s => { if (s.pts[priceHover]) { const px = xOf(priceHover, s.pts.length), py = yOf(s.pts[priceHover].v); ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill(); ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); } });
+    if (tip) {
+      const d = new Date(points[priceHover].t);
+      const ds = d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'fr-FR') + ' ' + d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'fr-FR', { hour: '2-digit', minute: '2-digit' });
+      tip.innerHTML = `<div class="ptip-date">${ds}</div>` + series.map(s => s.pts[priceHover] ? `<div class="ptip-row"><i class="dot" style="background:${s.color}"></i><span>${esc(s.label)}</span><strong>${fmtChartVal(s.pts[priceHover].v)}</strong></div>` : '').join('');
+      tip.classList.remove('hidden');
+      tip.style.left = Math.max(8, Math.min(92, x / W * 100)) + '%';
+    }
+  } else if (tip) tip.classList.add('hidden');
+  if (!count) leg.innerHTML += `<span style="color:var(--muted)">${lang === 'en' ? 'Save the config to start the history.' : 'Sauvegardez la config pour démarrer l’historique.'}</span>`;
 }
-function seriesForSlot(id) { // per-component: slot totals read back from saved version snapshots
-  const cfgs = load(LS.configs, {})[state.name] || [];
+function seriesForSlot(id, cfgs) { // per-component: slot totals read back from saved version snapshots
+  cfgs = cfgs || load(LS.configs, {})[state.name] || [];
   return cfgs.map(v => {
     try {
       const s = v.snapshot.slots[id];
@@ -2958,7 +3085,8 @@ function exportAll() {
   download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.52', `
+  openModal('Changelog — v2.53', `
+    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
@@ -3177,8 +3305,10 @@ function bind() {
       btn.innerHTML = orig;
     }
   };
-  $('#phTotal').onclick = () => { phMode = 'total'; $('#phTotal').classList.add('active'); $('#phPer').classList.remove('active'); drawPrices(); };
-  $('#phPer').onclick = () => { phMode = 'per'; $('#phPer').classList.add('active'); $('#phTotal').classList.remove('active'); drawPrices(); };
+  const phSet = m => { phMode = m; priceHover = null; ['total', 'per', 'power'].forEach(k => { const b = $('#ph' + k[0].toUpperCase() + k.slice(1)); if (b) b.classList.toggle('active', k === m); }); drawPrices(); };
+  $('#phTotal').onclick = () => phSet('total');
+  $('#phPer').onclick = () => phSet('per');
+  $('#phPower').onclick = () => phSet('power');
   $('#benchCopy').onclick = () => { navigator.clipboard?.writeText(benchQuery()); toast(lang === 'en' ? 'Copied' : 'Copié'); };
   $('#benchExtraGo').onclick = () => { benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); };
   $('#benchExtra').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); } };

@@ -413,6 +413,14 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:.78rem}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+/* price history */
+.price-wrap{position:relative;margin-top:6px}
+#priceChart{width:100%;height:auto;display:block;cursor:crosshair}
+.chart-tip{position:absolute;top:8px;transform:translateX(-50%);pointer-events:none;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-md);padding:8px 10px;font-size:.74rem;min-width:120px;z-index:5}
+.chart-tip .ptip-date{font-weight:800;color:var(--muted);margin-bottom:4px;white-space:nowrap}
+.chart-tip .ptip-row{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.chart-tip .ptip-row span{flex:1}
+.chart-tip .ptip-row strong{margin-left:6px}
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(5,10,8,.5);backdrop-filter:blur(6px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{width:min(640px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
@@ -482,6 +490,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px}
 /* Benchmarks : criteres colores + tooltip flottant + barres presets (scope page-bench) */
 #page-bench.glass{margin-top:50px}
+#page-prices.glass{margin-top:50px}
 #page-bench .dsec{margin-bottom:12px}
 /* tuiles : chaque section benchmark est une carte */
 #page-bench .dsec{background:var(--surface);border:1px solid var(--line-strong);border-radius:20px;padding:16px 18px;box-shadow:var(--shadow-md);min-width:0}

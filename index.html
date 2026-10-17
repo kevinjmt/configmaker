@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ConfigMaker by KJ — v2.52</title>
+<title>ConfigMaker by KJ — v2.53</title>
 <meta name="description" content="ConfigMaker by KJ — configurateur PC & setup style TopAchat configomatic, prix Idealo, consommation, manuels, historique.">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0a0f1e" media="(prefers-color-scheme: dark)">
@@ -14,11 +14,11 @@
 <meta name="apple-mobile-web-app-title" content="ConfigMaker">
 <link rel="apple-touch-icon" href="./assets/icons/configmakericon.png">
 <link rel="shortcut icon" type="image/png" href="./assets/icons/configmakericon.png">
-<meta property="og:title" content="ConfigMaker by KJ — v2.52">
+<meta property="og:title" content="ConfigMaker by KJ — v2.53">
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=103">
+<link rel="stylesheet" href="./assets/css/app.css?v=104">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -36,7 +36,7 @@
   <div class="kjbrand">
     <a href="./" id="brandHome" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.52</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.53</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -201,10 +201,14 @@
     <div class="seg">
       <button id="phTotal" class="active" data-i18n="prices.total">Total config</button>
       <button id="phPer" data-i18n="prices.per">Par composant</button>
+      <button id="phPower" data-i18n="prices.power">Consommation</button>
     </div>
-    <canvas id="priceChart" width="800" height="320"></canvas>
+    <div class="price-wrap">
+      <canvas id="priceChart" width="800" height="320"></canvas>
+      <div id="priceTip" class="chart-tip hidden"></div>
+    </div>
     <div id="priceLegend" class="legend"></div>
-    <p class="hint" data-i18n="prices.hint">Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée.</p>
+    <p class="hint" data-i18n="prices.hint">Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.</p>
   </main>
 
   <section class="glass panel downloads">
@@ -220,7 +224,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.52 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.53 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -255,7 +259,7 @@
 <script src="./assets/js/ai.js?v=6"></script>
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=8"></script>
-<script src="./assets/js/app.js?v=102"></script>
+<script src="./assets/js/app.js?v=103"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
