@@ -188,7 +188,25 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .ditem.has-err{background:rgba(255,229,229,.65)}
 [data-theme="dark"] .ditem.has-warn{background:rgba(255,212,59,.10)}
 [data-theme="dark"] .ditem.has-err{background:rgba(224,49,49,.14)}
-#compatCount{font-weight:900}
+/* Compat. pill in the summary tabs: count circles (like the description section) + blink */
+#compatCount{display:inline-flex;align-items:center;gap:5px;margin-left:3px}
+#compatCount .mini-count{border-radius:50%;min-width:20px;height:20px;padding:0 5px;justify-content:center;gap:2px;font-size:.66rem;position:relative;z-index:1;box-shadow:0 0 0 1.5px var(--surface)}
+#compatCount .mini-count i{font-size:.6rem}
+/* opaque so the pill's blink never bleeds through the bubbles (theme-aware) */
+#compatCount .mini-count.err{background:color-mix(in srgb,var(--danger) 14%,var(--surface));color:var(--danger)}
+#compatCount .mini-count.warn{background:color-mix(in srgb,var(--warning) 20%,var(--surface));color:#b97a0c}
+#compatCount:empty{display:none}
+@keyframes compatBlinkWarn{
+  0%,100%{background:rgba(245,159,0,.14);color:#b97a0c;box-shadow:0 0 0 0 rgba(245,159,0,0)}
+  50%{background:#f0b429;color:#fff;box-shadow:0 0 0 4px rgba(245,159,0,.30)}
+}
+@keyframes compatBlinkErr{
+  0%,100%{background:rgba(224,49,49,.12);color:var(--danger);box-shadow:0 0 0 0 rgba(224,49,49,0)}
+  50%{background:#ef5350;color:#fff;box-shadow:0 0 0 4px rgba(224,49,49,.30)}
+}
+#sumCompat.has-warn{background:rgba(245,159,0,.14);color:#b97a0c;animation:compatBlinkWarn 1.7s ease-in-out infinite}
+#sumCompat.has-err{background:rgba(224,49,49,.12);color:var(--danger);animation:compatBlinkErr 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#sumCompat.has-warn,#sumCompat.has-err{animation:none}}
 .di-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* Idealo-like variants on slot cards */
 .slot-variants{border-top:1px dashed var(--line);padding:0;background:transparent;margin-bottom:10px}

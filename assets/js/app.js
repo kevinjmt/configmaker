@@ -401,8 +401,16 @@ function getCompat() {
   return compatCache || { checks: {}, issues: { err: [], warn: [] }, statusOf: {} };
 }
 function updateCompatBadge() {
-  const cc = getCompat(), n = cc.issues.err.length + cc.issues.warn.length;
-  const b = $('#compatCount'); if (b) b.textContent = n ? ` (${n})` : '';
+  const cc = getCompat(), err = cc.issues.err.length, warn = cc.issues.warn.length;
+  const pill = $('#sumCompat');
+  if (pill) { // red blink if any error, else yellow blink if warnings only
+    pill.classList.toggle('has-err', err > 0);
+    pill.classList.toggle('has-warn', err === 0 && warn > 0);
+  }
+  const b = $('#compatCount'); if (!b) return;
+  b.innerHTML = (err || warn)
+    ? `${err ? `<span class="mini-count err" title="${err} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${err}</span>` : ''}${warn ? `<span class="mini-count warn" title="${warn} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${warn}</span>` : ''}`
+    : '';
 }
 /* Pure helper: {err, warn} issue counts per section (pc/setup/others). Testable. */
 function compatCountsBySec(cc, slotsMap, secOf) {
@@ -2159,9 +2167,18 @@ function benchScanSlot(prefix) {
 }
 function benchFacts() {
   const cpuP = benchProd('cpu'), gpuP = benchProd('gpu'), ramP = benchProd('ram');
-  const stor = benchSlotProd('ssd1') || benchSlotProd('hdd') || benchScanSlot('ssd') || benchScanSlot('hdd');
-  const storP = stor ? stor.p : null;
-  const storDef = stor ? stor.defId : '';
+  // stockage : total de tous les SSD/HDD internes ; le type = disque le plus rapide present
+  const storParts = [];
+  for (const sid of state.order) {
+    const sl = state.slots[sid]; if (!sl || !/^(ssd|hdd)/.test(sl.defId)) continue;
+    const p = sel(sl); if (!p) continue;
+    storParts.push({ p, gb: Perf.diskGB(p.name), ty: Perf.diskType(p.name, p.datasheet, sl.defId) });
+  }
+  const storP = storParts.length ? storParts[0].p : null;
+  const kb = storParts.map(x => x.gb).filter(g => typeof g === 'number');
+  const diskGB = kb.length ? kb.reduce((a, b) => a + b, 0) : null;
+  const hasTy = t => storParts.some(x => x.ty === t);
+  const diskType = !storParts.length ? null : hasTy('nvme') ? 'nvme' : hasTy('sata') ? 'sata' : hasTy('hdd') ? 'hdd' : null;
   const scrP = benchProd('screen1') || benchScan('screen');
   const threads = (cpuP && (Perf.threadsFromDatasheet(cpuP.datasheet) || Perf.specsThreads(cpuP.specs))) || null;
   const ramGB = ramP ? Perf.ramGB(ramP.name) : null;
@@ -2180,7 +2197,7 @@ function benchFacts() {
   const res = screenH == null ? 1080 : screenH >= 2000 ? '4k' : screenH >= 1300 ? 1440 : screenH >= 900 ? 1080 : 720;
   return {
     cpuP, gpuP, ramP, storP, scrP, threads, ramGB, vramGB, cpuEntry, gpuEntry, screenH, res,
-    diskType: storP ? Perf.diskType(storP.name, storP.datasheet, storDef) : null, diskGB: storP ? Perf.diskGB(storP.name) : null,
+    diskType, diskGB,
     gRank: gpuP ? Perf.gpuRank(gpuP.name, gpuEntry ? gpuEntry[3] : null) : null,
   };
 }
@@ -2324,7 +2341,7 @@ function barHtml(r) {
   const wR = pct(b.cuts[0]), wY = pct(b.cuts[1]) - wR, wG = 100 - pct(b.cuts[1]);
   const v = typeof b.val === 'number' ? pct(b.val) : null;
   const vc = v == null ? null : Math.max(3, Math.min(97, v)); // garde le cercle visible aux bords
-  const zcls = typeof b.val !== 'number' ? '' : b.val <= b.cuts[0] ? 'r' : b.val <= b.cuts[1] ? 'y' : 'g';
+  const zcls = typeof b.val !== 'number' ? '' : r.st === 'err' ? 'r' : (r.st === 'warn' || r.st === 'unknown') ? 'y' : 'g'; // status-driven: matches the criterion at threshold boundaries
   const u = b.unit || '';
   const ztip = zi => regTip([{ k: 'z' + zi, st: zi === 0 ? 'err' : zi === 1 ? 'warn' : 'ok', label: r.label,
     detail: zi === 0 ? `≤ ${b.cuts[0]}${u}` : zi === 1 ? `${b.cuts[0]} – ${b.cuts[1]}${u}` : `> ${b.cuts[1]}${u}` }]);

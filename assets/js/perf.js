@@ -19,7 +19,7 @@
 'use strict';
 const Perf = (() => {
   const WORST = { err: 3, warn: 2, unknown: 1, ok: 0 };
-  const worstOf = rows => rows.reduce((w, r) => (WORST[r.st] > WORST[w] ? r.st : w), 'ok');
+  const worstOf = rows => rows.filter(r => !r.neutral).reduce((w, r) => (WORST[r.st] > WORST[w] ? r.st : w), 'ok');
   let LANG = 'fr';
   function setLang(l) { LANG = l === 'en' ? 'en' : 'fr'; }
   const EN = () => LANG === 'en';
@@ -139,7 +139,9 @@ const Perf = (() => {
       : f.ramGB < 16 ? { k: 'ram', st: 'warn', label: `${f.ramGB} ${U()} RAM`, detail: L(`< 16 ${U()} : correct sans plus`, `< 16 ${U()}: passable`), bar: bar(f.ramGB, 12, 16, { unit: U() }) }
       : { k: 'ram', st: 'ok', label: `${f.ramGB} ${U()} RAM`, detail: L(`≥ 16 ${U()} : confortable`, `≥ 16 ${U()}: comfortable`), bar: bar(f.ramGB, 12, 16, { unit: U() }) });
     rows.push(diskRow(f, 128, 250));
-    rows.push(f.screenH == null
+    rows.push(!f.scrP
+      ? { k: 'screen', st: 'unknown', neutral: true, label: L('Écran non sélectionné', 'No display selected'), detail: L('Non pris en compte — ajoutez un écran pour évaluer ce critère', 'Not taken into account — add a display to evaluate this') }
+      : f.screenH == null
       ? { k: 'screen', st: 'unknown', label: L('Écran inconnu', 'Unknown display'), detail: L('Résolution introuvable', 'Resolution not found') }
       : f.screenH <= 720 ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '≤ 720p', bar: bar(f.screenH, 720, 1080, { unit: 'p' }) }
       : f.screenH < 1080 ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: '< 1080p', bar: bar(f.screenH, 720, 1080, { unit: 'p' }) }
@@ -178,7 +180,9 @@ const Perf = (() => {
       if (f.diskType === 'sata' || f.diskGB < 2000) return { k: 'disk', st: 'warn', label: `SSD ${f.diskType === 'nvme' ? 'NVMe' : 'SATA'} ${f.diskGB} ${U()}`, detail: f.diskType === 'sata' ? L('SATA : plafonné vs NVMe', 'SATA: capped vs NVMe') : '< 2000 Go', bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
       return { k: 'disk', st: 'ok', label: `SSD NVMe ${f.diskGB} ${U()}`, detail: L('NVMe + capacité OK', 'NVMe + capacity OK'), bar: bar(f.diskGB, redGB, 2000, { unit: U() }) };
     };
-    const scr = (redH, yelH, greenCmp) => f.screenH == null
+    const scr = (redH, yelH, greenCmp) => !f.scrP
+      ? { k: 'screen', st: 'unknown', neutral: true, label: L('Écran non sélectionné', 'No display selected'), detail: L('Non pris en compte — ajoutez un écran', 'Not taken into account — add a display') }
+      : f.screenH == null
       ? { k: 'screen', st: 'unknown', label: L('Écran inconnu', 'Unknown display'), detail: L('Résolution introuvable', 'Resolution not found') }
       : f.screenH <= redH ? { k: 'screen', st: 'err', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `≤ ${redH}p`, bar: bar(f.screenH, redH, yelH, { unit: 'p' }) }
       : f.screenH < yelH ? { k: 'screen', st: 'warn', label: `${L('Écran', 'Display')} ${f.screenH}p`, detail: `< ${yelH}p`, bar: bar(f.screenH, redH, yelH, { unit: 'p' }) }
