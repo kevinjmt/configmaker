@@ -414,6 +414,15 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend .leg{cursor:pointer;user-select:none}
 .legend .leg.off{opacity:.45;text-decoration:line-through}
+.legend.groups{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-items:start}
+.leg-tools{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.leg-tools button{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:5px 10px;font-size:.74rem;font-weight:700;cursor:pointer}
+.leg-tools button:hover{border-color:var(--accent)}
+.leg-tools button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.leg-col{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:10px;padding:8px}
+.leg-col h4{margin:0;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.leg-col .leg-empty{color:var(--muted);font-style:italic;font-size:.74rem}
+@media(max-width:560px){.legend.groups{grid-template-columns:1fr}}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
 /* price history */
 .price-wrap{position:relative;margin-top:6px}

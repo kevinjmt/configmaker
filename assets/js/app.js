@@ -1966,11 +1966,18 @@ function fmtAxisVal(v) {
   if (phMode === 'power') return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k W' : Math.round(v) + ' W';
   return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k €' : Math.round(v) + ' €';
 }
-let priceHover = null, priceGeom = null, priceBound = false, priceHidden = new Set(), priceLegBound = false;
+let priceHover = null, priceGeom = null, priceBound = false, priceHidden = new Set(), priceLegBound = false, priceGroupIds = { all: [], pc: [], setup: [], others: [] };
 function bindPriceLegend() {
   if (priceLegBound) return; priceLegBound = true;
   const leg = $('#priceLegend'); if (!leg) return;
   leg.addEventListener('click', e => {
+    const f = e.target.closest('[data-filter]');
+    if (f) { // toggle the whole group: on -> off, otherwise -> on
+      const ids = priceGroupIds[f.dataset.filter] || [];
+      const allOn = ids.length > 0 && ids.every(id => !priceHidden.has(id));
+      ids.forEach(id => allOn ? priceHidden.add(id) : priceHidden.delete(id));
+      priceHover = null; drawPrices(); return;
+    }
     const el = e.target.closest('[data-slot]'); if (!el) return;
     const id = el.dataset.slot;
     priceHidden.has(id) ? priceHidden.delete(id) : priceHidden.add(id);
@@ -2012,7 +2019,7 @@ function drawPrices() {
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   const grid = dark ? '#333' : '#e3e8e3', axis = dark ? '#9aa0a6' : '#666';
   const h = hist()[state.name] || [];
-  const leg = $('#priceLegend'); leg.innerHTML = '';
+  const leg = $('#priceLegend'); leg.className = 'legend' + (phMode === 'per' ? ' groups' : ''); leg.innerHTML = '';
   const budgetOn = phMode === 'total';
   const budget = Number(state.budget) || 0;
   let series;
@@ -2021,10 +2028,10 @@ function drawPrices() {
   } else if (phMode === 'power') {
     series = [{ label: t('prices.power'), color: '#0891b2', pts: wattsForHist(h) }];
   } else {
-    const perItems = state.order.filter(id => sel(state.slots[id])).map(id => ({ id, defId: defOf(state.slots[id]).id }));
+    const perItems = state.order.filter(id => sel(state.slots[id])).map(id => { const d = defOf(state.slots[id]); return { id, defId: d.id, sec: d.sec }; });
     const cmap = buildColors(perItems);
     const cfgs = load(LS.configs, {})[state.name] || [];
-    series = perItems.map(it => ({ id: it.id, label: slotName(it.id), color: cmap[it.id], pts: seriesForSlot(it.id, cfgs) }));
+    series = perItems.map(it => ({ id: it.id, sec: it.sec, label: slotName(it.id), color: cmap[it.id], pts: seriesForSlot(it.id, cfgs) }));
   }
   const vis = series.filter(s => !s.id || !priceHidden.has(s.id)); // component toggled off in the legend
   const plotL = 60, plotR = 16, plotT = 14, plotB = 40;
@@ -2062,13 +2069,29 @@ function drawPrices() {
     ctx.fillStyle = s.color;
     s.pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(xOf(i, s.pts.length), yOf(p.v), 3, 0, 7); ctx.fill(); });
   });
-  // legend (clickable per-component toggles)
-  series.forEach(s => {
-    if (!s.id) { leg.innerHTML += `<span><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`; return; }
-    const off = priceHidden.has(s.id) ? ' off' : '';
-    const title = lang === 'en' ? 'Show / hide' : 'Afficher / masquer';
-    leg.innerHTML += `<span class="leg${off}" data-slot="${esc(s.id)}" title="${title}"><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
-  });
+  // legend (clickable per-component toggles, grouped by category in per view)
+  const legTitle = lang === 'en' ? 'Show / hide' : 'Afficher / masquer';
+  if (phMode === 'per' && series.length) {
+    const cats = [['pc', 'PC'], ['setup', 'Setup'], ['others', 'Options']];
+    priceGroupIds = { all: series.map(s => s.id), pc: [], setup: [], others: [] };
+    series.forEach(s => { if (priceGroupIds[s.sec]) priceGroupIds[s.sec].push(s.id); });
+    const groupOn = k => { const ids = priceGroupIds[k] || []; return ids.length > 0 && ids.every(id => !priceHidden.has(id)); };
+    const tools = ['all', ...cats.map(c => c[0])].map(k => {
+      const lab = k === 'all' ? (lang === 'en' ? 'All' : 'Tout') : (cats.find(c => c[0] === k) || [])[1];
+      return `<button type="button" data-filter="${k}" class="${groupOn(k) ? 'on' : ''}">${esc(lab)}</button>`;
+    }).join('');
+    const col = ([k, lab]) => {
+      const items = series.filter(s => s.sec === k);
+      const body = items.length ? items.map(s => {
+        const off = priceHidden.has(s.id) ? ' off' : '';
+        return `<span class="leg${off}" data-slot="${esc(s.id)}" title="${legTitle}"><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
+      }).join('') : `<span class="leg-empty">${lang === 'en' ? 'none' : 'aucun'}</span>`;
+      return `<div class="leg-col"><h4>${esc(lab)}</h4>${body}</div>`;
+    };
+    leg.innerHTML = `<div class="leg-tools">${tools}</div>` + cats.map(col).join('');
+  } else {
+    series.forEach(s => { leg.innerHTML += `<span><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`; });
+  }
   // budget line — total mode only
   if (budgetOn && budget > 0) {
     const by = yOf(budget);
@@ -3137,7 +3160,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v2.53', `
-    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé et chaque composant peut être activé/désactivé en cliquant son entrée de légende ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
+    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
