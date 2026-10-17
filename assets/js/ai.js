@@ -6,7 +6,7 @@
    Expose pour harness node. */
 'use strict';
 const AiParse = (() => {
-  const MARGIN = 0.88;
+  const MARGIN = 0.85;
 
   /* type (lowercase, ordonne du plus specifique) -> slot defId */
   const TYPEMAP = [
@@ -98,7 +98,7 @@ const AiParse = (() => {
   }
   function budgetForPrompt(budget) { return Math.round((Number(budget) || 0) * MARGIN); }
   function buildPrompt(budget88, usage) {
-    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant> [<lien>]" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses). Pour le jeu vidéo, choisis un GPU AMD si son rapport prix/performance est meilleur. Si l'utilisateur mentionne un usage professionnel ou étudiant en montage vidéo ou en IA locale, choisis un GPU NVIDIA, sinon un GPU AMD convient. Si les prix sont trop élevés pour ce budget, mets 16 Go de RAM. Mets toujours au minimum un ventirad pour le CPU.`;
+    return `Je souhaite me faire une configuration PC avec un budget de ${budget88}€, pour faire :\n${String(usage || '').trim()}\nliste sous la forme : "- <type_composant> : <reference_composant> [<lien>]" les composants sans rien d'autre dans ta reponse. regarde les prix a la date d'aujourd'hui sur idealo. verifie que tu as bien respecte le budget et que tu donnes que des references de produits et non des specifications (en précisant la couleur, le modèle précis etc entre parenthèses). Mets toujours au minimum un ventirad pour le CPU.\n\nAdapte les composants aux usages indiqués :\n- Bureautique / usage quotidien (web, bureautique, streaming) : CPU 6 cœurs suffisant, 16 Go de RAM, SSD NVMe 1 To, GPU d'entrée de gamme ou graphique intégré.\n\nSi l'usage mentionné correspond à une charge lourde parmi les trois cas suivants, applique les specs dédiées ci-dessous tant qu'elles tiennent dans le budget :\n- Montage vidéo / 3D : CPU 8 cœurs / 16 threads minimum, 32 Go de RAM, GPU NVIDIA (CUDA/NVENC) avec le maximum de VRAM, SSD NVMe rapide (≥1 To), écran IPS ou OLED 100% sRGB.\n- Compilation de code : CPU avec beaucoup de cœurs / threads, 32 Go de RAM, SSD NVMe rapide (≥1 To).\n- IA locale : GPU NVIDIA avec au moins 16 Go de VRAM, 32 à 48 Go de RAM, SSD NVMe ≥1 To.\nSi le budget ne permet pas d'atteindre ces specs dédiées, rapproche-t'en le plus possible tout en vérifiant toujours les prix pour respecter le budget.\n\nPour le jeu vidéo, choisis un GPU AMD si son rapport prix/performance est meilleur. Si l'utilisateur mentionne un usage professionnel ou étudiant en montage vidéo ou en IA locale, choisis un GPU NVIDIA, sinon un GPU AMD convient.\n\nSi le budget n'est pas respecté, recommence en choisissant des CPU et GPU jusqu'à 3 générations plus anciens (ex. NVIDIA RTX 40xx → 30xx → 20xx → 16xx ; AMD RX 7xxx → 6xxx → 5xxx) et des références moins chères, jusqu'à rentrer dans le budget. En dernier recours seulement, réduis la RAM à 16 Go.`;
   }
 
   return { MARGIN, TYPEMAP, norm, typeHits, typeToSlot, parseResponse, stripParens, splitLink, joinBrokenLinks, linkTokens, linkMatchesPage, isIdealoLink, isIdealoPrix, budgetForPrompt, buildPrompt };
