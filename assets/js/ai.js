@@ -2,7 +2,7 @@
    Perplexity repond "- <type> : <reference>" (une ligne par composant).
    L'app ne peut pas lire l'onglet Perplexity (cross-origin) : l'utilisateur
    colle la reponse, on parse -> slot Idealo -> import direct.
-   Marge budget : -12% (frais de port / derive des prix).
+   Marge budget : -15% (frais de port / derive des prix).
    Expose pour harness node. */
 'use strict';
 const AiParse = (() => {
