@@ -1624,22 +1624,8 @@ function focusComponent(id) {
   card.classList.add('flash');
   setTimeout(() => card.classList.remove('flash'), 1400);
 }
-/* ---------- Pie colors: 1 distinct color per component type; duplicates darkened ---------- */
-const TYPE_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#9333ea', '#0891b2', '#ea580c', '#4f46e5', '#0d9488', '#db2777', '#65a30d', '#7c3aed', '#0284c7', '#b45309', '#15803d', '#a21caf', '#0369a1', '#c2410c', '#4338ca', '#be123c'];
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const k = n => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  const to = x => Math.round(255 * x).toString(16).padStart(2, '0');
-  return '#' + to(f(0)) + to(f(8)) + to(f(4));
-}
-function typeColor(defId) {
-  let i = SLOT_DEFS.findIndex(d => d.id === defId);
-  if (i < 0) i = 0;
-  if (i < TYPE_COLORS.length) return TYPE_COLORS[i];
-  return hslToHex((i * 137.508) % 360, 62, 44);
-}
+/* ---------- Pie colors: adjacent slices get highly contrasted colors; duplicate types darkened ---------- */
+const PIE_COLORS = ['#8b5cf6', '#eab308', '#22c55e', '#92400e', '#14b8a6', '#ec4899', '#2563eb', '#f97316', '#65a30d', '#4f46e5', '#dc2626', '#0d9488', '#c026d3', '#0ea5e9', '#a16207', '#e11d48', '#7c3aed', '#0891b2', '#d97706', '#059669', '#475569', '#a21caf'];
 function shade(hex, k) {
   if (!k) return hex;
   const m = hex.replace('#', '');
@@ -1648,9 +1634,13 @@ function shade(hex, k) {
   const hx = v => Math.round(v * f).toString(16).padStart(2, '0');
   return '#' + hx(r) + hx(g) + hx(b);
 }
-function buildColors(items) { // items: [{ id, defId }] -> { id: color } (same type => base then darker)
-  const seen = {}, map = {};
-  items.forEach(it => { const k = seen[it.defId] || 0; map[it.id] = shade(typeColor(it.defId), k); seen[it.defId] = k + 1; });
+function buildColors(items) { // items in render order: consecutive types take consecutive (very different) palette colors; duplicates darkened
+  const base = {}, seen = {}, map = {};
+  items.forEach(it => {
+    if (!(it.defId in base)) base[it.defId] = PIE_COLORS[Object.keys(base).length % PIE_COLORS.length];
+    const k = seen[it.defId] || 0;
+    map[it.id] = shade(base[it.defId], k); seen[it.defId] = k + 1;
+  });
   return map;
 }
 function pieSVG(items, size = 150) {
@@ -3160,7 +3150,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v2.53', `
-    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
+    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur par composant, choisie pour que les tranches voisines soient très contrastées (violet, jaune, vert, marron, turquoise, rose…), les exemplaires supplémentaires d’un même type prenant une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
