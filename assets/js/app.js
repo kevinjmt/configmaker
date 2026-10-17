@@ -106,7 +106,7 @@ const I18N = {
     'bench.brief': "Résumé d'usage", 'bench.daily': 'Quotidien', 'bench.gaming': 'Jeu (FPS iobit)', 'bench.pro': 'Charges lourdes',
     'bench.video': 'Montage / 3D', 'bench.compile': 'Compilation', 'bench.ai': 'IA locale',
     'bench.videos': 'Vidéos', 'bench.extraPh': 'Préciser la recherche… (ex : ray tracing, undervolt)', 'bench.search': 'Chercher',
-    'bench.needs': 'Sélectionnez CPU + GPU + RAM pour charger les benchmarks.',
+    'bench.needs': 'Sélectionnez un CPU + un GPU (ou un graphique intégré) pour charger les benchmarks.',
     'bench.needBoth': 'CPU + GPU requis (composants absents ou hors base iobit)', 'bench.needCpu': 'CPU requis.',
     'bench.nodata': 'Pas de données — réessayez plus tard.', 'bench.topruns': 'Médiane des meilleurs runs publics (biais optimiste)',
     'bench.typical': 'médianes par panier', 'bench.tsGpu': 'GPU typique', 'bench.tsCpu': 'CPU typique',
@@ -158,7 +158,7 @@ const I18N = {
     'bench.brief': 'Usage summary', 'bench.daily': 'Daily use', 'bench.gaming': 'Gaming (iobit FPS)', 'bench.pro': 'Heavy workloads',
     'bench.video': 'Editing / 3D', 'bench.compile': 'Compiling', 'bench.ai': 'Local AI',
     'bench.videos': 'Videos', 'bench.extraPh': 'Refine the search… (e.g. ray tracing, undervolt)', 'bench.search': 'Search',
-    'bench.needs': 'Select CPU + GPU + RAM to load benchmarks.',
+    'bench.needs': 'Select a CPU + GPU (or integrated graphics) to load benchmarks.',
     'bench.needBoth': 'CPU + GPU required (missing parts or outside iobit DB)', 'bench.needCpu': 'CPU required.',
     'bench.nodata': 'No data — retry later.', 'bench.topruns': 'Median of top public runs (optimistic bias)',
     'bench.typical': 'bucket medians', 'bench.tsGpu': 'Typical GPU', 'bench.tsCpu': 'Typical CPU',
@@ -204,10 +204,16 @@ function blankProduct() { return { id: uid(), name: '', image: '', specs: '', da
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
-  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id) };
+  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage() };
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
+/* Migration: the PC-usage/tarification config used to live in prefs; move it into the config once. */
+if (!state.usage) {
+  let seeded = null;
+  try { const p = load(LS.prefs, {}); if (p && (p.usage || p.tarif || p.priceHP || p.priceHC)) seeded = p; } catch { /* ignore */ }
+  state.usage = normUsage(seeded || {});
+}
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
 const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
@@ -1758,20 +1764,36 @@ function pieSVG(items, size = 150) {
 }
 /* ---------- Usage & tarification (weekly 7×24 grids, index = day*24 + hour) ---------- */
 const WEEK_DAYS = { fr: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'], en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] };
-function usagePrefs() {
-  const p = load(LS.prefs, {});
+/* The PC-usage/tarification config is part of the saved config (state.usage):
+   it is saved/exported with the config and reset when a new config is created. */
+function defaultUsage() {
+  const usage = Array(168).fill(0);
+  for (let d = 0; d < 7; d++) for (let h = 18; h <= 21; h++) usage[d * 24 + h] = 1;
+  return { usage, tarif: Array(168).fill(1), priceHP: 0.2146, priceHC: 0.1696 };
+}
+function normUsage(u) {
   const norm = (arr, fillFn) => {
     if (Array.isArray(arr) && arr.length === 168) return arr.map(x => (x ? 1 : 0));
     if (Array.isArray(arr) && arr.length === 24) { const o = []; for (let d = 0; d < 7; d++) o.push(...arr.map(x => (x ? 1 : 0))); return o; }
     return fillFn();
   };
-  const usage = norm(p.usage, () => { const a = Array(168).fill(0); for (let d = 0; d < 7; d++) for (let h = 18; h <= 21; h++) a[d * 24 + h] = 1; return a; });
-  const tarif = norm(p.tarif, () => Array(168).fill(1));
-  const priceHP = Number(p.priceHP) > 0 ? Number(p.priceHP) : 0.2146;
-  const priceHC = Number(p.priceHC) > 0 ? Number(p.priceHC) : 0.1696;
-  return { usage, tarif, priceHP, priceHC };
+  const d = defaultUsage();
+  return {
+    usage: norm(u && u.usage, () => d.usage),
+    tarif: norm(u && u.tarif, () => d.tarif),
+    priceHP: (u && Number(u.priceHP) > 0) ? Number(u.priceHP) : d.priceHP,
+    priceHC: (u && Number(u.priceHC) > 0) ? Number(u.priceHC) : d.priceHC,
+  };
 }
-function saveUsagePrefs(u) { save(LS.prefs, { ...load(LS.prefs, {}), usage: u.usage, tarif: u.tarif, priceHP: u.priceHP, priceHC: u.priceHC }); }
+function usagePrefs() {
+  if (!state.usage) state.usage = defaultUsage(); // lazy init (fresh/legacy drafts)
+  state.usage = normUsage(state.usage);
+  return state.usage;
+}
+function saveUsagePrefs(u) {
+  state.usage = normUsage(u);
+  persist();
+}
 function usageWeeklyHours(st) { return st.usage.reduce((a, b) => a + (b ? 1 : 0), 0); }
 function usageDailyHours(st) { return usageWeeklyHours(st) / 7; }
 function usageAnnualKwh(powerW, st) { return powerW * usageDailyHours(st) * 365 / 1000; }
@@ -1782,7 +1804,7 @@ function usageAnnualCost(powerW, st) {
   return cost;
 }
 function openUsageEditor() {
-  const st = usagePrefs();
+  const st = JSON.parse(JSON.stringify(usagePrefs())); // detached copy; committed on Save
   let tab = 'usage';
   const days = WEEK_DAYS[lang] || WEEK_DAYS.fr;
   const hh = i => String(i).padStart(2, '0');
@@ -2223,11 +2245,29 @@ function seriesForSlot(id, cfgs) { // per-component: slot totals read back from 
 }
 
 /* ---------- Benchmarks ---------- */
+function cpuIgpuName() {
+  const s = state.slots.cpu; const p = s && sel(s);
+  if (!p || !p.datasheet || typeof Compat === 'undefined') return '';
+  try { const C = Compat.parseDatasheet(p.datasheet); if (C && C.igpuName) return String(C.igpuName).trim(); } catch { /* ignore */ }
+  return '';
+}
+function gpuSeriesName() {
+  const s = state.slots.gpu; const p = s && sel(s);
+  if (!p) return '';
+  if (p.datasheet && typeof Compat !== 'undefined') {
+    try { const G = Compat.parseDatasheet(p.datasheet); if (G && G.gpuSeries) return String(G.gpuSeries).trim(); } catch { /* ignore */ }
+  }
+  return '';
+}
 function benchParts() {
   const g = id => { const s = state.slots[id]; const p = s && sel(s); return p ? p.name : ''; };
-  return { cpu: g('cpu'), gpu: g('gpu'), ram: g('ram') };
+  const cpu = g('cpu'), ram = g('ram');
+  let gpu = g('gpu'), iGpu = false;
+  if (!gpu) { const ig = cpuIgpuName(); if (ig) { gpu = ig; iGpu = true; } }
+  const gpuSeries = gpu ? (iGpu ? gpu : (gpuSeriesName() || gpu)) : '';
+  return { cpu, gpu, gpuSeries, ram, iGpu };
 }
-function benchQuery() { const b = benchParts(); return `${b.cpu} ${b.gpu} ${b.ram} benchmark`.trim(); }
+function benchQuery() { const b = benchParts(); return `${b.cpu} ${b.gpuSeries}`.trim(); }
 let benchCacheQ = '', benchBusy = false;
 /* ---------- Benchmarks : brief + gaming iobit + pro + Geekbench + 3DMark + YT ---------- */
 let benchGame = 'cp2077';
@@ -2248,7 +2288,13 @@ function benchScanSlot(prefix) {
   return null;
 }
 function benchFacts() {
-  const cpuP = benchProd('cpu'), gpuP = benchProd('gpu'), ramP = benchProd('ram');
+  const cpuP = benchProd('cpu'), ramP = benchProd('ram');
+  let gpuP = benchProd('gpu'), igpu = false;
+  if (!gpuP) { // no dedicated GPU: fall back to the CPU's integrated graphics
+    const ig = cpuIgpuName();
+    const e = ig ? Perf.igpuEntry(ig) : null;
+    if (e) { gpuP = { name: e[1], qty: 1, syntheticIgpu: true }; igpu = true; }
+  }
   // stockage : total de tous les SSD/HDD internes ; le type = disque le plus rapide present
   const storParts = [];
   for (const sid of state.order) {
@@ -2273,14 +2319,16 @@ function benchFacts() {
     } catch { /* ignore */ }
   }
   const cpuEntry = cpuP ? Perf.matchCpu(cpuP.name) : null;
-  const gpuEntry = gpuP ? Perf.matchGpu(gpuP.name) : null;
+  let gpuEntry = gpuP ? Perf.matchGpu(gpuP.name) : null;
+  if (!gpuEntry && igpu && gpuP) gpuEntry = Perf.igpuEntry(gpuP.name);
   const screenH = scrP ? Perf.screenH(scrP) : null;
+  const panel = scrP ? Perf.screenPanel(scrP) : '';
   // defaut 1080p sans ecran ; sinon palier iobit le plus proche en dessous
   const res = screenH == null ? 1080 : screenH >= 2000 ? '4k' : screenH >= 1300 ? 1440 : screenH >= 900 ? 1080 : 720;
   return {
-    cpuP, gpuP, ramP, storP, scrP, threads, ramGB, vramGB, cpuEntry, gpuEntry, screenH, res,
-    diskType, diskGB,
-    gRank: gpuP ? Perf.gpuRank(gpuP.name, gpuEntry ? gpuEntry[3] : null) : null,
+    cpuP, gpuP, ramP, storP, scrP, threads, ramGB, vramGB, cpuEntry, gpuEntry, screenH, res, panel,
+    diskType, diskGB, igpu,
+    gRank: gpuP ? (igpu ? { igpu: 1 } : Perf.gpuRank(gpuP.name, gpuEntry ? gpuEntry[3] : null)) : null,
   };
 }
 /* ----- tooltip flottant (suit le curseur) ----- */
@@ -2343,7 +2391,8 @@ function renderBriefFacts(f) {
     tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : cb + ' FPS'}</strong>`, gRows, cbSt) +
     stTile('fa-solid fa-clapperboard', t('bench.video'), Perf.worstOf(blocks.video), blocks.video) +
     stTile('fa-solid fa-code', t('bench.compile'), Perf.worstOf(blocks.compile), blocks.compile) +
-    stTile('fa-solid fa-brain', t('bench.ai'), Perf.worstOf(blocks.ai), blocks.ai);
+    stTile('fa-solid fa-brain', t('bench.ai'), Perf.worstOf(blocks.ai), blocks.ai)
+    + (f.igpu ? `<p class="hint">${lang === 'en' ? 'No dedicated GPU — estimates use the CPU integrated graphics (approximate).' : 'Aucun GPU dédié — estimations basées sur le graphique intégré du CPU (approximatif).'}</p>` : '');
 }
 /* ----- gaming iobit ----- */
 function fillGameSelect() {
@@ -2591,7 +2640,7 @@ async function loadBenchYt(baseQ, run) {
 }
 async function showBench() {
   const b = benchParts();
-  const has = !!(b.cpu && b.gpu && b.ram);
+  const has = !!(b.cpu && b.gpu);
   const q = benchQuery();
   $('#benchQuery').innerHTML = `${lang === 'en' ? 'Search:' : 'Recherche :'} <code class="k">${esc(q)}</code>`;
   bindBenchFold();
@@ -2605,7 +2654,7 @@ async function showBench() {
     $('#benchStatus').textContent = '';
     return;
   }
-  const key = [b.cpu, b.gpu, b.ram, benchGame].join('|');
+  const key = [b.cpu, b.gpuSeries, b.ram, benchGame].join('|');
   if (key !== benchKey) { benchKey = key; benchRun++; }
   const run = benchRun;
   for (const k of Object.keys(tipReg)) delete tipReg[k];
@@ -2676,10 +2725,13 @@ function saveSnapshot(label) {
 let lastSavedJson = '';
 function baselineSaved() {
   // Draft restored from storage counts as saved iff it matches the last snapshot
+  // (the PC-usage config is ignored here: legacy snapshots predate state.usage).
   try {
     const arr = (load(LS.configs, {})[state.name]) || [];
     if (!arr.length) return;
-    if (JSON.stringify(arr[arr.length - 1].snapshot) === JSON.stringify(state)) lastSavedJson = JSON.stringify(state);
+    const snap = arr[arr.length - 1].snapshot;
+    const strip = o => { const c = JSON.parse(JSON.stringify(o)); delete c.usage; return JSON.stringify(c); };
+    if (strip(snap) === strip(state)) lastSavedJson = JSON.stringify(state);
   } catch { /* ignore */ }
 }
 function isDirty() { return JSON.stringify(state) !== lastSavedJson; }
@@ -2709,6 +2761,7 @@ function resetDraftForBuild() {
 function restoreSnapshot(snap, name, enMsg, frMsg) {
   state = JSON.parse(JSON.stringify(snap));
   if (name) state.name = name;
+  state.usage = normUsage(state.usage || {});
   persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh();
   toast(lang === 'en' ? enMsg : frMsg);
 }
@@ -3216,6 +3269,7 @@ function importConfig(obj) {
   state = st;
   if (!state.order) state.order = Object.keys(state.slots);
   if (!state.name) state.name = 'Ma Config';
+  state.usage = normUsage(state.usage || {});
   if (typeof state.budget !== 'number') state.budget = parseFloat(state.budget) || 0;
   Object.values(state.slots).forEach(s => {
     if (!s || typeof s !== 'object') return;

@@ -102,6 +102,17 @@ const Compat = (() => {
     ['résolution', 'res', 'raw'], ['resolution', 'res', 'raw'],
     ['taux de rafraîchissement', 'refresh', 'num'], ['taux de rafraichissement', 'refresh', 'num'],
     ['refresh rate', 'refresh', 'num'], ['taux de rafraîssement', 'refresh', 'num'],
+    ['technologie de la dalle', 'panel', 'raw'], ['technologie dalle', 'panel', 'raw'],
+    ['type de dalle', 'panel', 'raw'], ['type d\u2019écran', 'panel', 'raw'], ["type d'ecran", 'panel', 'raw'],
+    ['panel technology', 'panel', 'raw'], ['panel type', 'panel', 'raw'], ['dalle', 'panel', 'raw'],
+    ['série chipset', 'gpuChipset', 'raw'], ['chipset series', 'gpuChipset', 'raw'],
+    ['série graphique', 'gpuSeries', 'raw'], ['série de la carte graphique', 'gpuSeries', 'raw'],
+    ['graphics series', 'gpuSeries', 'raw'], ['gpu series', 'gpuSeries', 'raw'],
+    ['série', 'gpuSeries', 'raw'], ['series', 'gpuSeries', 'raw'],
+    ['puce graphique intégrée', 'igpuFlag', 'flag'], ['graphique intégré', 'igpuFlag', 'flag'],
+    ['integrated graphics', 'igpuFlag', 'flag'], ['graphics integrated', 'igpuFlag', 'flag'],
+    ['nom du chipset graphique', 'igpuName', 'raw'], ['chipset graphique intégré', 'igpuName', 'raw'],
+    ['puce graphique', 'igpuName', 'raw'], ['graphics processor', 'igpuName', 'raw'],
     ['total board power', 'gpuW', 'num'], ['puissance totale', 'gpuW', 'num'], ['consommation (jeu)', 'gpuW', 'num'],
     ['tbp', 'gpuW', 'num'], ['board power', 'gpuW', 'num'], ['power draw', 'gpuW', 'num'],
     ['consommation électrique', 'gpuW', 'num'], ['puissance carte', 'gpuW', 'num'],
@@ -514,6 +525,26 @@ const Compat = (() => {
      Single source of truth for watts: used by check() pills AND the Power pane.
      CPU = TDP×1.35 peak · GPU = datasheet TBP (else fiche/default) · fixed per-device rules.
      Screens excluded from PSU total, included in UPS total + plug count. */
+  /* Physical fan count of a case-fan product: quantity × pack size.
+     Pack size read from the name/datasheet ("3 pièces", "pack of 3", "3 x ventilateurs"…). */
+  function packSize(text) {
+    const t = String(text || '');
+    const m = t.match(/(\d+)\s*[-–]?\s*(?:pi[eè]ces?|pcs?|pack)\b/i)   // "3 pièces", "3-pack", "12 pcs"
+      || t.match(/(?:pack|lot)\s+(?:de|of)\s*(\d+)/i)                  // "pack of 3", "lot de 3"
+      || t.match(/(\d+)\s*[-–]\s*fans?\b/i)                            // "3-Fan", "2-fan"
+      || t.match(/(\d+)\s+fans\b/i)                                    // "3 fans"
+      || t.match(/(?:fans|ventilateurs)\s*[x×]\s*(\d+)/i)               // "fans x3"
+      || t.match(/(\d+)\s*[x×]\s*(?:fans|ventilateurs)/i);              // "3 x ventilateurs"
+    if (!m) return 1;
+    const n = parseInt(m[1], 10);
+    return (n >= 1 && n <= 12) ? n : 1;
+  }
+  function fanUnitsOf(p, ds, qty) {
+    const text = ((p && p.name) || '') + ' ' + ((ds && ds.raw) || '');
+    const q = Math.max(1, Number(qty) || 1);
+    return q * packSize(text);
+  }
+
   function powerBreakdown(ctx) {
     const { order, slots, sel, def, lang } = ctx;
     const L = (fr, en) => (lang === 'en' ? en : fr);
@@ -608,8 +639,11 @@ const Compat = (() => {
         push(coolerId, nf * 5, [{ label: L(`Ventilateur(s) (${nf}×5W)`, `Fan(s) (${nf}×5W)`), w: nf * 5 }]);
       }
     }
-    /* Chassis fans */
-    chassisFanIds.forEach(id => push(id, 5 * P[id].qty, [{ label: L(`Ventilateur(s) (${P[id].qty}×5W)`, `Fan(s) (${P[id].qty}×5W)`), w: 5 * P[id].qty }]));
+    /* Chassis fans: power scales with the number of physical fans (qty × pack). */
+    chassisFanIds.forEach(id => {
+      const units = fanUnitsOf(P[id].p, P[id].ds, P[id].qty);
+      push(id, 5 * units, [{ label: L(`Ventilateur(s) (${units}×5W)`, `Fan(s) (${units}×5W)`), w: 5 * units }]);
+    });
     /* Internal PCIe cards */
     intCards.forEach(id => {
       const txt = (P[id].p.name || '') + ' ' + (P[id].ds.raw || '');
@@ -1137,7 +1171,9 @@ const Compat = (() => {
     /* ---- Case fans ---- */
     const PC_PARTS = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'psu', 'psucables', 'netcard', 'os', 'soft'];
     const isFanSlot = id => P[id] && (P[id].defId === 'fans' || (!PC_PARTS.includes(P[id].defId) && /ventilateur|fan/i.test(P[id].p.name || '')));
-    const chassisFanIds = order.filter(id => isFanSlot(id) && isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : '')));
+    /* The dedicated "case fan" slot is always a chassis fan; other slots only if the name says so. */
+    const chassisFanIds = order.filter(id => isFanSlot(id) && (P[id].defId === 'fans' || isCaseFan(P[id].p.name + ' ' + (P[id].ds ? P[id].ds.raw || '' : ''))));
+    const fanUnitOf = id => fanUnitsOf(P[id].p, P[id].ds, P[id].qty);
     chassisFanIds.forEach(id => {
       /* Fan slots are never listed on Idealo: always a manual check. */
       const cn = caseId && P[caseId] ? (P[caseId].p.name || '') : '';
@@ -1153,9 +1189,11 @@ const Compat = (() => {
       return P[fid].hasDs && (F.daisy || /daisy[\s-]?chain/i.test(nm));
     });
     const plainIds = chassisFanIds.filter(fid => !daisyIds.includes(fid));
-    /* Daisy chain on: one chained fan is deduced (shares its header with the chain). */
+    /* Daisy chain on: one chained fan is deduced (shares its header with the chain).
+       Plain fans each need a header → scale by the number of physical fans (qty × pack). */
     const daisyNeed = daisyIds.length ? Math.max(1, daisyIds.length - 1) : 0;
-    const needSys = plainIds.length + daisyNeed + radFans;
+    const plainUnits = plainIds.reduce((s, fid) => s + fanUnitOf(fid), 0);
+    const needSys = plainUnits + daisyNeed + radFans;
     const cpuPillId = coolerId; // CPU_FAN pill lives on the cooler…
     const sysPillId = chassisFanIds[0] || coolerId; // …SYS_FAN pills live on the (first) case fan
     if ((sysPillId && needSys > 0) || (cpuPillId && needCpu > 0)) {
@@ -1352,6 +1390,21 @@ const Compat = (() => {
       if (v.usbc) parts.push(`${v.usbc}×USB-C`);
       return parts.length ? parts.join(' + ') : '?';
     };
+    /* ---- Integrated graphics when no dedicated GPU is selected ---- */
+    if (cpuId && !gpuId && !needDs(cpuId)) {
+      const C = P[cpuId].ds || {};
+      const igpuName = C.igpuName ? String(C.igpuName).trim() : '';
+      const hasI = !!igpuName || C.igpuFlag === true;
+      const flagNo = (typeof C.igpuFlag === 'string' && /non|no|false|aucun/i.test(C.igpuFlag));
+      const mbV = (mbId && P[mbId].hasDs) ? P[mbId].ds.vid : null;
+      const mbHasOut = !!(mbV && (mbV.hdmi || mbV.dp || mbV.usbc));
+      if (flagNo) add(cpuId, 'igpu', L('Graphique', 'Graphics'), ERR, L('Aucun GPU dédié ni graphique intégré — aucune sortie vidéo !', 'No dedicated GPU or integrated graphics — no video output!'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', L('aucun', 'none')));
+      else if (!hasI) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L('Aucun GPU dédié ; graphique intégré non détecté — vérifiez la fiche CPU', 'No dedicated GPU; integrated graphics not detected — check the CPU datasheet'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', '?'));
+      else if (!mbId) add(cpuId, 'igpu', L('Graphique', 'Graphics'), NA, L('Graphique intégré (CPU) — carte mère absente', 'Integrated graphics (CPU) — no motherboard'), A('iGPU', igpuName || L('oui', 'yes')), null);
+      else if (!P[mbId].hasDs) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré${igpuName ? ' ' + igpuName : ''} — sorties vidéo CM à vérifier`, `Integrated graphics${igpuName ? ' ' + igpuName : ''} — verify board outputs`), A('iGPU', igpuName || L('oui', 'yes')), null);
+      else if (mbHasOut) add(cpuId, 'igpu', L('Graphique', 'Graphics'), OK, L(`Graphique intégré (${igpuName || 'iGPU'}) — sorties vidéo CM disponibles`, `Integrated graphics (${igpuName || 'iGPU'}) — board video outputs available`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', fmtVid(mbV), mbId));
+      else add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré (${igpuName || 'iGPU'}) mais aucune sortie vidéo CM détectée — vérifiez (sans GPU, pas d'affichage)`, `Integrated graphics (${igpuName || 'iGPU'}) but no board video output detected — verify (no display without a GPU)`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', '?', mbId));
+    }
     const screenIds = byDef('screen1');
     const srcDs = (gpuId && P[gpuId].hasDs) ? P[gpuId].ds : null;
     const mbDs = (mbId && P[mbId].hasDs) ? P[mbId].ds : null;
@@ -1367,6 +1420,13 @@ const Compat = (() => {
       if (sw && sw.w > 0) add(id, 'power', L('Conso', 'Power'), OK, L(`Écran ~${sw.w}W — hors PSU, compté pour l'onduleur`, `Monitor ~${sw.w}W — not on PSU, counted for UPS`), A('Écran', `~${sw.w} W`, id), A('Prises', '1'));
       else add(id, 'power', L('Conso', 'Power'), WARN, L('Conso écran non renseignée — hors PSU, à confirmer pour l\u2019onduleur', 'Unknown monitor draw — not on PSU, confirm for UPS'), A('Écran', '?', id), null);
       const SD = P[id].ds;
+      /* Panel technology — relevant for video/photo editing (OLED green, IPS orange). */
+      const ptechRaw = SD.panel ? String(SD.panel).trim() : '';
+      const ptech = ptechRaw.toUpperCase();
+      if (/OLED/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), OK, L(`OLED — idéal montage vidéo (contraste, noirs profonds)`, `OLED — ideal for video editing (contrast, deep blacks)`), A('Dalle', ptechRaw), null);
+      else if (/IPS|PLS/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`IPS — correct, contraste limité vs OLED pour le montage`, `IPS — fine, limited contrast vs OLED for editing`), A('Dalle', ptechRaw), null);
+      else if (ptechn) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`${ptechnRaw} — dalle à confirmer pour le montage vidéo`, `${ptechnRaw} — confirm panel for video editing`), A('Dalle', ptechRaw), null);
+      else add(id, 'panel', L('Dalle', 'Panel'), WARN, L('Technologie de dalle non renseignée — vérifiez (IPS/OLED)', 'Panel technology not listed — verify (IPS/OLED)'), A('Dalle', '?'), null);
       const V = SD.vid;
       const hasIn = V && (V.hdmi || V.dp || V.usbc);
       const ins = V ? [V.hdmi && 'HDMI', V.dp && 'DP', V.usbc && 'USB-C'].filter(Boolean) : [];

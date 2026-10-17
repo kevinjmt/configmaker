@@ -81,6 +81,34 @@ const Perf = (() => {
     if (/720|hd(?!\D)/i.test(s)) return 720;
     return null;
   }
+  /* Panel technology from the screen datasheet ("Technologie de la dalle : IPS/OLED…"). */
+  function screenPanel(screenP) {
+    try {
+      if (screenP && screenP.datasheet && typeof Compat !== 'undefined' && Compat.parseDatasheet) {
+        const P = Compat.parseDatasheet(screenP.datasheet);
+        if (P.panel) return String(P.panel).trim();
+      }
+    } catch { /* ignore */ }
+    const s = String((screenP && screenP.name) || '');
+    if (/oled|qd-?oled/i.test(s)) return 'OLED';
+    if (/ips|pls/i.test(s)) return 'IPS';
+    return '';
+  }
+  /* Integrated GPU fallback (iobit has no iGPU rows): rough perf for the estimate. */
+  const IGPU_PERF = [
+    [/RADEON 890M/, 6200], [/RADEON 880M/, 5600], [/RADEON 780M/, 5200], [/RADEON 760M/, 3800], [/RADEON 740M/, 2600],
+    [/RADEO?N GRAPHICS/, 2000], [/VEGA \d/, 1800],
+    [/IRIS XE MAX/, 4200], [/IRIS XE/, 3200], [/IRIS PLUS/, 2300], [/\bIRIS\b/, 2600],
+    [/UHD GRAPHICS 7[37]0/, 1800], [/UHD GRAPHICS 6[23]0/, 1200], [/UHD GRAPHICS/, 1500], [/HD GRAPHICS/, 800],
+  ];
+  function igpuEntry(name) {
+    const n = norm(name);
+    if (!n) return null;
+    let perf = null;
+    for (const [re, p] of IGPU_PERF) { if (re.test(n)) { perf = p; break; } }
+    if (perf == null) return null;
+    return ['igpu', String(name).trim(), 0, perf];
+  }
   /* rang GPU : voir entete */
   function gpuRank(name, perf) {
     const s = String(name || '').toUpperCase();
@@ -108,6 +136,7 @@ const Perf = (() => {
   /* tier pro : red si generation <= refRed, yellow si <= refYel, sinon green */
   function tierRank(info, refRed, refYel) {
     if (!info) return null;
+    if (info.igpu) return 'err';
     const g = info.gen;
     if (info.rtx) { if (g <= refRed) return 'err'; if (g <= refYel) return 'warn'; return 'ok'; }
     if (info.rx) { if (g <= refRed) return 'err'; if (g <= refYel) return 'warn'; return 'ok'; }
@@ -192,7 +221,7 @@ const Perf = (() => {
     const gpu = (refRed, refYel, names) => {
       if (gRank == null) return { k: 'gpu', st: 'unknown', label: L('GPU inconnu', 'Unknown GPU'), detail: L('Modèle non reconnu', 'Model not recognized') };
       const r = tierRank(gRank, refRed, refYel);
-      const nm = gRank.rtx ? `RTX ${gRank.gen}xxx` : gRank.rx ? `RX ${['5xx', '5xxx', '6xxx', '7xxx', '9xxx'][gRank.gen] || '?'}` : gRank.gtx ? 'GTX' : 'Arc';
+      const nm = gRank.rtx ? `RTX ${gRank.gen}xxx` : gRank.rx ? `RX ${['5xx', '5xxx', '6xxx', '7xxx', '9xxx'][gRank.gen] || '?'}` : gRank.gtx ? 'GTX' : gRank.igpu ? 'iGPU' : 'Arc';
       const b = bar(gRank.gen, refRed, refYel, { max: 5, noval: true });
       if (r === 'err') return { k: 'gpu', st: 'err', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`), bar: b };
       if (r === 'warn') return { k: 'gpu', st: 'warn', label: `GPU ${nm}`, detail: L(`En dessous de ${names} (ou équivalent)`, `Below ${names} (or equivalent)`), bar: b };
@@ -200,12 +229,23 @@ const Perf = (() => {
     };
     // Adobe / DaVinci / Blender : red ≤12T, ≤16Go, <2xxx/6xxx, HDD, ≤500Go, ≤1080p
     //   yellow <16T, <32Go, <3xxx/7xxx, SATA, ≤1000Go, <1440p ; green >16T, ≥32Go, >4xxx/9xxx, NVMe, ≥2000Go, >1440p
+    //   Screen tech: OLED green, IPS/TN/VA orange (contrast/blacks matter for grading).
+    const panelRow = () => {
+      if (!f.scrP) return { k: 'panel', st: 'unknown', neutral: true, label: L('Dalle non sélectionnée', 'No panel selected'), detail: L('Non pris en compte — ajoutez un écran', 'Not taken into account — add a display') };
+      const raw = String(f.panel || '').trim();
+      const up = raw.toUpperCase();
+      if (!up) return { k: 'panel', st: 'unknown', label: L('Dalle inconnue', 'Unknown panel'), detail: L('Technologie non renseignée (IPS/OLED)', 'Technology not listed (IPS/OLED)') };
+      if (/OLED/.test(up)) return { k: 'panel', st: 'ok', label: `OLED`, detail: L('Contraste/noirs idéals pour le montage', 'Contrast/blacks ideal for editing') };
+      if (/IPS|PLS/.test(up)) return { k: 'panel', st: 'warn', label: `IPS`, detail: L('Correct ; contraste limité vs OLED', 'Fine; limited contrast vs OLED') };
+      return { k: 'panel', st: 'warn', label: raw, detail: L('Dalle à confirmer pour le montage', 'Confirm panel for editing') };
+    };
     blocks.video = [
       thr(12, 16),
       ram(16, 32, 'le'),
       gpu(2, 3, 'RTX 3xxx / RX 7xxx'),
       diskTW(500, 1000),
       scr(1080, 1440, 'gt'),
+      panelRow(),
     ];
     // Compilation : red ≤12T, ≤16Go, HDD, ≤500Go, ≤1080p ; yellow <16T, <32Go, SATA, ≤1000Go, <1440p ; green >16T, ≥32Go, NVMe, ≥2000Go, ≥1440p
     blocks.compile = [
@@ -455,7 +495,7 @@ const Perf = (() => {
   }
 
   return {
-    setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, gpuRank, tierRank,
+    setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, screenPanel, gpuRank, tierRank, igpuEntry,
     dailyCriteria, diskRow, proCriteria, matchCpu, matchGpu, ramMult, fpsFor,
     bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, tsHwId, tsClear, gbScores, gbClear, tryParseJson,
   };
