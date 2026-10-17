@@ -412,6 +412,8 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .seg button.active{background:var(--ink);color:#fff}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:.78rem}
 .legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .leg{cursor:pointer;user-select:none}
+.legend .leg.off{opacity:.45;text-decoration:line-through}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
 /* price history */
 .price-wrap{position:relative;margin-top:6px}

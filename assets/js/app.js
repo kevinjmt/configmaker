@@ -133,7 +133,7 @@ const I18N = {
     'welcome.del': 'Supprimer', 'welcome.delConfirm': 'Supprimer cette config ?', 'welcome.yes': 'Oui', 'welcome.no': 'Non',
     'consent.msg': 'Ce site stocke vos configs localement. Accepter ?', 'consent.accept': 'Accepter', 'consent.deny': 'Refuser',
     'consent.saveBlocked': 'Sauvegarde désactivée (stockage refusé) — JSON exporté en secours.', 'consent.deniedHint': 'Stockage refusé : mode mémoire seule.',
-    'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.power': 'Consommation', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.',
+    'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.power': 'Consommation', 'prices.perMonth': 'Prix / mois', 'prices.perYear': 'Prix / an', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.',
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
@@ -185,7 +185,7 @@ const I18N = {
     'welcome.del': 'Delete', 'welcome.delConfirm': 'Delete this config?', 'welcome.yes': 'Yes', 'welcome.no': 'No',
     'consent.msg': 'This site stores your configs locally. Accept?', 'consent.accept': 'Accept', 'consent.deny': 'Decline',
     'consent.saveBlocked': 'Saving disabled (storage declined) — JSON exported as backup.', 'consent.deniedHint': 'Storage declined: memory-only mode.',
-    'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.power': 'Power draw', 'prices.hint': 'One point is added on each save. Budget is the dotted line (total view). Hover the curve for per-date details.',
+    'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.power': 'Power draw', 'prices.perMonth': 'Cost / month', 'prices.perYear': 'Cost / year', 'prices.hint': 'One point is added on each save. Budget is the dotted line (total view). Hover the curve for per-date details.',
     'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
 };
@@ -1954,31 +1954,60 @@ function wattsBackfill(h) { // older points (no stored watts) recomputed from ma
   };
   return h.map(x => ({ t: x.t, v: Number.isFinite(x.watts) ? x.watts : wattsOf(x.t) }));
 }
+let wattsCache = { key: '', arr: null };
+function wattsForHist(h) { // cached power array aligned with the history points
+  const key = (state.name || '') + ':' + h.length + ':' + (h.length ? h[h.length - 1].t : 0);
+  if (wattsCache.key === key && wattsCache.arr) return wattsCache.arr;
+  const arr = wattsBackfill(h);
+  wattsCache = { key, arr };
+  return arr;
+}
 function fmtAxisVal(v) {
   if (phMode === 'power') return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k W' : Math.round(v) + ' W';
   return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k €' : Math.round(v) + ' €';
 }
-function fmtChartVal(v) { return phMode === 'power' ? (Math.round(v * 10) / 10) + ' W' : eur(v); }
-let priceHover = null, priceGeom = null, priceBound = false;
+let priceHover = null, priceGeom = null, priceBound = false, priceHidden = new Set(), priceLegBound = false;
+function bindPriceLegend() {
+  if (priceLegBound) return; priceLegBound = true;
+  const leg = $('#priceLegend'); if (!leg) return;
+  leg.addEventListener('click', e => {
+    const el = e.target.closest('[data-slot]'); if (!el) return;
+    const id = el.dataset.slot;
+    priceHidden.has(id) ? priceHidden.delete(id) : priceHidden.add(id);
+    priceHover = null; drawPrices();
+  });
+}
 function bindPriceHover() {
   if (priceBound) return; priceBound = true;
   const cv = $('#priceChart'); if (!cv) return;
   cv.addEventListener('mousemove', e => {
-    if (!priceGeom || !priceGeom.count) return;
+    const g = priceGeom; if (!g || !g.count) return;
     const rect = cv.getBoundingClientRect();
-    const px = (e.clientX - rect.left) * (cv.width / rect.width);
-    const { xOf, count } = priceGeom;
-    let best = null, bd = 1e9;
-    for (let i = 0; i < count; i++) { const d = Math.abs(xOf(i, count) - px); if (d < bd) { bd = d; best = i; } }
-    if (best !== priceHover) { priceHover = best; drawPrices(); }
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    let idx = null, bd = 1e9;
+    for (let i = 0; i < g.count; i++) { const d = Math.abs(g.xOf(i, g.count) - px); if (d < bd) { bd = d; idx = i; } }
+    if (idx == null) return;
+    let sIdx = null;
+    if (phMode === 'per' && g.series.length > 1) { // nearest line to the cursor
+      let sb = 1e9;
+      g.series.forEach((s, k) => { if (!s.pts[idx]) return; const d = Math.abs(g.yOf(s.pts[idx].v) - py); if (d < sb) { sb = d; sIdx = k; } });
+    }
+    if (!priceHover || priceHover.idx !== idx || priceHover.sIdx !== sIdx) { priceHover = { idx, sIdx }; drawPrices(); }
   });
-  cv.addEventListener('mouseleave', () => { if (priceHover !== null) { priceHover = null; drawPrices(); } });
+  cv.addEventListener('mouseleave', () => { if (priceHover) { priceHover = null; drawPrices(); } });
 }
 function drawPrices() {
   const cv = $('#priceChart'); if (!cv) return;
-  bindPriceHover();
+  bindPriceHover(); bindPriceLegend();
   const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
+  // HiDPI: render at device pixel ratio so the chart stays crisp when scaled to the container.
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cssW = Math.max(280, Math.round(cv.getBoundingClientRect().width) || 800);
+  const cssH = Math.round(cssW * 0.4);
+  const bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; cv.style.height = cssH + 'px'; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = cssW, H = cssH;
   ctx.clearRect(0, 0, W, H);
   const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   const grid = dark ? '#333' : '#e3e8e3', axis = dark ? '#9aa0a6' : '#666';
@@ -1990,22 +2019,23 @@ function drawPrices() {
   if (phMode === 'total') {
     series = [{ label: lang === 'en' ? 'Total' : 'Total', color: '#1a8744', pts: h.map(x => ({ t: x.t, v: x.total })) }];
   } else if (phMode === 'power') {
-    series = [{ label: t('prices.power'), color: '#0891b2', pts: wattsBackfill(h) }];
+    series = [{ label: t('prices.power'), color: '#0891b2', pts: wattsForHist(h) }];
   } else {
     const perItems = state.order.filter(id => sel(state.slots[id])).map(id => ({ id, defId: defOf(state.slots[id]).id }));
     const cmap = buildColors(perItems);
     const cfgs = load(LS.configs, {})[state.name] || [];
-    series = perItems.map(it => ({ label: slotName(it.id), color: cmap[it.id], pts: seriesForSlot(it.id, cfgs) }));
+    series = perItems.map(it => ({ id: it.id, label: slotName(it.id), color: cmap[it.id], pts: seriesForSlot(it.id, cfgs) }));
   }
+  const vis = series.filter(s => !s.id || !priceHidden.has(s.id)); // component toggled off in the legend
   const plotL = 60, plotR = 16, plotT = 14, plotB = 40;
   const plotW = W - plotL - plotR, plotH = H - plotT - plotB;
   const points = series.length ? series[0].pts : [];
   const count = points.length;
-  const allV = series.flatMap(s => s.pts.map(p => p.v)).concat(budgetOn ? [budget] : []);
+  const allV = vis.flatMap(s => s.pts.map(p => p.v)).concat(budgetOn ? [budget] : []);
   const max = Math.max(...allV, phMode === 'power' ? 50 : 10);
   const xOf = (i, n = count) => plotL + plotW * (n > 1 ? i / (n - 1) : 0.5);
   const yOf = v => plotT + plotH - plotH * ((v) / (max || 1));
-  priceGeom = { xOf, count };
+  priceGeom = { xOf, yOf, count, series: vis };
   // vertical scale (values)
   ctx.font = '11px system-ui, sans-serif'; ctx.lineWidth = 1;
   const ticks = 4;
@@ -2024,14 +2054,20 @@ function drawPrices() {
     }
   }
   ctx.strokeStyle = axis; ctx.beginPath(); ctx.moveTo(plotL, plotT); ctx.lineTo(plotL, plotT + plotH); ctx.lineTo(W - plotR, plotT + plotH); ctx.stroke();
-  // series
-  series.forEach(s => {
+  // series (only visible ones drawn)
+  vis.forEach(s => {
     ctx.strokeStyle = s.color; ctx.lineWidth = 2.5; ctx.beginPath();
     s.pts.forEach((p, i) => { const x = xOf(i, s.pts.length), y = yOf(p.v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
     ctx.stroke();
     ctx.fillStyle = s.color;
     s.pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(xOf(i, s.pts.length), yOf(p.v), 3, 0, 7); ctx.fill(); });
-    leg.innerHTML += `<span><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
+  });
+  // legend (clickable per-component toggles)
+  series.forEach(s => {
+    if (!s.id) { leg.innerHTML += `<span><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`; return; }
+    const off = priceHidden.has(s.id) ? ' off' : '';
+    const title = lang === 'en' ? 'Show / hide' : 'Afficher / masquer';
+    leg.innerHTML += `<span class="leg${off}" data-slot="${esc(s.id)}" title="${title}"><i class="dot" style="background:${s.color}"></i>${esc(s.label)}</span>`;
   });
   // budget line — total mode only
   if (budgetOn && budget > 0) {
@@ -2041,14 +2077,29 @@ function drawPrices() {
   }
   // hover crosshair + tooltip
   const tip = $('#priceTip');
-  if (priceHover != null && priceHover < count) {
-    const x = xOf(priceHover);
+  if (priceHover && priceHover.idx < count) {
+    const idx = priceHover.idx, x = xOf(idx);
     ctx.setLineDash([4, 4]); ctx.strokeStyle = axis; ctx.beginPath(); ctx.moveTo(x, plotT); ctx.lineTo(x, plotT + plotH); ctx.stroke(); ctx.setLineDash([]);
-    series.forEach(s => { if (s.pts[priceHover]) { const px = xOf(priceHover, s.pts.length), py = yOf(s.pts[priceHover].v); ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill(); ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); } });
+    const mark = s => { if (!s.pts[idx]) return; const px = xOf(idx, s.pts.length), py = yOf(s.pts[idx].v); ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 7); ctx.fill(); ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); };
+    if (phMode === 'per' && priceHover.sIdx != null && vis[priceHover.sIdx]) mark(vis[priceHover.sIdx]);
+    else vis.forEach(mark);
     if (tip) {
-      const d = new Date(points[priceHover].t);
+      const d = new Date(points[idx].t);
       const ds = d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'fr-FR') + ' ' + d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'fr-FR', { hour: '2-digit', minute: '2-digit' });
-      tip.innerHTML = `<div class="ptip-date">${ds}</div>` + series.map(s => s.pts[priceHover] ? `<div class="ptip-row"><i class="dot" style="background:${s.color}"></i><span>${esc(s.label)}</span><strong>${fmtChartVal(s.pts[priceHover].v)}</strong></div>` : '').join('');
+      const row = (label, color, val) => `<div class="ptip-row"><i class="dot" style="background:${color}"></i><span>${esc(label)}</span><strong>${val}</strong></div>`;
+      let rows = '';
+      if (phMode === 'per') {
+        const s = vis[priceHover.sIdx] || vis[0];
+        if (s && s.pts[idx]) rows = row(s.label, s.color, eur(s.pts[idx].v));
+      } else if (phMode === 'total') {
+        rows = row(vis[0].label, vis[0].color, eur(vis[0].pts[idx].v));
+      } else {
+        const w = vis[0].pts[idx].v, st = usagePrefs(), yr = usageAnnualCost(w, st);
+        rows = row(vis[0].label, vis[0].color, Math.round(w) + ' W');
+        rows += row(t('prices.perMonth'), '#0891b2', eur(yr / 12));
+        rows += row(t('prices.perYear'), '#0891b2', eur(yr));
+      }
+      tip.innerHTML = `<div class="ptip-date">${ds}</div>${rows}`;
       tip.classList.remove('hidden');
       tip.style.left = Math.max(8, Math.min(92, x / W * 100)) + '%';
     }
@@ -3086,7 +3137,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v2.53', `
-    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde.</p></div>
+    <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur distincte par type de composant, les exemplaires supplémentaires d’un même type prennent une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé et chaque composant peut être activé/désactivé en cliquant son entrée de légende ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
     <div class="chlog"><h3>v2.50 — Carte réseau + réseau complet</h3><p class="hint">Nouveau composant carte réseau (slot PCIe sous la carte graphique, simulateur PCIe, RJ45/SFP+/WiFi), switch vs routeur vs lien PC, prises ventilateurs CM, stockage externe/dock/webcam (débits USB), lecteur SD, tablette graphique.</p></div>
