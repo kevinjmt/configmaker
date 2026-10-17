@@ -391,7 +391,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .wk-corner{visibility:hidden}
 .wk-dayh{display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
 .wk-hour{display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:.68rem;font-weight:800;color:var(--muted)}
-.day-sq{border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;height:100%;min-height:18px;width:100%;cursor:pointer;padding:0;transition:.12s}
+.day-sq{border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;height:100%;min-height:18px;width:100%;cursor:pointer;padding:0;touch-action:none;transition:.12s}
 .day-sq:hover{border-color:var(--brand)}
 .day-sq.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .day-sq.hp{background:#ffd9a3;border-color:#f0a94a;color:#7a4b00}

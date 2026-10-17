@@ -1713,12 +1713,31 @@ function openUsageEditor() {
     host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
     host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
   });
-  host.querySelectorAll('.day-sq').forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.i);
-    const kind = b.closest('.wk').dataset.kind;
-    if (kind === 'usage') { st.usage[i] = st.usage[i] ? 0 : 1; b.classList.toggle('on', !!st.usage[i]); }
-    else { st.tarif[i] = st.tarif[i] ? 0 : 1; b.classList.toggle('hp', !!st.tarif[i]); b.classList.toggle('hc', !st.tarif[i]); }
-    updCounts();
+  /* Click or click-and-drag to paint hours under the cursor. */
+  let painting = false, paintVal = 1, paintKind = null;
+  const valOf = b => { const i = Number(b.dataset.i); return b.closest('.wk').dataset.kind === 'tarif' ? st.tarif[i] : st.usage[i]; };
+  const setCell = (b, v) => {
+    const i = Number(b.dataset.i); const kind = b.closest('.wk').dataset.kind;
+    if (kind === 'usage') { st.usage[i] = v; b.classList.toggle('on', !!v); }
+    else { st.tarif[i] = v; b.classList.toggle('hp', !!v); b.classList.toggle('hc', !v); }
+  };
+  const cellAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest('.day-sq') : null; };
+  host.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.day-sq'); if (!b) return;
+    e.preventDefault();
+    paintKind = b.closest('.wk').dataset.kind;
+    paintVal = valOf(b) ? 0 : 1;
+    painting = true;
+    setCell(b, paintVal); updCounts();
+    const end = () => { painting = false; window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  });
+  host.addEventListener('pointermove', e => {
+    if (!painting) return;
+    const b = cellAt(e.clientX, e.clientY);
+    if (!b || b.closest('.wk').dataset.kind !== paintKind) return;
+    setCell(b, paintVal); updCounts();
   });
   $('#u_save').onclick = () => {
     st.priceHP = parseFloat($('#u_hp').value) || st.priceHP;
