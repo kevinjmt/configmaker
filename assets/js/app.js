@@ -1016,7 +1016,7 @@ function openPsuCompare(slotId) {
       ${nearest.length ? `<p class="hint" style="margin-top:10px">${lang === 'en' ? 'Nearest listed units:' : 'Modèles voisins listés :'}</p>${nearest.map(n => `<div class="list-row"><span class="grow">${esc(n.brand)} — ${pretty(n)}</span><span class="compat-badge na"><i class="fa-solid fa-plug"></i>${(n.watts || []).join('/')} W</span><span class="compat-badge ${psuVerdict(n).st}"><i class="fa-solid fa-ranking-star"></i>${esc(psuVerdict(n).txt)}</span></div>`).join('')}` : ''}`;
   openModal(lang === 'en' ? 'PSU — quality & reliability' : 'Alim — qualité & fiabilité', `
     <p class="hint"><strong>${esc(p.name)}</strong> — ${capW ? capW + ' W' : lang === 'en' ? 'wattage unknown' : 'puissance inconnue'}</p>${matchedHtml}
-    <div class="btn-row"><a class="btn btn-sm" href="${PSU_SHEET_URL}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-table-list"></i> ${lang === 'en' ? 'Open PSU Tier List sheet' : 'Ouvrir la Google Sheet (tier list PSU)'}</a></div>`);
+    <div class="btn-row"><a class="btn btn-sm" href="${r && r.row ? PSU_SHEET_URL + '&range=A' + r.row : PSU_SHEET_URL}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-table-list"></i> ${r && r.row ? (lang === 'en' ? 'Open this unit in the sheet' : 'Ouvrir ce modèle dans la sheet') : (lang === 'en' ? 'Open PSU Tier List sheet' : 'Ouvrir la Google Sheet (tier list PSU)')}</a></div>`);
 }
 async function refreshOnePrice(slotId) {
   const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
