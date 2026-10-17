@@ -304,8 +304,9 @@ function stampVersion(d = new Date()) {
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 2400); }
 
 /* ---------- Modal ---------- */
-function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove('modal-xl'); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) box.classList.remove('modal-xl'); editingPid = null; }
+const MODAL_SIZES = ['modal-xl', 'modal-wide'];
+function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) box.classList.remove(...MODAL_SIZES); editingPid = null; }
 let editingPid = null;
 
 /* ---------- Compatibility (Compat module) ---------- */
@@ -1425,7 +1426,7 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld full"><label>${lang === 'en' ? 'Store URL (offer link)' : 'URL boutique (lien de l’offre)'}</label><input id="f_store" value="${esc(p.store)}" placeholder="https://…"></div>
     </div>
     <div class="btn-row"><button class="btn btn-primary" id="f_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save fiche' : 'Enregistrer'}</button>
-    ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
+    ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`, 'modal-wide');
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   $('#f_manualOpen').onclick = () => { const u = $('#f_manual').value.trim(); if (u) window.open(u, '_blank', 'noopener'); };
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
@@ -2544,7 +2545,7 @@ function openWelcome() {
         </div>
       </div>
     </div>`);
-  $('#modalBox').classList.add('modal-xl');
+  $('#modalBox').classList.add('modal-wide');
   $('#wNew').onclick = () => {
     const n = $('#wName') ? $('#wName').value.trim() : '';
     const b = $('#wBudget') ? parseFloat($('#wBudget').value) || 0 : 0;
