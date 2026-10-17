@@ -2695,19 +2695,58 @@ function wipeToNew() {
   refresh();
   toast(lang === 'en' ? 'New config' : 'Nouvelle config');
 }
-function newConfig() {
-  const pristine = JSON.stringify(state) === JSON.stringify(defaultState());
-  if (!isDirty() || pristine) { wipeToNew(); return; }
-  const t = totals();
-  openModal(lang === 'en' ? 'Start a new config?' : 'Nouvelle configuration ?', `
-    <p>${lang === 'en' ? 'Unsaved changes to' : 'Modifications non sauvées de'} <strong>${esc(state.name)}</strong>
-    (${eur(t.total)}${state.version ? ' · v' + esc(state.version) : ''}) ${lang === 'en' ? 'will be lost.' : 'seront perdues.'}</p>
-    <p class="hint">${lang === 'en' ? 'Saved configs and history are kept — only the current draft is wiped.' : 'Les configs sauvées et l’historique sont conservés — seul le brouillon courant est effacé.'}</p>
-    <div class="btn-row"><button class="btn" id="n_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>
-    <button class="btn btn-primary" id="n_wipe"><i class="fa-solid fa-file-circle-plus"></i> ${lang === 'en' ? 'Erase & new' : 'Effacer & nouveau'}</button></div>`);
-  $('#n_cancel').onclick = closeModal;
-  $('#n_wipe').onclick = wipeToNew;
+/* Reset the draft in place (keeps the welcome modal open) — used by the AI build. */
+function resetDraftForBuild() {
+  state = defaultState();
+  activeSlot = null; idealToken++; idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE;
+  benchCacheQ = '';
+  try { openAlts.clear(); openVariants.clear(); } catch { /* ignore */ }
+  compatCache = null;
+  lastSavedJson = ''; // fresh, unsaved
+  persist();
 }
+/* Replace the draft with a stored snapshot. */
+function restoreSnapshot(snap, name, enMsg, frMsg) {
+  state = JSON.parse(JSON.stringify(snap));
+  if (name) state.name = name;
+  persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh();
+  toast(lang === 'en' ? enMsg : frMsg);
+}
+/* True when the current draft holds work that would be lost by a wipe/replace. */
+function hasUnsavedWork() {
+  if (!isDirty()) return false;
+  try { if (JSON.stringify(state) === JSON.stringify(defaultState())) return false; } catch { /* ignore */ }
+  return true;
+}
+/* Save gate: before any action that replaces/wipes the draft, offer to save it first.
+   run() executes after Save or Discard; onCancel (default: close) restores the current UI. */
+function guardUnsaved(run, onCancel) {
+  onCancel = onCancel || closeModal;
+  if (!hasUnsavedWork()) { run(); return; }
+  state.name = String(state.name || '').trim() || 'Ma Config';
+  const total = totals().total;
+  const nParts = state.order.filter(id => { const s = state.slots[id]; return s && sel(s); }).length;
+  const def = stampVersion();
+  openModal(lang === 'en' ? 'Unsaved changes' : 'Modifications non sauvegardées', `
+    <p>${lang === 'en' ? 'Your current config is not saved — these changes will be lost:' : 'Votre config actuelle n’est pas sauvegardée — ces modifications seront perdues :'}</p>
+    <div class="list-row"><span class="grow"><strong>${esc(state.name)}</strong><br><small style="color:var(--muted)">${state.version ? 'v' + esc(state.version) : (lang === 'en' ? 'unsaved' : 'non sauvée')} · ${eur(total)} · ${nParts} ${lang === 'en' ? 'part(s)' : 'composant(s)'}</small></span></div>
+    <p class="hint">${lang === 'en' ? 'Save it (kept in history) or discard it to continue.' : 'Sauvegardez-la (gardée dans l’historique) ou abandonnez pour continuer.'}</p>
+    <div class="fld"><label>${lang === 'en' ? 'Save as' : 'Enregistrer sous'}</label><input id="g_ver" value="${esc(def)}" autocomplete="off" spellcheck="false"></div>
+    <div class="btn-row"><button class="btn" id="g_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>
+    <button class="btn" id="g_discard"><i class="fa-solid fa-trash-can"></i> ${lang === 'en' ? 'Discard' : 'Abandonner'}</button>
+    <button class="btn btn-primary" id="g_save"><i class="fa-solid fa-floppy-disk"></i> ${lang === 'en' ? 'Save & continue' : 'Sauver & continuer'}</button></div>`);
+  const inp = $('#g_ver');
+  if (inp) { inp.focus(); inp.select(); inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#g_save').click(); } }; }
+  $('#g_cancel').onclick = onCancel;
+  $('#g_discard').onclick = () => { closeModal(); run(); };
+  $('#g_save').onclick = () => {
+    const label = ($('#g_ver') && $('#g_ver').value.trim()) || def;
+    closeModal();
+    saveSnapshot(label);
+    run();
+  };
+}
+function newConfig() { guardUnsaved(wipeToNew); }
 function openLoad() {
   const cfgs = load(LS.configs, {});
   const names = Object.keys(cfgs);
@@ -2724,19 +2763,24 @@ function openLoad() {
     row.className = 'list-row';
     row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${arr.length} save(s) · v${esc(last.version)} · ${eur(last.total)}</small></span>`;
     const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${lang === 'en' ? 'Load' : 'Charger'}`;
-    b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+    b.onclick = () => guardUnsaved(() => restoreSnapshot(last.snapshot, null, 'Loaded', 'Chargée'));
     row.appendChild(b); host.appendChild(row);
   });
   $('#l_file').onclick = () => $('#l_fileIn').click();
   $('#l_fileIn').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { try { importConfig(JSON.parse(r.result)); closeModal(); } catch { toast('JSON invalide'); } };
+    r.onload = () => {
+      let obj; try { obj = JSON.parse(r.result); } catch { toast('JSON invalide'); return; }
+      guardUnsaved(() => { try { importConfig(obj); closeModal(); } catch { toast('JSON invalide'); } });
+    };
     r.readAsText(f);
   };
   $('#l_link').onclick = () => {
     const v = prompt(lang === 'en' ? 'Paste share link or code:' : 'Collez le lien ou le code de partage :');
-    if (v) { try { importConfig(decodeShare(v)); closeModal(); } catch { toast('Lien invalide'); } }
+    if (!v) return;
+    let obj; try { obj = decodeShare(v); } catch { toast('Lien invalide'); return; }
+    guardUnsaved(() => { try { importConfig(obj); closeModal(); } catch { toast('Lien invalide'); } });
   };
 }
 function openHistory() {
@@ -2752,7 +2796,8 @@ function openHistory() {
   openModal((lang === 'en' ? 'History — ' : 'Historique — ') + state.name, render(rev));
   $$('#modalBody [data-r]').forEach(b => b.onclick = () => {
     const v = cfgs[Number(b.dataset.r)];
-    state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
+    if (!v) return;
+    guardUnsaved(() => restoreSnapshot(v.snapshot, v.name, 'Restored', 'Restaurée'));
   });
   // remove one save from history: 2-step inline confirm (same pattern as welcome recents)
   const armDel = b => {
@@ -2780,7 +2825,7 @@ function openHistory() {
       const arrNow = (load(LS.configs, {})[state.name]) || [];
       const v = arrNow[Number(b.dataset.r)];
       if (!v) return;
-      state = JSON.parse(JSON.stringify(v.snapshot)); state.name = v.name; persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Restored' : 'Restaurée');
+      guardUnsaved(() => restoreSnapshot(v.snapshot, v.name, 'Restored', 'Restaurée'));
     });
     $$('#modalBody [data-d]').forEach(b => { b.onclick = () => armDel(b); });
   };
@@ -2841,10 +2886,12 @@ function openWelcome() {
   $('#wNew').onclick = () => {
     const n = $('#wName') ? $('#wName').value.trim() : '';
     const b = $('#wBudget') ? parseFloat($('#wBudget').value) || 0 : 0;
-    wipeToNew(); // ferme le modal : on applique nom/budget sur la config vierge
-    if (n) state.name = n;
-    if (b > 0) state.budget = b;
-    persist(); refresh();
+    guardUnsaved(() => {
+      wipeToNew(); // ferme le modal : on applique nom/budget sur la config vierge
+      if (n) state.name = n;
+      if (b > 0) state.budget = b;
+      persist(); refresh();
+    });
   };
   $('#wAiGo').onclick = () => {
     $('#wMain').classList.add('hidden');
@@ -2876,7 +2923,7 @@ function openWelcome() {
       const paint = () => {
         row.innerHTML = `<span class="grow"><strong>${esc(n)}</strong><br><small style="color:var(--muted)">${new Date(last.savedAt).toLocaleString()} · ${eur(last.total)}</small></span>`;
         const b = document.createElement('button'); b.className = 'mini-btn'; b.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${esc(t('welcome.open'))}`;
-        b.onclick = () => { state = JSON.parse(JSON.stringify(last.snapshot)); persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh(); toast(lang === 'en' ? 'Loaded' : 'Chargée'); };
+        b.onclick = () => guardUnsaved(() => restoreSnapshot(last.snapshot, null, 'Loaded', 'Chargée'));
         const del = document.createElement('button'); del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
         del.title = t('welcome.del');
         del.onclick = () => {
@@ -2903,10 +2950,29 @@ function openWelcome() {
   };
   $('#wBuild').onclick = () => {
     if (aiBuilding) { aiRunId++; return; } // stop : la boucle s'arrete apres l'item en cours
-    const items = AiParse.parseResponse($('#wPaste').value);
+    const paste = $('#wPaste').value;
+    const items = AiParse.parseResponse(paste);
     if (!items.length) { toast(t('welcome.noParse')); return; }
-    aiBuild(items);
+    const bud = $('#wAiBudget') ? parseFloat($('#wAiBudget').value) || 0 : 0;
+    // "Creer avec IA" construit une NOUVELLE config : sauvegarder/abandonner le brouillon d'abord.
+    const start = () => {
+      resetDraftForBuild();
+      if (bud > 0) state.budget = bud;
+      if (!$('#wProgs')) reopenWelcomeAi(paste, bud); // le modal a ete remplace par la garde
+      aiBuild(items);
+    };
+    guardUnsaved(start, () => reopenWelcomeAi(paste, bud));
   };
+}
+/* Re-rend le popup de bienvenue sur la page IA (apres un passsage par la garde "non sauvegarde"). */
+function reopenWelcomeAi(paste, budget) {
+  openWelcome();
+  const main = $('#wMain'), ai = $('#wAi');
+  if (main) main.classList.add('hidden');
+  if (ai) ai.classList.remove('hidden');
+  const p = $('#wPaste'); if (p) p.value = paste || '';
+  const b = $('#wAiBudget'); if (b && budget > 0) b.value = String(budget);
+  refreshIcons();
 }
 function aiAskSlot(host, it) {
   return new Promise(resolve => {
@@ -3533,10 +3599,14 @@ function bind() {
   prefs = { theme: load(LS.prefs, {}).theme || 'system', lang };
   lang = load(LS.prefs, {}).lang || 'fr';
   // load from share link
-  if (location.hash.includes('#c=')) {
-    try { importConfig(decodeShare(location.hash)); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ }
-  } else baselineSaved(); // draft restored as-is; dirty iff different from last save
+  baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
-  applyTheme(); applyLang(); bind(); refresh(); showBench(); maybeWelcome(); maybeConsentBar();
+  applyTheme(); applyLang(); bind(); refresh(); showBench();
+  const shareObj = location.hash.includes('#c=') ? (() => { try { return decodeShare(location.hash); } catch { return null; } })() : null;
+  if (shareObj) {
+    // gate: a share link replaces the current draft — don't lose unsaved work silently
+    guardUnsaved(() => { try { importConfig(shareObj); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
+  } else maybeWelcome();
+  maybeConsentBar();
   schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();
