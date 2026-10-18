@@ -1436,12 +1436,15 @@ const Compat = (() => {
       if (sw && sw.w > 0) add(id, 'power', L('Conso', 'Power'), OK, L(`Écran ~${sw.w}W — hors PSU, compté pour l'onduleur`, `Monitor ~${sw.w}W — not on PSU, counted for UPS`), A('Écran', `~${sw.w} W`, id), A('Prises', '1'));
       else add(id, 'power', L('Conso', 'Power'), WARN, L('Conso écran non renseignée — hors PSU, à confirmer pour l\u2019onduleur', 'Unknown monitor draw — not on PSU, confirm for UPS'), A('Écran', '?', id), null);
       const SD = P[id].ds;
-      /* Panel technology — relevant for video/photo editing (OLED green, IPS orange). */
+      /* Panel technology — for video/photo editing: OLED & IPS variants = good,
+         VA / TN / other = warning. */
       const ptechRaw = SD.panel ? String(SD.panel).trim() : '';
       const ptechn = ptechRaw.toUpperCase();
+      /* Good = OLED or any IPS variant (IPS/PLS/Fast-IPS/Rapid-IPS/Nano-IPS…);
+         Warning = VA / TN / anything else or unknown. */
       if (/OLED/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), OK, L(`OLED — idéal montage vidéo (contraste, noirs profonds)`, `OLED — ideal for video editing (contrast, deep blacks)`), A('Dalle', ptechRaw), null);
-      else if (/IPS|PLS/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`IPS — correct, contraste limité vs OLED pour le montage`, `IPS — fine, limited contrast vs OLED for editing`), A('Dalle', ptechRaw), null);
-      else if (ptechn) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`${ptechnRaw} — dalle à confirmer pour le montage vidéo`, `${ptechnRaw} — confirm panel for video editing`), A('Dalle', ptechRaw), null);
+      else if (/IPS|PLS/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), OK, L(`${ptechRaw} — IPS : bonnes couleurs et angles de vision pour le montage`, `${ptechRaw} — IPS: good colors and viewing angles for editing`), A('Dalle', ptechRaw), null);
+      else if (ptechn) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`${ptechRaw} — contraste/angles limités pour le montage vidéo (préférez IPS/OLED)`, `${ptechRaw} — limited contrast/viewing angles for editing (prefer IPS/OLED)`), A('Dalle', ptechRaw), null);
       else add(id, 'panel', L('Dalle', 'Panel'), WARN, L('Technologie de dalle non renseignée — vérifiez (IPS/OLED)', 'Panel technology not listed — verify (IPS/OLED)'), A('Dalle', '?'), null);
       const V = SD.vid;
       const hasIn = V && (V.hdmi || V.dp || V.usbc);
