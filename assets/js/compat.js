@@ -331,7 +331,8 @@ const Compat = (() => {
     }
     /* "2.560 x 1.440 pixels" → {w, h} (FR thousands separators). */
     const parseWH = t => {
-      const m = String(t || '').replace(/(\d)[. ](?=\d{3}\b)/g, '$1').match(/(\d{3,5})\s*x\s*(\d{3,5})/i);
+      /* accepts "1920x1080", "1920 x 1080" and the multiplication signs × ✕ ⨯ * */
+      const m = String(t || '').replace(/(\d)[. ](?=\d{3}\b)/g, '$1').match(/(\d{3,5})\s*[x×✕⨯*]\s*(\d{3,5})/i);
       return m ? { w: parseInt(m[1], 10), h: parseInt(m[2], 10) } : null;
     };
     if (P.res && !P.resWH) P.resWH = parseWH(P.res);
@@ -553,8 +554,10 @@ const Compat = (() => {
       const s = slots[id]; if (!s) return;
       const p = sel(s); if (!p) return;
       const dst = String((p.datasheet || '')).trim();
-      P[id] = { slot: s, p, defId: s.defId, hasDs: !!dst,
-        ds: dst ? parseDatasheet(dst) : null,
+      let ds = null;
+      if (dst) { try { ds = parseDatasheet(dst); } catch (e) { console.error('Compat: datasheet parse failed', p && p.name, e); } }
+      P[id] = { slot: s, p, defId: s.defId, hasDs: !!ds,
+        ds,
         qty: Math.max(1, Number(p.qty) || 1) };
     });
     const byDef = want => order.filter(id => P[id] && (Array.isArray(want) ? want.includes(P[id].defId) : P[id].defId === want));
@@ -699,10 +702,14 @@ const Compat = (() => {
       const s = slots[id]; if (!s) return;
       const p = sel(s); if (!p) return;
       const dst = String((p.datasheet || '')).trim();
+      let ds = null;
+      /* A single malformed datasheet must not blow up the whole compatibility pass. */
+      if (dst) { try { ds = parseDatasheet(dst); } catch (e) { console.error('Compat: datasheet parse failed', p && p.name, e); } }
       P[id] = {
-        slot: s, p, defId: s.defId, hasDs: !!dst,
-        ds: dst ? parseDatasheet(dst) : null,
+        slot: s, p, defId: s.defId, hasDs: !!ds,
+        ds,
         watts: (Number(p.watts) || 0) * (Number(p.qty) || 1),
+        qty: Math.max(1, Number(p.qty) || 1),
         verified: Array.isArray(p.verified) ? p.verified : [],
       };
     });
@@ -752,9 +759,17 @@ const Compat = (() => {
     const gpuRaw = (gpuId && P[gpuId].hasDs) ? (P[gpuId].ds.raw || '') : '';
     const gpuSingle = /single[\s-]?slot|low profile|profil bas|1\s*slot\b/i.test(gpuRaw);
     const gpuX1blocked = (gpuId && P[gpuId].hasDs && !gpuSingle) ? 1 : 0;
-    const pw = powerBreakdown(ctx); // shared watts engine (pills + PSU/UPS)
+    /* Shared watts engine — if it ever fails, fall back to a valid empty shape so the
+       comparisons below (and the monitor pills) still run instead of blanking out. */
+    const pw = (() => {
+      try { return powerBreakdown(ctx); }
+      catch (e) { console.error('Compat: power engine failed', e); return { items: [], psuTotal: 0, upsTotal: 0, plugs: 0, psu: { capW: 0, cert: 'none', certLabel: '—', factor: EFF80.none, usableW: 0 }, kwhPrice: KWH_PRICE, hoursDay: HOURS_DAY }; }
+    })();
     const pwOf = id => pw.items.find(i => i.id === id) || null;
 
+    /* Sections run in one guarded block: if a single comparison ever throws, we keep
+       every check already collected (instead of wiping the whole compatibility UI). */
+    try {
     /* ---- CPU: socket + TDP (no chipset check) ---- */
     if (cpuId) {
       if (!needDs(cpuId)) {
@@ -1416,13 +1431,14 @@ const Compat = (() => {
     const outName = (srcVid && (srcVid.hdmi || srcVid.dp || srcVid.usbc)) ? L('Sorties GPU', 'GPU outputs') : L('Sorties CM', 'Board outputs');
     screenIds.forEach(id => {
       if (!P[id].hasDs) { needDs(id); return; }
+      try {
       const sw = pwOf(id);
       if (sw && sw.w > 0) add(id, 'power', L('Conso', 'Power'), OK, L(`Écran ~${sw.w}W — hors PSU, compté pour l'onduleur`, `Monitor ~${sw.w}W — not on PSU, counted for UPS`), A('Écran', `~${sw.w} W`, id), A('Prises', '1'));
       else add(id, 'power', L('Conso', 'Power'), WARN, L('Conso écran non renseignée — hors PSU, à confirmer pour l\u2019onduleur', 'Unknown monitor draw — not on PSU, confirm for UPS'), A('Écran', '?', id), null);
       const SD = P[id].ds;
       /* Panel technology — relevant for video/photo editing (OLED green, IPS orange). */
       const ptechRaw = SD.panel ? String(SD.panel).trim() : '';
-      const ptech = ptechRaw.toUpperCase();
+      const ptechn = ptechRaw.toUpperCase();
       if (/OLED/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), OK, L(`OLED — idéal montage vidéo (contraste, noirs profonds)`, `OLED — ideal for video editing (contrast, deep blacks)`), A('Dalle', ptechRaw), null);
       else if (/IPS|PLS/.test(ptechn)) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`IPS — correct, contraste limité vs OLED pour le montage`, `IPS — fine, limited contrast vs OLED for editing`), A('Dalle', ptechRaw), null);
       else if (ptechn) add(id, 'panel', L('Dalle', 'Panel'), WARN, L(`${ptechnRaw} — dalle à confirmer pour le montage vidéo`, `${ptechnRaw} — confirm panel for video editing`), A('Dalle', ptechRaw), null);
@@ -1445,16 +1461,17 @@ const Compat = (() => {
       const hi = dem > 450000000;
       if (common.length && (hi || (SD.hdmiVer && outDs && outDs.hdmiVer) || (SD.dpVer && outDs && outDs.dpVer))) {
         const port = common.includes('DP') ? 'DP' : common.includes('HDMI') ? 'HDMI' : 'USB-C';
-        if (port === 'USB-C') add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L('USB-C Alt Mode — débit suffisant', 'USB-C Alt Mode — enough bandwidth'), A('Écran', `${rw ? rw.w + '×' + rw.h : '?'}@${hz || '?'}Hz`), A(outName, 'USB-C', outId));
+        const rwTxt = rw ? `${rw.w}×${rw.h}` : '?'; // resolution may be missing → never read rw.w/rw.h blindly
+        if (port === 'USB-C') add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L('USB-C Alt Mode — débit suffisant', 'USB-C Alt Mode — enough bandwidth'), A('Écran', `${rwTxt}@${hz || '?'}Hz`), A(outName, 'USB-C', outId));
         else {
           const needV = port === 'HDMI' ? 2.1 : 1.4;
           const sV = port === 'HDMI' ? (SD.hdmiVer || 0) : (SD.dpVer || 0);
           const oV = outDs ? (port === 'HDMI' ? (outDs.hdmiVer || 0) : (outDs.dpVer || 0)) : 0;
           const fmtV = v => v || '?';
           if (sV && oV) {
-            if (sV >= needV && oV >= needV) add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L(`${port} ${sV}/${oV} — suffisant pour ${rw.w}×${rw.h}@${hz}Hz`, `${port} ${sV}/${oV} — enough for ${rw.w}×${rw.h}@${hz}Hz`), A('Écran', `${port} ${sV}`), A(outName, `${port} ${oV}`, outId));
-            else add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rw.w}×${rw.h}@${hz}Hz bridé, vérifiez le câble`, `${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rw.w}×${rw.h}@${hz}Hz capped, verify cable`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`, outId));
-          } else if (hi) add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${rw.w}×${rw.h}@${hz}Hz exige ${port} ${needV} des deux côtés — versions à confirmer`, `${rw.w}×${rw.h}@${hz}Hz needs ${port} ${needV} on both ends — confirm versions`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`, outId));
+            if (sV >= needV && oV >= needV) add(id, 'ver', L('Débit vidéo', 'Video speed'), OK, L(`${port} ${sV}/${oV} — suffisant pour ${rwTxt}@${hz || '?'}Hz`, `${port} ${sV}/${oV} — enough for ${rwTxt}@${hz || '?'}Hz`), A('Écran', `${port} ${sV}`), A(outName, `${port} ${oV}`, outId));
+            else add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rwTxt}@${hz || '?'}Hz bridé, vérifiez le câble`, `${port} ${fmtV(sV)}/${fmtV(oV)} < ${needV} — ${rwTxt}@${hz || '?'}Hz capped, verify cable`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`, outId));
+          } else if (hi) add(id, 'ver', L('Débit vidéo', 'Video speed'), WARN, L(`${rwTxt}@${hz || '?'}Hz exige ${port} ${needV} des deux côtés — versions à confirmer`, `${rwTxt}@${hz || '?'}Hz needs ${port} ${needV} on both ends — confirm versions`), A('Écran', `${port} ${fmtV(sV)}`), A(outName, `${port} ${fmtV(oV)}`, outId));
         }
       }
       /* resolution vs GPU max */
@@ -1467,6 +1484,10 @@ const Compat = (() => {
         const outs = hasOut ? ((outVid.hdmi || 0) + (outVid.dp || 0) + (outVid.usbc || 0)) : 0;
         if (outs && screenIds.length > outs) add(id, 'count', L('Écrans', 'Monitors'), WARN, L(`${screenIds.length} écrans pour ~${outs} sortie(s) — MST/dock requis`, `${screenIds.length} monitors for ~${outs} output(s) — MST/dock needed`), A('Écrans', screenIds.length), A(outName, fmtVid(outVid), outId));
         else if (outs) add(id, 'count', L('Écrans', 'Monitors'), OK, L(`${screenIds.length} écran(s) pour ~${outs} sortie(s)`, `${screenIds.length} monitor(s) for ~${outs} output(s)`), A('Écrans', screenIds.length), A(outName, fmtVid(outVid), outId));
+      }
+      } catch (e) {
+        console.error('Compat: monitor check failed', P[id] && P[id].p && P[id].p.name, e);
+        add(id, 'screen', L('Écran', 'Monitor'), WARN, L(`Vérification écran incomplète — ${(e && e.message) || e}`, `Monitor check incomplete — ${(e && e.message) || e}`), A('Écran', (P[id].p && P[id].p.name) || '?'), null);
       }
     });
     /* ---- USB / wireless / audio peripherals vs motherboard ---- */
@@ -1546,6 +1567,11 @@ const Compat = (() => {
       else if (mbUsbA > 0) add(id, 'reader', L('Lecteur', 'Reader'), WARN, L('Pas de lecteur SD détecté (boîtier/dock) — adaptateur USB requis', 'No SD reader detected (case/dock) — USB adapter needed'), A('Carte', 'SD/microSD'), A('Lecteur', '?'));
       else add(id, 'reader', L('Lecteur', 'Reader'), WARN, L('Lecteur SD à confirmer (boîtier/dock/adaptateur USB)', 'Confirm SD reader (case/dock/USB adapter)'), A('Carte', 'SD/microSD'), A('Lecteur', '?'));
     });
+    } catch (e) {
+      /* Keep the checks gathered so far and surface the failure instead of blanking the panel. */
+      console.error('Compat.check failed', e);
+      flatIssues.push({ level: 'err', msg: `Compat check stopped — ${(e && e.message) || e}`, slots: [], slot: null, key: 'fatal' });
+    }
     /* ---- slot worst-status map ---- */
     const statusOf = {};
     order.forEach(id => {

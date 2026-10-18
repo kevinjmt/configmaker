@@ -317,7 +317,7 @@ function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = 
 let editingPid = null;
 
 /* ---------- Compatibility (Compat module) ---------- */
-let compatCache = null, compatFold = {};
+let compatCache = null, compatLastGood = null, compatFold = {};
 const variantFetching = new Set();
 const idealoAttempted = new Set(); // product ids already enriched this session: render→fetch→render loops impossible
 const dsLoading = new Set(); // product ids with a datasheet fetch in flight
@@ -402,8 +402,15 @@ async function ensureAlternativeData(slotId) {
 }
 function getCompat() {
   if (!compatCache && typeof Compat !== 'undefined') {
-    try { compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang, dsIds: [...dsLoading] }); }
-    catch { compatCache = { checks: {}, issues: { err: [], warn: [] }, statusOf: {} }; }
+    try {
+      compatCache = Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang, dsIds: [...dsLoading] });
+      compatLastGood = compatCache;
+    } catch (e) {
+      /* A single bad component must never wipe the whole compatibility result:
+         keep the last good one and surface the error for debugging. */
+      console.error('Compat.check failed', e);
+      compatCache = compatLastGood || { checks: {}, issues: { err: [], warn: [] }, statusOf: {} };
+    }
   }
   return compatCache || { checks: {}, issues: { err: [], warn: [] }, statusOf: {} };
 }
