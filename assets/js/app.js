@@ -3406,6 +3406,7 @@ function openShare() {
 function openExport() {
   openModal(lang === 'en' ? 'Export config' : 'Exporter la config', `
     <p class="hint">${lang === 'en' ? 'PDF = full report (name, budget, description, components with manual / Idealo / merchant links, power draw, benchmarks, price history). JSON = full re-importable config.' : 'PDF = rapport complet (nom, budget, description, composants avec liens manuel / Idealo / marchand, consommation, benchmarks, historique des prix). JSON = config complète réimportable.'}</p>
+    <p class="hint">${lang === 'en' ? 'Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working. The preview pane itself never allows selecting text or clicking links.' : 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs. L’aperçu, lui, ne permet jamais de sélectionner le texte ni de cliquer les liens.'}</p>
     <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
     <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> JSON</button></div>`);
   $('#e_pdf').onclick = () => { closeModal(); exportPdf(); };
