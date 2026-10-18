@@ -3405,12 +3405,279 @@ function openShare() {
 }
 function openExport() {
   openModal(lang === 'en' ? 'Export config' : 'Exporter la config', `
-    <p class="hint">${lang === 'en' ? 'Beautiful PDF = print view (browser print → save as PDF). JSON = full re-importable config.' : 'Beau PDF = vue d’impression (imprimer → enregistrer en PDF). JSON = config complète réimportable.'}</p>
+    <p class="hint">${lang === 'en' ? 'PDF = full report (name, budget, description, components with manual / Idealo / merchant links, power draw, benchmarks, price history). JSON = full re-importable config.' : 'PDF = rapport complet (nom, budget, description, composants avec liens manuel / Idealo / marchand, consommation, benchmarks, historique des prix). JSON = config complète réimportable.'}</p>
     <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
     <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> JSON</button></div>`);
-  $('#e_pdf').onclick = () => { closeModal(); window.print(); };
+  $('#e_pdf').onclick = () => { closeModal(); exportPdf(); };
   $('#e_json').onclick = () => download(state.name + '.configmaker.json', JSON.stringify(state, null, 2), 'application/json');
 }
+/* ---------- Print / PDF report ----------
+   The printed PDF is a dedicated report (name+budget, description, components
+   with real manual / Idealo / merchant links, consumption, benchmarks, price
+   history), built into #printRoot and shown only while printing. */
+function printRoot() {
+  let r = document.getElementById('printRoot');
+  if (!r) { r = document.createElement('div'); r.id = 'printRoot'; document.body.appendChild(r); }
+  return r;
+}
+function prSection(root, title, icon) {
+  const sec = document.createElement('section');
+  sec.className = 'pr-sec';
+  if (title) sec.innerHTML = `<h2 class="pr-h2">${icon ? `<i class="${icon}"></i> ` : ''}${esc(title)}</h2>`;
+  root.appendChild(sec);
+  return sec;
+}
+/* Drop id attributes from a cloned subtree so the report never duplicates
+   ids that already exist on screen (getElementById lookups must stay unique). */
+function prStripIds(node) {
+  if (node.removeAttribute) node.removeAttribute('id');
+  if (node.querySelectorAll) node.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  return node;
+}
+/* Clean a cloned summary pane: drop ids and interactive-only bits
+   (fold chevrons, mini buttons) so the printed pane is purely static. */
+function prCleanPane(node) {
+  /* the cloned pane keeps the on-screen tab/fold state (.hidden/.collapsed);
+     clear it so the printed report shows every pane fully expanded */
+  node.classList.remove('hidden', 'collapsed');
+  node.querySelectorAll('.hidden, .collapsed').forEach(n => n.classList.remove('hidden', 'collapsed'));
+  node.querySelectorAll('.foldchev, .mini-btn, .verify-btn').forEach(n => n.remove());
+  return prStripIds(node);
+}
+/* Clone a left-column component card and turn its action row into real
+   manual / Idealo / merchant links so they stay clickable in the PDF. */
+function prComponentCard(id) {
+  const src = document.getElementById('slotSections');
+  let srcEl = null;
+  if (src) srcEl = src.querySelector('.slot[data-slot="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  const node = prStripIds(srcEl ? srcEl.cloneNode(true) : document.createElement('div'));
+  node.classList.add('pr-slot');
+  node.querySelectorAll('.slot-remove, .slot-refetch, .slot-alt-tab, .compat-more').forEach(n => n.remove());
+  const s = state.slots[id], p = s ? sel(s) : null;
+  const acts = node.querySelector('.slot-actions');
+  if (acts) {
+    acts.textContent = '';
+    const idealoOk = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
+    const links = p ? [
+      { href: String(p.manual || '').trim(), icon: 'fa-solid fa-book', label: lang === 'en' ? 'Manual' : 'Manuel' },
+      { href: idealoOk ? p.idealo : '', icon: 'fa-solid fa-arrow-up-right-from-square', label: 'Idealo' },
+      { href: buyUrlFor(p) || '', icon: 'fa-solid fa-cart-shopping', label: lang === 'en' ? 'Merchant' : 'Marchand' },
+    ] : [];
+    links.forEach(l => {
+      const el = document.createElement(l.href ? 'a' : 'span');
+      el.className = 'mini-btn pr-link' + (l.href ? '' : ' pr-link-off');
+      if (l.href) { el.href = l.href; el.target = '_blank'; el.rel = 'noopener'; }
+      el.innerHTML = `<i class="${l.icon}"></i><span>${esc(l.label)}</span>`;
+      acts.appendChild(el);
+    });
+  }
+  return node;
+}
+/* Draw the price chart for one mode, copy it onto a white background as a PNG
+   (so it prints whole and stays readable), then restore the on-screen chart. */
+function prChartImage(mode) {
+  const cv = document.getElementById('priceChart');
+  if (!cv) return null;
+  const savedMode = phMode, savedHidden = priceHidden;
+  phMode = mode; priceHidden = new Set();
+  try {
+    drawPrices();
+    const leg = document.getElementById('priceLegend');
+    const legend = leg ? leg.innerHTML : '';
+    const out = document.createElement('canvas');
+    out.width = cv.width || 800; out.height = cv.height || 320;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(cv, 0, 0);
+    return { url: out.toDataURL('image/png'), legend };
+  } catch { return null; }
+  finally {
+    phMode = savedMode; priceHidden = savedHidden;
+    try { drawPrices(); } catch { /* ignore */ }
+  }
+}
+/* PC case product used as the report cover image (first selected case slot). */
+function prCaseProduct() {
+  const s = state.slots.case; if (s) { const p = sel(s); if (p) return p; }
+  for (const id of state.order) { const sl = state.slots[id]; if (sl && sl.defId === 'case') { const p = sel(sl); if (p) return p; } }
+  return null;
+}
+/* Static (non-interactive) copy of the "usage & tarification" 7x24 grids. */
+function prUsageConfig() {
+  const st = usagePrefs();
+  const days = WEEK_DAYS[lang] || WEEK_DAYS.fr;
+  const hh = i => String(i).padStart(2, '0');
+  const cal = kind => {
+    const head = `<span class="wk-corner"></span>` + days.map(d => `<span class="wk-dayh">${esc(d)}</span>`).join('');
+    const rows = Array.from({ length: 24 }, (_, h) => `<span class="wk-hour">${hh(h)}h</span>` + days.map((_, di) => {
+      const i = di * 24 + h;
+      const v = kind === 'tarif' ? st.tarif[i] : st.usage[i];
+      const cls = kind === 'tarif' ? (v ? 'hp' : 'hc') : (v ? 'on' : '');
+      return `<span class="day-sq ${cls}"></span>`;
+    }).join('')).join('');
+    return `<div class="wk" data-kind="${kind}">${head}${rows}</div>`;
+  };
+  const hp = st.tarif.filter(Boolean).length;
+  return `<div class="pr-usage"><div class="pr-usage-grid">
+    <div><h3 class="pr-h3">${esc(lang === 'en' ? 'PC usage (on/off)' : 'Utilisation du PC (marche/arrêt)')}</h3>${cal('usage')}<p class="hint">${usageWeeklyHours(st)} ${lang === 'en' ? 'h/week' : 'h/semaine'} · ${usageDailyHours(st).toFixed(1)} ${lang === 'en' ? 'h/day avg' : 'h/jour moy.'}</p></div>
+    <div><h3 class="pr-h3">${esc(lang === 'en' ? 'Pricing (peak / off-peak)' : 'Tarification (HP / HC)')}</h3>${cal('tarif')}<p class="hint">${hp} HP · ${168 - hp} HC · ${lang === 'en' ? 'peak' : 'HP'} ${st.priceHP.toFixed(4)} €/kWh · ${lang === 'en' ? 'off-peak' : 'HC'} ${st.priceHC.toFixed(4)} €/kWh</p></div>
+  </div></div>`;
+}
+function buildPrintReport() {
+  renderSummary();
+  renderSumExtra();
+  renderCompat();
+  const root = printRoot();
+  root.innerHTML = '';
+  const T = totals();
+  const budget = Number(state.budget) || 0;
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+  const appUrl = location.href.split('#')[0];
+  const verBtn = document.getElementById('versionBtn');
+  const appVer = verBtn ? String(verBtn.textContent || '').trim() : '';
+  const exportDate = new Date().toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'long', timeStyle: 'short' });
+  const badge = txt => (txt ? `<span class="pr-badge">${esc(txt)}</span>` : '');
+
+  /* 1 — cover: hero card (case image + title + budget/totals/diffs) + main menu */
+  const cover = prSection(root, null);
+  cover.classList.add('pr-cover');
+  const caseP = prCaseProduct();
+  const visual = caseP && caseP.image
+    ? `<img class="pr-hero-img" src="${esc(caseP.image)}" alt="">`
+    : `<span class="pr-hero-icon">${iconHtml('lucide:pc-case')}</span>`;
+  const d1 = budget - (T.total - T.deliv), d2 = T.diff;
+  const mkDelta = d => {
+    const over = d < 0, abs = eur(Math.abs(d));
+    const txt = over ? L(`${abs} over budget`, `${abs} de dépassement`) : L(`${abs} remaining`, `${abs} restants`);
+    return `<span class="pr-v ${over ? 'ko' : 'ok'}">${esc(txt)}</span>`;
+  };
+  cover.innerHTML = `<div class="pr-hero">${visual}
+    <div class="pr-hero-main">
+      <div class="pr-hero-name">${esc(state.name || 'Ma Config')}</div>
+      <div class="pr-hero-badges">${badge(state.version ? 'config v' + state.version : '')}${badge(appVer)}${badge(exportDate)}</div>
+      <div class="pr-hero-stats">
+        <span class="pr-kv"><span class="pr-k">${esc(L('Budget', 'Budget'))}</span><span class="pr-v">${eur(budget)}</span></span>
+        <span class="pr-kv"><span class="pr-k">${esc(L('Total', 'Total'))}</span><span class="pr-v">${eur(T.total - T.deliv)}</span></span>
+        <span class="pr-kv"><span class="pr-k">${esc(L('Total incl. delivery', 'Total livraison incluse'))}</span><span class="pr-v">${eur(T.total)}</span></span>
+        <span class="pr-kv"><span class="pr-k">${esc(L('Delivery', 'Livraison'))}</span><span class="pr-v">${eur(T.deliv)}</span></span>
+      </div>
+      <div class="pr-hero-diffs">
+        <span class="pr-kv"><span class="pr-k">${esc(L('Budget gap (excl. delivery)', 'Écart budget (hors livraison)'))}</span>${mkDelta(d1)}</span>
+        <span class="pr-kv"><span class="pr-k">${esc(L('Budget gap (incl. delivery)', 'Écart budget (livraison incluse)'))}</span>${mkDelta(d2)}</span>
+      </div>
+    </div>
+  </div>
+  <div class="pr-menu">
+    <img class="pr-menu-logo" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
+    <div class="pr-menu-main">
+      <div class="pr-menu-title"><a href="${esc(appUrl)}">ConfigMaker</a> by <a href="https://kevinjmt.github.io/" target="_blank" rel="noopener">KJ</a></div>
+      <p class="hint">${esc(t('footer.tag'))}</p>
+      <div class="pr-menu-feats">
+        <span class="pr-menu-feat"><i class="fa-solid fa-tag"></i>${esc(t('welcome.feat1'))}</span>
+        <span class="pr-menu-feat"><i class="fa-solid fa-shield-halved"></i>${esc(t('welcome.feat2'))}</span>
+        <span class="pr-menu-feat"><i class="fa-solid fa-gauge-high"></i>${esc(t('welcome.feat3'))}</span>
+        <span class="pr-menu-feat"><i class="fa-solid fa-code-branch"></i>${esc(t('welcome.feat4'))}</span>
+      </div>
+      <p class="pr-menu-ver">${esc(L('Webapp version', 'Version webapp'))} : ${esc(appVer || '—')}</p>
+      <a class="pr-menu-cta" href="${esc(appUrl)}">${esc(L('Create your configuration with ConfigMaker', 'Créez votre configuration avec ConfigMaker'))}</a>
+    </div>
+  </div>`;
+
+  /* 2 — description */
+  const desc = prSection(root, L('Summary', 'Description'), 'fa-solid fa-list');
+  const descSrc = document.getElementById('sumDescPane');
+  if (descSrc && descSrc.children.length) desc.appendChild(prCleanPane(descSrc.cloneNode(true)));
+  else desc.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+
+  /* 3 — graphs (budget allocation + per-section pies) */
+  const graphs = prSection(root, L('Graphs', 'Graphiques'), 'fa-solid fa-chart-pie');
+  const chartsSrc = document.getElementById('sumChartsPane');
+  if (chartsSrc && chartsSrc.children.length) graphs.appendChild(prCleanPane(chartsSrc.cloneNode(true)));
+  else graphs.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+
+  /* 4 — components (grouped PC / Setup / Options) with real links */
+  const comps = prSection(root, L('Components', 'Composants'), 'fa-solid fa-computer');
+  let anyComp = false;
+  ['pc', 'setup', 'others'].forEach(secId => {
+    const ids = state.order.filter(id => { const s = state.slots[id]; return s && defOf(s).sec === secId && sel(s); });
+    if (!ids.length) return;
+    anyComp = true;
+    const grp = document.createElement('div');
+    grp.className = 'pr-group';
+    const sub = secId === 'pc' ? T.pc : secId === 'setup' ? T.setup : T.others;
+    grp.innerHTML = `<h3 class="pr-h3"><i class="${SECTIONS.find(x => x.id === secId).icon}"></i> ${esc(secName(secId))}<span class="pr-grp-total">${eur(sub)}</span></h3>`;
+    ids.forEach(id => grp.appendChild(prComponentCard(id)));
+    comps.appendChild(grp);
+  });
+  if (!anyComp) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+
+  /* 5 — consumption: usage & pricing config + power charts/totals */
+  const power = prSection(root, L('Power draw', 'Consommation'), 'fa-solid fa-bolt');
+  const usageWrap = document.createElement('div');
+  usageWrap.innerHTML = prUsageConfig();
+  power.appendChild(usageWrap);
+  const powerSrc = document.getElementById('sumPowerPane');
+  if (powerSrc && powerSrc.children.length) {
+    const c = powerSrc.cloneNode(true);
+    const ub = c.querySelector('#openUsageBtn'); if (ub) ub.remove();
+    power.appendChild(prCleanPane(c));
+  }
+
+  /* 6 — compatibility */
+  const compat = prSection(root, L('Compatibility', 'Compatibilité'), 'fa-solid fa-shield-halved');
+  const compatSrc = document.getElementById('sumCompatPane');
+  if (compatSrc && compatSrc.children.length) compat.appendChild(prCleanPane(compatSrc.cloneNode(true)));
+  else compat.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No checks.', 'Aucune vérification.'))}</p>`);
+
+  /* 7 — benchmarks */
+  const bench = prSection(root, 'Benchmarks', 'fa-solid fa-gauge-high');
+  const benchSrc = document.getElementById('page-bench');
+  if (benchSrc) {
+    const c = benchSrc.cloneNode(true);
+    c.className = 'pr-bench';
+    c.querySelectorAll('h2, .btn-row, .bench-gamerow, #benchGrid, #benchStatus, #benchQuery, .search-row').forEach(n => n.remove());
+    prStripIds(c);
+    const q = benchQuery();
+    if (q) {
+      const p = document.createElement('p');
+      p.className = 'pr-yt';
+      p.innerHTML = `<i class="fa-brands fa-youtube"></i> <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">${esc(q)}</a>`;
+      c.insertBefore(p, c.firstChild);
+    }
+    bench.appendChild(c);
+  }
+
+  /* 8 — price history (three charts as images) */
+  const prices = prSection(root, L('Price history', 'Historique des prix'), 'fa-solid fa-chart-line');
+  const h = hist()[state.name] || [];
+  if (!h.length) {
+    prices.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No price points yet — a point is added on each save.', 'Aucun point de prix — un point est ajouté à chaque sauvegarde.'))}</p>`);
+  } else {
+    [['total', L('Total config', 'Total config')], ['per', L('Per component', 'Par composant')], ['power', L('Power', 'Consommation')]].forEach(([m, title]) => {
+      const cap = prChartImage(m);
+      if (!cap) return;
+      const box = document.createElement('div');
+      box.className = 'pr-chart';
+      box.innerHTML = `<h3 class="pr-h3">${esc(title)}</h3><img class="pr-chart-img" src="${cap.url}" alt=""><div class="legend">${cap.legend}</div>`;
+      prices.appendChild(box);
+    });
+  }
+
+  refreshIcons(root);
+}
+function prCleanup() {
+  document.body.classList.remove('printing');
+  const r = document.getElementById('printRoot'); if (r) r.innerHTML = '';
+}
+function exportPdf() {
+  try { showBench(); } catch { /* ignore */ } // refresh live scores first (sync part)
+  try { buildPrintReport(); document.body.classList.add('printing'); } catch { /* fall back to on-screen print */ }
+  window.print();
+}
+window.addEventListener('beforeprint', () => {
+  try { buildPrintReport(); document.body.classList.add('printing'); } catch { /* ignore */ }
+});
+window.addEventListener('afterprint', prCleanup);
 function download(name, content, type) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content], { type }));

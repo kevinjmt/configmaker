@@ -755,9 +755,77 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   .footer-inner{grid-template-columns:1fr;text-align:center}
   .footer-brand{align-items:center}.footercol{align-items:center}.footer-bottom{justify-content:center;text-align:center}
 }
+/* ---------- Print / PDF report ---------- */
+#printRoot{display:none}
+@page{size:A4;margin:14mm}
 @media print{
+  /* screen chrome that must never appear on paper */
   nav,.pill-row,.slot-actions,.slot-alt-tab,.picker-links,#pickerPanel,.downloads,.footer,.fold-btn,#toast,#modalOverlay,.btn-row{display:none!important}
-  body{background:#fff}
+  body{background:#fff!important}
+  *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:none!important}
   .split{grid-template-columns:1fr}
   .glass{box-shadow:none}
+  /* when a report has been built (button or Ctrl+P), print only the report */
+  body.printing > *{display:none!important}
+  body.printing #printRoot{display:block!important}
+  #printRoot{color:#111;font-size:12px;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;
+    --bg:#fff;--bg-soft:#f4f6f4;--surface:#fff;--surface-2:#fbfdfb;--ink:#0b1410;--ink-2:#1c2f24;--muted:#5a6b5f;--muted-2:#8a978d;
+    --line:rgba(11,20,16,.12);--line-strong:rgba(11,20,16,.2);--brand:#1a8744;--brand-2:#7ed491;--accent:#2fa968;--brand-ink:#0f5c2c;
+    --success:#0ca678;--warning:#e8890c;--danger:#e03131;--info:#1971c2;--shadow-sm:none;--shadow-md:none;--shadow-lg:none}
+  /* each of the six sections starts on a fresh page */
+  #printRoot .pr-sec{break-before:page;page-break-before:always;padding:0 0 8px}
+  #printRoot .pr-sec:first-child{break-before:auto;page-break-before:auto}
+  #printRoot .pr-h2{font-size:18px;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid #1a8744}
+  #printRoot .pr-h3{font-size:13px;margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+  #printRoot .pr-grp-total{margin-left:auto;font-weight:800}
+  #printRoot .pr-title{display:flex;align-items:center;gap:10px}
+  #printRoot .pr-name{font-size:24px;font-weight:900}
+  #printRoot .pr-headrow{display:flex;gap:22px;margin:10px 0 4px;flex-wrap:wrap}
+  #printRoot .pr-kv{display:flex;flex-direction:column;gap:2px}
+  #printRoot .pr-k{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5a6b5f}
+  #printRoot .pr-v{font-size:16px;font-weight:800}
+  #printRoot .pr-v.ok{color:#1a8744}#printRoot .pr-v.ko{color:#e03131}
+  #printRoot .pr-meta{color:#8a978d;font-size:10px;margin-top:8px}
+  /* page 1: hero card (case image + name + budget/totals/gaps) + app menu */
+  #printRoot .pr-hero{display:flex;gap:14px;align-items:center;border:1px solid #dfe4e0;border-radius:14px;padding:12px;break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-hero-img{width:104px;height:104px;object-fit:contain;flex:0 0 auto}
+  #printRoot .pr-hero-icon{width:104px;display:flex;justify-content:center;font-size:64px;color:#1a8744}
+  #printRoot .pr-hero-main{flex:1;min-width:0}
+  #printRoot .pr-hero-name{font-size:24px;font-weight:900;line-height:1.15}
+  #printRoot .pr-hero-badges{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  #printRoot .pr-badge{font-size:10px;font-weight:800;border:1px solid #cfd6d0;border-radius:999px;padding:2px 9px;color:#0f5c2c;background:#f3f8f4}
+  #printRoot .pr-hero-stats,#printRoot .pr-hero-diffs{display:flex;gap:20px;flex-wrap:wrap;margin-top:8px}
+  #printRoot .pr-hero-diffs{padding-top:8px;border-top:1px dashed #dfe4e0}
+  #printRoot .pr-menu{display:flex;gap:16px;align-items:flex-start;margin-top:18px;border-top:2px solid #1a8744;padding-top:12px;break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-menu-logo{width:72px;height:72px;border-radius:16px;flex:0 0 auto}
+  #printRoot .pr-menu-main{flex:1;min-width:0}
+  #printRoot .pr-menu-title{font-size:17px;font-weight:900}
+  #printRoot .pr-menu-title a{color:#0f5c2c;text-decoration:underline}
+  #printRoot .pr-menu-feats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin:8px 0}
+  #printRoot .pr-menu-feat{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700}
+  #printRoot .pr-menu-feat i{color:#1a8744}
+  #printRoot .pr-menu-ver{font-size:11px;font-weight:700;color:#5a6b5f;margin:0 0 6px}
+  #printRoot .pr-menu-cta{display:inline-block;background:#1a8744;color:#fff;border-radius:999px;padding:6px 16px;text-decoration:none;font-weight:800;font-size:12px}
+  /* consumption configuration (usage & pricing grids) */
+  #printRoot .pr-usage-grid{display:flex;gap:20px;margin:8px 0 4px;break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-usage-grid>div{flex:1;min-width:0}
+  #printRoot .pr-usage .wk{grid-template-columns:22px repeat(7,1fr);gap:2px}
+  #printRoot .pr-usage .wk-hour,#printRoot .pr-usage .wk-dayh{font-size:6px}
+  #printRoot .pr-usage .day-sq{min-height:8px;border-radius:3px}
+  #printRoot a{text-decoration:underline}
+  /* component cards keep the on-screen look, with real manual / Idealo / merchant links */
+  #printRoot .slot{break-inside:avoid;page-break-inside:avoid;border:1px solid #dfe4e0;border-radius:10px;margin:0 0 8px;padding:10px;background:#fff;box-shadow:none}
+  #printRoot .slot-actions{display:flex!important;flex-wrap:wrap;gap:8px;margin-top:8px}
+  #printRoot .pr-link{display:inline-flex;align-items:center;gap:5px;border:1px solid #cfd6d0;border-radius:8px;padding:3px 9px;color:#0f5c2c;text-decoration:none;font-size:11px;font-weight:700}
+  #printRoot .pr-link-off{color:#aaa;border-color:#e8ece8}
+  /* never split a card, section, chart, row or total across pages */
+  #printRoot .dsec,#printRoot .chart-card,#printRoot .ditem,#printRoot .sum-totals,#printRoot .pro-block,#printRoot .cbar,#printRoot .brief-tile,#printRoot .preset-bars,#printRoot .slot-compat{break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-chart{break-inside:avoid;page-break-inside:avoid;margin:0 0 12px}
+  #printRoot .pr-chart-img{width:100%;height:auto;border:1px solid #e3e8e3;border-radius:8px;background:#fff}
+  #printRoot .legend{font-size:10px}
+  #printRoot .hint{color:#777;font-size:11px}
+  #printRoot #openUsageBtn{display:none!important}
+  #printRoot h2,#printRoot h3{break-after:avoid;page-break-after:avoid}
+  #printRoot p,#printRoot .slot-info,#printRoot .di-txt{orphans:3;widows:3;break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-bench h2{display:none}
 }
