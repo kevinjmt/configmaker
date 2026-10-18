@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
-const APP_VERSION = '2.54';
+const APP_VERSION = '2.55';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -330,9 +330,10 @@ function scheduleRenderSlots() { // deferred + deduped: never re-enters renderSl
 }
 function dsFetchStart(p) { if (p && p.id && !dsLoading.has(p.id)) { dsLoading.add(p.id); scheduleRenderSlots(); } }
 function dsFetchEnd(p) { if (p && p.id && dsLoading.delete(p.id)) scheduleRenderSlots(); }
-function ensureVariants(slotId) { // background: old fiches have an Idealo URL but no variants yet
+function ensureVariants(slotId) { // background: fiches with an Idealo URL missing variants/datasheet/image
   const s = state.slots[slotId], p = s && sel(s);
-  if (!p || p.variants || !p.idealo || typeof Idealo === 'undefined') return;
+  if (!p || !p.idealo || typeof Idealo === 'undefined') return;
+  if (p.variants && p.datasheet && p.image && p.specs) return;
   if (idealoAttempted.has(p.id) || variantFetching.has(p.idealo)) return;
   idealoAttempted.add(p.id);
   variantFetching.add(p.idealo);
@@ -340,10 +341,16 @@ function ensureVariants(slotId) { // background: old fiches have an Idealo URL b
   Idealo.product(p.idealo).then(d => {
     variantFetching.delete(p.idealo);
     dsFetchEnd(p);
-    if (!d || d.error || !d.variants || !d.variants.items || !d.variants.items.length) return;
+    if (!d || d.error) return;
     const cur = s.products.find(x => x.id === p.id);
     if (!cur) return;
-    cur.variants = d.variants;
+    let changed = false;
+    if (d.datasheet && !cur.datasheet) { cur.datasheet = d.datasheet; changed = true; }
+    if (d.specs && !cur.specs) { cur.specs = d.specs; changed = true; }
+    if (d.img && !cur.image) { cur.image = d.img; changed = true; }
+    if (d.variants && d.variants.items && d.variants.items.length && !cur.variants) { cur.variants = d.variants; changed = true; }
+    if (!changed) return;
+    compatCache = null;
     persist(); renderSlots();
   }).catch(() => { variantFetching.delete(p.idealo); dsFetchEnd(p); });
 }
@@ -840,7 +847,7 @@ function slotCard(id) {
   const stale = !!(p && refreshFailed.has(p.id));
   el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
   el.dataset.slot = id;
-  if (p && p.idealo && !p.variants) ensureVariants(id);
+  if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
   if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
@@ -2891,7 +2898,7 @@ function openLoad() {
     const v = prompt(lang === 'en' ? 'Paste share link or code:' : 'Collez le lien ou le code de partage :');
     if (!v) return;
     let obj; try { obj = decodeShare(v); } catch { toast('Lien invalide'); return; }
-    guardUnsaved(() => { try { importConfig(obj); closeModal(); } catch { toast('Lien invalide'); } });
+    guardUnsaved(() => { try { importConfig(obj, { share: true }); closeModal(); } catch { toast('Lien invalide'); } });
   };
 }
 function openHistory() {
@@ -3291,7 +3298,9 @@ function shareDefIdFor(key) {
   if (SHARE_SLOT_PREFIX[base]) return SHARE_SLOT_PREFIX[base];
   return SLOT_DEFS.some(d => d.id === base) ? base : null;
 }
-/* Rebuild a minimal state from the readable share arguments (null if not ours). */
+/* Rebuild a state from the readable share arguments (null if not ours).
+   Starts from the full default configurator (every component button is kept)
+   and fills the shared components into their slots. */
 function tryReadableShare(str) {
   const s = String(str || '');
   const hash = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s;
@@ -3299,7 +3308,18 @@ function tryReadableShare(str) {
   const params = {};
   hash.split('&').forEach(kv => { const i = kv.indexOf('='); if (i < 0) return; try { params[decodeURIComponent(kv.slice(0, i))] = kv.slice(i + 1); } catch { /* skip bad pair */ } });
   if (!('name' in params)) return null;
-  const st = { name: decodeURIComponent(params.name || 'Ma Config'), budget: parseFloat(params.budget) || 0, version: '', slots: {}, order: [], usage: defaultUsage() };
+  const base = defaultState();
+  const st = { name: decodeURIComponent(params.name || 'Ma Config'), budget: parseFloat(params.budget) || 0, version: '', slots: base.slots, order: base.order, usage: defaultUsage() };
+  // Insert a recreated dynamic slot right below the last slot of the same type.
+  const insertSlot = (key, defId) => {
+    const same = st.order.filter(sid => st.slots[sid] && st.slots[sid].defId === defId);
+    if (same.length) { st.order.splice(st.order.indexOf(same[same.length - 1]) + 1, 0, key); return; }
+    const def = SLOT_DEFS.find(d => d.id === defId);
+    const sec = def ? def.sec : 'others';
+    const secIds = st.order.filter(sid => st.slots[sid] && defOf(st.slots[sid]).sec === sec);
+    const last = secIds[secIds.length - 1];
+    st.order.splice(last ? st.order.indexOf(last) + 1 : st.order.length, 0, key);
+  };
   Object.keys(params).forEach(key => {
     if (key === 'cfg' || key === 'name' || key === 'budget') return;
     const seg = String(params[key]).split('|');
@@ -3311,12 +3331,12 @@ function tryReadableShare(str) {
     if (!slot) {
       const isDefault = SLOT_DEFS.some(d => d.id === key);
       slot = st.slots[key] = { defId, customLabel: isDefault ? '' : key, products: [], selectedId: null };
-      st.order.push(key);
+      insertSlot(key, defId);
     }
     const p = blankProduct();
     p.name = pname;
     p.price = parseFloat(seg[1]) || 0;
-    const lid = seg[2] || '';
+    const lid = String(seg[2] || '').replace(/[?#].*$/, '');
     p.idealo = lid ? 'https://www.idealo.fr/prix/' + lid + '.html' : '';
     slot.products.push(p); slot.selectedId = p.id;
   });
@@ -3329,7 +3349,7 @@ function decodeShare(s) {
   const code = m ? m[1] : String(s).trim();
   return JSON.parse(decodeURIComponent(escape(atob(code))));
 }
-function importConfig(obj) {
+function importConfig(obj, opts) {
   const st = (obj && obj.slots) ? obj : (obj && obj.config && obj.config.slots ? obj.config : (obj && obj.state && obj.state.slots ? obj.state : null));
   if (!st) throw new Error('bad');
   state = st;
@@ -3361,15 +3381,21 @@ function importConfig(obj) {
     toast(lang === 'en' ? 'Config loaded in memory but storage full — export JSON!' : 'Config chargée en mémoire mais stockage plein — exportez en JSON !');
   }
   refresh();
-  schedulePriceRefresh();
+  // Sharing strips everything but name/price/Idealo link: enrich quietly
+  // (background fetches fill specs, image, datasheet, vendor) and drop the
+  // share hash so a reload reuses the enriched draft instead of re-importing.
+  if (opts && opts.share) {
+    try { if (/^#(c=|cfg=1\b)/.test(location.hash)) history.replaceState(null, '', location.href.split('#')[0]); } catch { /* ignore */ }
+    schedulePriceRefresh(600, true);
+  } else schedulePriceRefresh();
 }
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
 const refreshingPids = new Set();
 const refreshFailed = new Set();
-function schedulePriceRefresh(delay = 1200) {
+function schedulePriceRefresh(delay = 1200, quiet = false) {
   clearTimeout(priceRefreshTimer);
-  priceRefreshTimer = setTimeout(() => refreshPrices(), delay);
+  priceRefreshTimer = setTimeout(() => refreshPrices(quiet), delay);
 }
 function showProgress(txt) {
   const pp = $('#progressPop'); if (!pp) return;
@@ -3416,7 +3442,7 @@ function applyOfferRefresh(cur, offers, withFlags) {
   }
   return ch;
 }
-async function refreshPrices() {
+async function refreshPrices(quiet) {
   if (priceRefreshRunning) return;
   // every fiche (selected + alternatives), fetches deduplicated by /prix/ URL
   const byUrl = new Map();
@@ -3433,7 +3459,7 @@ async function refreshPrices() {
   if (!urls.length || typeof Idealo === 'undefined') return;
   priceRefreshRunning = true;
   const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
-  showProgress(`${prog} (0/${urls.length})…`);
+  if (!quiet) showProgress(`${prog} (0/${urls.length})…`);
   let updated = 0, failed = 0;
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
@@ -3444,7 +3470,7 @@ async function refreshPrices() {
     if (!entries.length) continue;
     entries.forEach(e => refreshingPids.add(e.pid));
     renderSlots(); renderSummary();
-    showProgress(`${prog} (${i + 1}/${urls.length})…`);
+    if (!quiet) showProgress(`${prog} (${i + 1}/${urls.length})…`);
     try {
       const r = await Idealo.offers(url, true);
       if (r.error || !r.offers.length) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
@@ -3819,6 +3845,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.55 — Ouverture d’un lien de partage</h3><p class="hint">Charger une config depuis un lien partagé reconstruit désormais tout le configurateur (toutes les sections et tous les composants restent visibles et éditables) et y place les composants partagés. Les fiches réduites du lien (nom, prix, lien Idealo) sont réenrichies en arrière-plan — image, specs, fiche technique et compatibilité — sans le popup bloquant « Actualisation des prix ». L’adresse est nettoyée après l’import pour qu’un rechargement réutilise la config enrichie.</p></div>
     <div class="chlog"><h3>v2.54 — Partage &amp; export repensés</h3><p class="hint">Popup « Partager / Exporter » unique avec bascule Partager ⇄ Exporter : code QR + lien lisible pour partager, PDF et JSON pour exporter, et un comparatif de ce que chaque option contient. Le lien de partage devient lisible (arguments d’URL : nom, budget, et pour chaque composant nom, prix et identifiant du lien Idealo) — l’ancien lien encodé reste accepté. Le JSON d’une config contient désormais tout son historique (sauvegardes et courbe des prix) et le réimport le restaure ; « Export données » de la barre de navigation exporte l’intégralité du stockage (toutes les configs, tout l’historique, préférences).</p></div>
     <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur par composant, choisie pour que les tranches voisines soient très contrastées (violet, jaune, vert, marron, turquoise, rose…), les exemplaires supplémentaires d’un même type prenant une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
@@ -4108,8 +4135,10 @@ function bind() {
   const shareObj = (location.hash.includes('#c=') || location.hash.includes('cfg=1')) ? (() => { try { return decodeShare(location.hash); } catch { return null; } })() : null;
   if (shareObj) {
     // gate: a share link replaces the current draft — don't lose unsaved work silently
-    guardUnsaved(() => { try { importConfig(shareObj); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
-  } else maybeWelcome();
+    guardUnsaved(() => { try { importConfig(shareObj, { share: true }); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
+  } else {
+    maybeWelcome();
+    schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
+  }
   maybeConsentBar();
-  schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
 })();
