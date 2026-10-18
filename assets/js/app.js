@@ -5,6 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
+const APP_VERSION = '2.54';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -3264,14 +3265,72 @@ function maybeWelcome() {
     if (state.order.every(id => !(state.slots[id].products || []).length)) openWelcome();
   } catch { /* ignore */ }
 }
-function encodeShare(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+/* Share link — human-readable URL arguments:
+   #cfg=1&name=<config>&budget=<n>&<slotId>=<name>|<price>|<linkid>&…
+   Only the config name, the budget and, per component, its name, price and
+   Idealo link id are carried (everything else is dropped). */
+const SHARE_SLOT_PREFIX = { ssd: 'ssd1', screen: 'screen1', pcx: 'os', opt: 'opt1' };
+function idealoLinkId(p) {
+  const m = (p && String(p.idealo || '')).match(/idealo\.fr\/prix\/([^/?#]+)/i);
+  return m ? m[1].replace(/\.html$/i, '') : '';
+}
+function buildShareLink() {
+  const parts = ['cfg=1', 'name=' + encodeURIComponent(state.name || 'Ma Config'), 'budget=' + (Number(state.budget) || 0)];
+  (state.order || []).forEach(id => {
+    const s = state.slots[id]; if (!s) return;
+    const p = sel(s); if (!p) return;
+    parts.push(encodeURIComponent(id) + '=' + encodeURIComponent(p.name || '') + '|' + (Number(p.price) || 0) + '|' + idealoLinkId(p));
+  });
+  return location.origin + location.pathname + '#' + parts.join('&');
+}
+function shareDefIdFor(key) {
+  if (SLOT_DEFS.some(d => d.id === key)) return key;
+  const m = String(key).match(/^([a-z0-9]+)_\d+$/);
+  if (!m) return null;
+  const base = m[1];
+  if (SHARE_SLOT_PREFIX[base]) return SHARE_SLOT_PREFIX[base];
+  return SLOT_DEFS.some(d => d.id === base) ? base : null;
+}
+/* Rebuild a minimal state from the readable share arguments (null if not ours). */
+function tryReadableShare(str) {
+  const s = String(str || '');
+  const hash = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s;
+  if (!/(^|&)cfg=1(&|$)/.test(hash)) return null;
+  const params = {};
+  hash.split('&').forEach(kv => { const i = kv.indexOf('='); if (i < 0) return; try { params[decodeURIComponent(kv.slice(0, i))] = kv.slice(i + 1); } catch { /* skip bad pair */ } });
+  if (!('name' in params)) return null;
+  const st = { name: decodeURIComponent(params.name || 'Ma Config'), budget: parseFloat(params.budget) || 0, version: '', slots: {}, order: [], usage: defaultUsage() };
+  Object.keys(params).forEach(key => {
+    if (key === 'cfg' || key === 'name' || key === 'budget') return;
+    const seg = String(params[key]).split('|');
+    const pname = decodeURIComponent(seg[0] || '');
+    if (!pname) return;
+    const defId = shareDefIdFor(key);
+    if (!defId) return;
+    let slot = st.slots[key];
+    if (!slot) {
+      const isDefault = SLOT_DEFS.some(d => d.id === key);
+      slot = st.slots[key] = { defId, customLabel: isDefault ? '' : key, products: [], selectedId: null };
+      st.order.push(key);
+    }
+    const p = blankProduct();
+    p.name = pname;
+    p.price = parseFloat(seg[1]) || 0;
+    const lid = seg[2] || '';
+    p.idealo = lid ? 'https://www.idealo.fr/prix/' + lid + '.html' : '';
+    slot.products.push(p); slot.selectedId = p.id;
+  });
+  return st;
+}
 function decodeShare(s) {
+  const readable = tryReadableShare(s);
+  if (readable) return readable;
   const m = String(s).match(/#c=([A-Za-z0-9+/=]+)/) || String(s).match(/[A-Za-z0-9+/=]{40,}/);
-  const code = m ? m[1] : s.trim();
+  const code = m ? m[1] : String(s).trim();
   return JSON.parse(decodeURIComponent(escape(atob(code))));
 }
 function importConfig(obj) {
-  const st = (obj && obj.slots) ? obj : (obj && obj.state && obj.state.slots ? obj.state : null);
+  const st = (obj && obj.slots) ? obj : (obj && obj.config && obj.config.slots ? obj.config : (obj && obj.state && obj.state.slots ? obj.state : null));
   if (!st) throw new Error('bad');
   state = st;
   if (!state.order) state.order = Object.keys(state.slots);
@@ -3286,6 +3345,15 @@ function importConfig(obj) {
   try { openAlts.clear(); } catch { /* ignore */ }
   try { openVariants.clear(); } catch { /* ignore */ }
   compatCache = null;
+  /* Restore bundled history when importing a full-config export (history/prices)
+     or an all-data backup (configs/hist), without wiping other stored configs. */
+  try {
+    const name = state.name || 'Ma Config';
+    if (obj && Array.isArray(obj.history) && obj.history.length) { const c = load(LS.configs, {}); c[name] = obj.history; save(LS.configs, c); }
+    if (obj && Array.isArray(obj.prices) && obj.prices.length) { const h = load(LS.hist, {}); h[name] = obj.prices; save(LS.hist, h); }
+    if (obj && obj.configs && typeof obj.configs === 'object' && !Array.isArray(obj.configs)) { const c = load(LS.configs, {}); Object.keys(obj.configs).forEach(k => { c[k] = obj.configs[k]; }); save(LS.configs, c); }
+    if (obj && obj.hist && typeof obj.hist === 'object' && !Array.isArray(obj.hist)) { const h = load(LS.hist, {}); Object.keys(obj.hist).forEach(k => { h[k] = obj.hist[k]; }); save(LS.hist, h); }
+  } catch { /* ignore */ }
   if (persistRetry()) {
     lastSavedJson = JSON.stringify(state);
     toast(lang === 'en' ? 'Config imported and saved' : 'Config importée et sauvegardée');
@@ -3400,24 +3468,62 @@ async function refreshPrices() {
     ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
     : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));
 }
-function openShare() {
-  const code = encodeShare(state);
-  const link = location.origin + location.pathname + '#c=' + code;
-  openModal(lang === 'en' ? 'Share config' : 'Partager la config', `
-    <div class="fld"><label>${lang === 'en' ? 'Link (prefilled)' : 'Lien (pré-rempli)'}</label><input id="s_link" readonly value="${esc(link)}"></div>
-    <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${lang === 'en' ? 'Copy link' : 'Copier le lien'}</button>
-    <button class="btn btn-sm" id="s_json"><i class="fa-solid fa-file-arrow-down"></i> JSON</button></div>`);
-  $('#s_copy').onclick = () => { navigator.clipboard?.writeText(link); toast(lang === 'en' ? 'Link copied' : 'Lien copié'); };
-  $('#s_json').onclick = () => download(state.name + '.configmaker.json', JSON.stringify(state, null, 2), 'application/json');
-}
-function openExport() {
-  openModal(lang === 'en' ? 'Export config' : 'Exporter la config', `
-    <p class="hint">${lang === 'en' ? 'PDF = full report (name, budget, description, components with manual / Idealo / merchant links, power draw, benchmarks, price history). JSON = full re-importable config.' : 'PDF = rapport complet (nom, budget, description, composants avec liens manuel / Idealo / marchand, consommation, benchmarks, historique des prix). JSON = config complète réimportable.'}</p>
-    <p class="hint">${lang === 'en' ? 'Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working. The preview pane itself never allows selecting text or clicking links.' : 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs. L’aperçu, lui, ne permet jamais de sélectionner le texte ni de cliquer les liens.'}</p>
+/* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
+function openShareExport(pill) {
+  pill = pill === 'export' ? 'export' : 'share';
+  const T = (en, fr) => (lang === 'en' ? en : fr);
+  const link = buildShareLink();
+  const both = [
+    T('Config name', 'Nom de la config'),
+    T('Budget', 'Budget'),
+    T('Each component: name, price, Idealo link', 'Chaque composant : nom, prix, lien Idealo'),
+  ];
+  const onlyExport = [
+    T('Manual & merchant links, vendor, delivery', 'Liens manuel & marchand, vendeur, livraison'),
+    T('Quantities, power (W), PSU/UPS capacity', 'Quantités, puissance (W), capacité alim/onduleur'),
+    T('Specs, datasheets, verification, notes', 'Specs, fiches techniques, vérification, notes'),
+    T('Variants, carrier & tracking, custom labels', 'Variantes, transporteur & suivi, libellés perso'),
+    T('PC usage & pricing schedule', 'Utilisation & tarification du PC'),
+    T('Price history & saved snapshots', 'Historique des prix & sauvegardes'),
+    T('Full PDF report (description, charts, benchmarks)', 'Rapport PDF complet (description, graphiques, benchmarks)'),
+  ];
+  const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
+  const cmp = `<div class="cmp">
+    <div class="cmp-col"><h4><i class="fa-solid fa-share-nodes"></i> ${T('Share &amp; Export', 'Partage &amp; export')}</h4><ul>${li(both)}</ul></div>
+    <div class="cmp-col"><h4><i class="fa-solid fa-file-arrow-down"></i> ${T('Export only', 'Export uniquement')}</h4><ul>${li(onlyExport)}</ul></div>
+  </div>`;
+  const sharePane = `
+    <p class="hint">${T('Scan the QR code or copy the link to share this configuration.', 'Scannez le QR code ou copiez le lien pour partager cette configuration.')}</p>
+    <div class="qr-img" id="s_qr"></div>
+    <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
+    <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
+  const exportPane = `
+    <p class="hint">${T('PDF = full report (name, budget, description, components with manual / Idealo / merchant links, power draw, benchmarks, price history). JSON = this config with all its history, re-importable.', 'PDF = rapport complet (nom, budget, description, composants avec liens manuel / Idealo / marchand, consommation, benchmarks, historique des prix). JSON = cette config avec tout son historique, réimportable.')}</p>
+    <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working. The preview pane itself never allows selecting text or clicking links.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs. L’aperçu, lui, ne permet jamais de sélectionner le texte ni de cliquer les liens.')}</p>
     <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
-    <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> JSON</button></div>`);
+    <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> JSON</button></div>`;
+  openModal(T('Share / Export', 'Partager / Exporter'), `
+    <div class="usage-tabs">
+      <button type="button" class="usage-tab${pill === 'share' ? ' active' : ''}" data-tab="share">${T('Share', 'Partager')}</button>
+      <button type="button" class="usage-tab${pill === 'export' ? ' active' : ''}" data-tab="export">${T('Export', 'Exporter')}</button>
+    </div>
+    ${cmp}
+    <div class="usage-pane" data-pane="share"${pill === 'share' ? '' : ' style="display:none"'}>${sharePane}</div>
+    <div class="usage-pane" data-pane="export"${pill === 'export' ? '' : ' style="display:none"'}>${exportPane}</div>`, 'modal-wide');
+  const host = $('#modalBody');
+  host.querySelectorAll('.usage-tab').forEach(b => b.onclick = () => {
+    const tab = b.dataset.tab;
+    host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
+    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
+  });
+  const qrEl = $('#s_qr');
+  if (qrEl && typeof qrcode === 'function') {
+    try { const q = qrcode(0, 'L'); q.addData(link); q.make(); qrEl.innerHTML = q.createSvgTag({ cellSize: 4, margin: 8, scalable: true }); }
+    catch { qrEl.innerHTML = ''; }
+  }
+  $('#s_copy').onclick = () => { navigator.clipboard?.writeText(link); toast(T('Link copied', 'Lien copié')); };
   $('#e_pdf').onclick = () => { closeModal(); exportPdf(); };
-  $('#e_json').onclick = () => download(state.name + '.configmaker.json', JSON.stringify(state, null, 2), 'application/json');
+  $('#e_json').onclick = () => exportConfigJson();
 }
 /* ---------- Print / PDF report ----------
    The printed PDF is a dedicated report (name+budget, description, components
@@ -3691,11 +3797,29 @@ function download(name, content, type) {
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+/* JSON export of the currently selected config — absolutely everything about it
+   (the config itself, its saved snapshots and its price history). */
+function exportConfigJson() {
+  const name = state.name || 'Ma Config';
+  download(name + '.configmaker.json', JSON.stringify({
+    app: 'ConfigMaker', version: APP_VERSION, kind: 'config',
+    exportedAt: new Date().toISOString(),
+    config: state,
+    history: load(LS.configs, {})[name] || [],
+    prices: load(LS.hist, {})[name] || [],
+  }, null, 2), 'application/json');
+}
+/* JSON export of everything stored (all configs, all history, prefs). */
 function exportAll() {
-  download('configmaker-all-data.json', JSON.stringify({ state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), exportedAt: new Date().toISOString() }, null, 2), 'application/json');
+  download('configmaker-all-data.json', JSON.stringify({
+    app: 'ConfigMaker', version: APP_VERSION, kind: 'all',
+    exportedAt: new Date().toISOString(),
+    state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), prefs: load(LS.prefs, {}),
+  }, null, 2), 'application/json');
 }
 function openChangelog() {
-  openModal('Changelog — v2.53', `
+  openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.54 — Partage &amp; export repensés</h3><p class="hint">Popup « Partager / Exporter » unique avec bascule Partager ⇄ Exporter : code QR + lien lisible pour partager, PDF et JSON pour exporter, et un comparatif de ce que chaque option contient. Le lien de partage devient lisible (arguments d’URL : nom, budget, et pour chaque composant nom, prix et identifiant du lien Idealo) — l’ancien lien encodé reste accepté. Le JSON d’une config contient désormais tout son historique (sauvegardes et courbe des prix) et le réimport le restaure ; « Export données » de la barre de navigation exporte l’intégralité du stockage (toutes les configs, tout l’historique, préférences).</p></div>
     <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur par composant, choisie pour que les tranches voisines soient très contrastées (violet, jaune, vert, marron, turquoise, rose…), les exemplaires supplémentaires d’un même type prenant une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
     <div class="chlog"><h3>v2.52 — Prises Schuko &amp; calendrier hebdo</h3><p class="hint">Routage des prises Schuko corrigé : sans onduleur, PC/écrans/consoles vont sur la multiprise ; avec onduleur, PC + écrans + consoles (détectées par nom) sur l’onduleur et les autres périphériques sur la multiprise. Popup « usage &amp; tarification » désormais un calendrier hebdomadaire 7×24 (heures indépendantes par jour, moyennes h/semaine et h/jour).</p></div>
     <div class="chlog"><h3>v2.51 — Tier list PSU 2025, multiprises &amp; tarification</h3><p class="hint">Qualité alim basée sur la PSU Tier List communautaire (rév. 2025, tiers A–F avec confiance limitée, ODM, topologie, ATX 3.x) ; nouvelle catégorie multiprise (compatibilité prises Schuko avec l’onduleur, UPS branché sur la multiprise) ; popup « usage &amp; tarification » (grille horaire 24 h marche/arrêt, heures pleines/creuses, prix HP/HC personnalisés) au bas de l’onglet Conso.</p></div>
@@ -3817,8 +3941,8 @@ function bind() {
   $('#newBtn').onclick = newConfig;
   $('#loadBtn').onclick = openLoad;
   $('#historyBtn').onclick = openHistory;
-  $('#shareBtn').onclick = openShare;
-  $('#exportBtn').onclick = openExport;
+  $('#shareBtn').onclick = () => openShareExport('share');
+  $('#exportBtn').onclick = () => openShareExport('export');
   $('#exportAllBtn').onclick = exportAll;
   $('#footExport').onclick = e => { e.preventDefault(); exportAll(); };
   $('#versionBtn').onclick = openChangelog;
@@ -3981,7 +4105,7 @@ function bind() {
   baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
   applyTheme(); applyLang(); bind(); refresh(); showBench();
-  const shareObj = location.hash.includes('#c=') ? (() => { try { return decodeShare(location.hash); } catch { return null; } })() : null;
+  const shareObj = (location.hash.includes('#c=') || location.hash.includes('cfg=1')) ? (() => { try { return decodeShare(location.hash); } catch { return null; } })() : null;
   if (shareObj) {
     // gate: a share link replaces the current draft — don't lose unsaved work silently
     guardUnsaved(() => { try { importConfig(shareObj); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
