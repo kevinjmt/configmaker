@@ -295,6 +295,122 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
+  /* Raw HTML (used by offer tokens and the facet model below). */
+  async function fetchHtml(url) {
+    const wait = Math.max(0, GAP_MS - (Date.now() - lastT));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastT = Date.now();
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), TIMEOUT_MS * 2);
+    try {
+      const res = await fetch(READER + url, { signal: ctl.signal, headers: { 'X-Respond-With': 'html' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    } finally { clearTimeout(to); }
+  }
+
+  /* ---- Facet filters (Idealo filter box) ---------------------------------
+     Idealo embeds the whole facet model as base64 JSON in
+     window.csr.initialData['searchResult']. Parsing that is far more robust
+     than scraping hashed class names and yields every group, facet id, hit
+     count, prices and preselected filters. Cached 24h per category. */
+  const FILTERS_KEY = 'cmv2.ifilters';
+  const FT_TTL = 24 * 3600 * 1000;
+  const fcache = (() => { try { return JSON.parse(lsGet(FILTERS_KEY)) || {}; } catch { return {}; } })();
+  function fPersist() {
+    if (lsSet(FILTERS_KEY, JSON.stringify(fcache)) === true) return;
+    try { const ks = Object.keys(fcache); if (ks.length) { delete fcache[ks[0]]; lsSet(FILTERS_KEY, JSON.stringify(fcache)); } } catch { /* ignore */ }
+  }
+  function b64utf8(b64) {
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch { return ''; }
+  }
+  /* /cat/<catId>[F<facet>…]/<slug>.html → the parts needed to rebuild a URL. */
+  function parseCatUrl(u) {
+    const m = String(u || '').match(/^(https?:\/\/[^/]+)\/cat\/(\d+)((?:F\d+)*)\/([^/?#]+\.html)/);
+    if (!m) return null;
+    return { origin: m[1], catId: m[2], facets: (m[3].match(/F\d+/g) || []).map(s => s.slice(1)), slug: m[4] };
+  }
+  function parseFilters(html) {
+    const m = String(html || '').match(/window\.csr\.initialData\['searchResult'\]\s*=\s*"([^"]+)"/);
+    if (!m) return null;
+    let j; try { j = JSON.parse(b64utf8(m[1])); } catch { return null; }
+    const groups = [];
+    const seen = new Set();
+    const addGroups = arr => (arr || []).forEach(g => {
+      if (!g || !g.id || seen.has(String(g.id))) return;
+      const options = (g.filters || []).map(o => ({ id: String(o.id), name: o.name, hits: o.hits || 0 }));
+      if (!options.length) return;
+      seen.add(String(g.id));
+      groups.push({ id: String(g.id), name: g.name, options });
+    });
+    addGroups(j.filterGroups);
+    addGroups(j.sizeFilterGroups);
+    const quick = (j.quickFilters || []).map(q => ({ id: String(q.id), name: q.name, hits: q.count || 0 }));
+    const pr = j.priceRanges || {}, dr = pr.dynamicRange || {};
+    const price = {
+      min: (dr.fromPrice != null ? dr.fromPrice : null),
+      max: (dr.toPrice != null ? dr.toPrice : null),
+      ranges: (pr.ranges || []).map(r => ({ from: r.fromPrice, to: r.toPrice, hits: r.hits || 0 })),
+    };
+    const byFacet = {};
+    groups.forEach(g => g.options.forEach(o => { byFacet[o.id] = g.id; }));
+    const selected = {};
+    (j.selectedFilters || []).forEach(f => { const g = byFacet[String(f.id)]; if (g) (selected[g] = selected[g] || []).push(String(f.id)); });
+    return { groups, quick, price, byFacet, selected };
+  }
+  function filterCacheKey(url) {
+    const p = parseCatUrl(url);
+    return p ? ('cat:' + p.catId + ':' + p.slug) : ('url:' + String(url || ''));
+  }
+  async function filters(url, force) {
+    const key = filterCacheKey(url);
+    if (!force) {
+      const c = fcache[key];
+      if (c && c.data && (Date.now() - c.t) < FT_TTL) return { ...c.data, cached: true };
+    }
+    try {
+      const html = await queued(() => fetchHtml(url));
+      const data = parseFilters(html);
+      if (!data || (!data.groups.length && !data.quick.length)) throw new Error('nofilters');
+      fcache[key] = { t: Date.now(), data };
+      fPersist();
+      return { ...data, cached: false };
+    } catch (e) {
+      const c = fcache[key];
+      if (c && c.data) return { ...c.data, cached: true, stale: true };
+      return { groups: [], quick: [], price: { min: null, max: null, ranges: [] }, byFacet: {}, selected: {}, error: String((e && e.message) || e) };
+    }
+  }
+  /* Rebuild a faceted category URL: keep the base's own facets, replace any
+     group the user filtered, OR within a group / AND across groups. Price is
+     passed as ?priceFrom/&priceTo (honoured by Idealo in a real browser). */
+  function composeUrl(baseUrl, opts = {}) {
+    const p = parseCatUrl(baseUrl);
+    if (!p) return baseUrl;
+    const sel = opts.selected || {};
+    const byFacet = opts.byFacet || {};
+    const selIds = [];
+    const selGroups = new Set();
+    Object.keys(sel).forEach(g => {
+      const ids = (sel[g] || []).map(String);
+      if (ids.length) { selGroups.add(g); ids.forEach(id => selIds.push(id)); }
+    });
+    const keep = p.facets.filter(id => { const g = byFacet[id]; return !(g && selGroups.has(g)); });
+    const ids = [...keep, ...selIds];
+    let url = `${p.origin}/cat/${p.catId}${ids.map(i => 'F' + i).join('')}/${p.slug}`;
+    const qs = [];
+    if (opts.priceFrom != null && opts.priceFrom !== '') qs.push('priceFrom=' + encodeURIComponent(opts.priceFrom));
+    if (opts.priceTo != null && opts.priceTo !== '') qs.push('priceTo=' + encodeURIComponent(opts.priceTo));
+    if (opts.discountFrom != null && opts.discountFrom !== '') qs.push('discountFrom=' + encodeURIComponent(opts.discountFrom));
+    if (qs.length) url += '?' + qs.join('&');
+    return url;
+  }
+
   /* Normalized attribute comparison for variant filtering ("2.970 MHz" === "2 970 MHz"). */
   function variantNorm(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s.,]/g, '');
@@ -563,5 +679,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache };
+  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
 })();

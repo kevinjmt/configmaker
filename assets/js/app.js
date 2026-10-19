@@ -100,6 +100,8 @@ const I18N = {
     'picker.err': 'Chargement impossible (limite de requêtes ou blocage). Réessayez dans une minute ou ouvrez sur idealo.fr.',
     'alts.see': 'Voir les alternatives',
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
+    'picker.moreFilters': 'Plus de filtres',
+    'picker.filtersHint': "Filtres Idealo identiques au site. Plusieurs valeurs dans un même filtre = OU ; les filtres se cumulent = ET.",
     'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.compat': 'Compat', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
     'bench.loading': 'Chargement des vidéos…', 'bench.play': 'Lire',
@@ -152,6 +154,8 @@ const I18N = {
     'picker.err': 'Could not load the list (rate limit or block). Retry in a minute or open on idealo.fr.',
     'alts.see': 'See alternatives',
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
+    'picker.moreFilters': 'More filters',
+    'picker.filtersHint': 'Idealo filters, identical to the site. Several values in one filter = OR; filters combine = AND.',
     'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.compat': 'Compat', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'Benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
     'bench.loading': 'Loading videos…', 'bench.play': 'Play',
@@ -1333,6 +1337,7 @@ function renderIdealo() {
   const st = $('#idealoStatus');
   const q = idealQ.trim().toLowerCase();
   let items = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q));
+  if (pickerPriceActive()) items = items.filter(it => !it.price || (it.price >= pickerPrice.from && it.price <= pickerPrice.to));
   if (idealSort === 'asc') items = [...items].sort((a, b) => (a.price || 1e12) - (b.price || 1e12));
   if (idealSort === 'desc') items = [...items].sort((a, b) => (b.price || 0) - (a.price || 0));
   const shown = items.slice(0, idealShown);
@@ -1473,10 +1478,10 @@ function showPickerPending() {
 /* Load a category's default page; waits for a dependency (cpu for mb, mb for ram) when needed. */
 function resolveDefaultCat(key, seq) {
   const u = defaultCatUrl(key);
-  if (typeof u === 'string') { applyCatUrl(key, u); loadIdealoList(u); return; }
+  if (typeof u === 'string') { applyCatUrl(key, u); loadIdealoList(u); pickerSetupFilters(u, key); return; }
   showPickerPending();
-  u.then(url => { if (seq !== pickerSeq) return; applyCatUrl(key, url); loadIdealoList(url); })
-   .catch(() => { if (seq !== pickerSeq) return; const b = catUrl(key); applyCatUrl(key, b); loadIdealoList(b); });
+  u.then(url => { if (seq !== pickerSeq) return; applyCatUrl(key, url); loadIdealoList(url); pickerSetupFilters(url, key); })
+   .catch(() => { if (seq !== pickerSeq) return; const b = catUrl(key); applyCatUrl(key, b); loadIdealoList(b); pickerSetupFilters(b, key); });
 }
 function openPicker(id, mode = 'replace') {
   pickerMode = mode;
@@ -1503,7 +1508,7 @@ function openPicker(id, mode = 'replace') {
     chip.classList.toggle('hidden', pickerMode !== 'add');
     if (pickerMode === 'add') $('#pickerModeTxt').textContent = t('picker.addMode');
   }
-  if (remembered) loadIdealoList(remembered);
+  if (remembered) { pickerSetupFilters(remembered, key); loadIdealoList(remembered); }
   else resolveDefaultCat(key, seq);
   if (window.innerWidth < 960) $('#pickerPanel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1513,6 +1518,421 @@ function renderPicker() {
   $('#pickerTitle').textContent = slotName(activeSlot);
   $('#pickerIdealoSearch').href = currentIdealoUrl;
 }
+
+/* ---------- Picker: Idealo facet filters (quick pills + "more filters") ----------
+   Categorical/numeric filters map to Idealo facet URLs (OR within a group, AND
+   across groups). Numeric attributes snap to Idealo's own discrete buckets. Price
+   is passed as ?priceFrom/&priceTo (honoured by Idealo in the browser) and also
+   applied client-side since Jina's snapshot ignores it. */
+let pickerCatKey = 'root', pickerFilterBase = '', pickerFilterData = null;
+let pickerSel = {}, pickerPrice = { from: null, to: null }, pickerDiscount = false;
+let pickerFilterBusy = false, pickerFilterErr = '', pickerMoreOpen = false, filterSeq = 0, pickerRestored = false;
+let pickerSocketToken = null;
+
+const ROOT_QUICK_CATS = [
+  { key: 'laptop', label: 'Ordinateurs portables', url: 'https://www.idealo.fr/cat/3751/ordinateurs-portables.html' },
+  { key: 'desktop', label: 'Ordinateurs de bureau', url: 'https://www.idealo.fr/cat/3020/ordinateurs-de-bureau.html' },
+  { key: 'sbc', label: 'Ordinateurs à carte unique', url: 'https://www.idealo.fr/cat/31123/ordinateurs-a-carte-unique.html' },
+  { key: 'console', label: 'Consoles de jeux', url: 'https://www.idealo.fr/cat/3189/consoles-de-jeux.html' },
+  { key: 'tablet', label: 'Tablettes tactiles', url: 'https://www.idealo.fr/cat/3747/tablettes-tactiles.html' },
+];
+
+const BRAND_RE = /fabricant|manufactur|brand|marque|hersteller/i;
+const AVAIL_RE = /disponibilit|availability|verf[üu]gbar|lieferzeit|\bstock\b/i;
+const RANGE_GROUP_RE = /fr[ée]quence|frequenz|frequency|\btdp\b|puissance|power|watt|capacit|kapazit|volume|taille|diam|d[ée]bit|speed|vitesse|poids|weight|thread|coeur|cœur|core|\brpm\b|bruit|noise|autonomie|batterie|m[ée]moire|\bram\b|r[ée]solution|resolution|\bhz\b/i;
+const NON_RANGE_RE = /s[ée]rie|type de produit|nom de code|fabricant|adapt[ée]|emballage|couleur|color|puce|graphique|mod[eè]le|brand|marque|hersteller|product type|type de processeur|type de laptop|disponibilit|availability/i;
+const UNIT_RE = /(ghz|mhz|watts?|\bw\b|\bto\b|\btb\b|\bgo\b|\bgb\b|\bmm\b|\bcm\b|\brpm\b|\bdb\b|gb\/s|mb\/s|gbps|mbps|\bkg\b|\bhz\b|\bms\b|\bmo\b)/i;
+
+const PICKER_QUICK = {
+  cpu: [
+    { label: 'Intel', groupRe: BRAND_RE, optRe: /^intel\b/i },
+    { label: 'AMD', groupRe: BRAND_RE, optRe: /^amd\b/i },
+  ],
+  gpu: [
+    { label: 'NVIDIA', groupRe: BRAND_RE, optRe: /nvidia|geforce/i },
+    { label: 'AMD', groupRe: BRAND_RE, optRe: /^(amd|radeon)\b/i },
+  ],
+  mb: [
+    { label: 'AM4', groupRe: /socket|support|sockel|prise/i, optRe: /am4/i },
+    { label: 'AM5', groupRe: /socket|support|sockel|prise/i, optRe: /am5/i },
+    { label: 'LGA 1700', groupRe: /socket|support|sockel|prise/i, optRe: /17[07]0/i },
+    { label: 'LGA 1851', groupRe: /socket|support|sockel|prise/i, optRe: /185[01]/i },
+  ],
+  ram: [
+    { label: 'DDR5', groupRe: /type.*m[ée]moire|m[ée]moire.*type|type de ram|speichertyp|ram.?type/i, optRe: /ddr5/i },
+    { label: 'DDR4', groupRe: /type.*m[ée]moire|m[ée]moire.*type|type de ram|speichertyp|ram.?type/i, optRe: /ddr4/i },
+    { label: 'EXPO', groupRe: /profil|profile|xmp|expo/i, optRe: /expo/i },
+    { label: 'XMP', groupRe: /profil|profile|xmp|expo/i, optRe: /xmp/i },
+  ],
+  ssd: [1, 2, 4, 8].map(n => ({ label: n + ' To', groupRe: /capacit|kapazit|capacity/i, optRe: new RegExp('^' + n + '\\s*(to|tb)\\b', 'i') })),
+  hdd: [1, 2, 4, 8, 12].map(n => ({ label: n + ' To', groupRe: /capacit|kapazit|capacity/i, optRe: new RegExp('^' + n + '\\s*(to|tb)\\b', 'i') })),
+  case: [
+    { label: 'ATX', groupRe: /format|facteur|type|form/i, optRe: /^(e-?atx|atx)$/i },
+    { label: 'Micro-ATX', groupRe: /format|facteur|type|form/i, optRe: /micro|m-?atx|µ-?atx/i },
+    { label: 'Mini-ITX', groupRe: /format|facteur|type|form/i, optRe: /mini|itx/i },
+  ],
+  psu: [
+    { label: '80+ Gold', groupRe: /efficacit|certif|80|rendement/i, optRe: /gold|\bor\b/i },
+    { label: '80+ Platinum', groupRe: /efficacit|certif|80|rendement/i, optRe: /platin/i },
+    { label: '80+ Titanium', groupRe: /efficacit|certif|80|rendement/i, optRe: /titan/i },
+  ],
+  fans: [
+    { label: '120 mm', groupRe: /taille|dimension|diam/i, optRe: /^120\s*mm/i },
+    { label: '140 mm', groupRe: /taille|dimension|diam/i, optRe: /^140\s*mm/i },
+  ],
+  netcard: [
+    { label: '1 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /(^|\D)1\s*(gb\/s|gbps|gbit)/i },
+    { label: '2,5 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /2[.,]5/i },
+    { label: '10 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /10\s*(gb\/s|gbps|gbit)/i },
+  ],
+  cooler: [],
+};
+
+const PICKER_MORE = {
+  cpu: [{ groupRe: /nombre de threads|thread|coeur|cœur|core/i }, { groupRe: /fr[ée]quence(?! turbo)/i }, { groupRe: /\btdp\b/i }],
+  gpu: [{ groupRe: /m[ée]moire vid[ée]o|vram|memory size/i }, { groupRe: /\btdp\b|puissance|power/i }, { groupRe: /longueur|length/i }, { groupRe: /chipset|puce|gpu/i }],
+  ram: [{ groupRe: /capacit/i }, { groupRe: /fr[ée]quence/i }, { groupRe: /latence|cas/i }],
+  mb: [{ groupRe: /format|facteur/i }, { groupRe: /slot.*ram|m[ée]moire|dimm/i }, { groupRe: /ethernet|lan|r[ée]seau/i }, { groupRe: /pcie|pci express/i }],
+  ssd: [{ groupRe: /format|facteur/i }, { groupRe: /capacit/i }, { groupRe: /interface|nvme|sata/i }, { groupRe: /lecture|read/i }, { groupRe: /[ée]criture|write/i }],
+  hdd: [{ groupRe: /capacit/i }, { groupRe: /format/i }, { groupRe: /vitesse|rpm|rotation/i }, { groupRe: /interface/i }],
+  psu: [{ groupRe: /puissance|power|watt/i }, { groupRe: /efficacit|certif|80|rendement/i }, { groupRe: /format|facteur/i }, { groupRe: /modulaire|modular/i }],
+  case: [{ groupRe: /format|facteur/i }, { groupRe: /alimentation|psu/i }, { groupRe: /longueur.*gpu|carte graphique/i }, { groupRe: /hauteur.*ventirad|refroid/i }],
+  fans: [{ groupRe: /taille|dimension|diam/i }, { groupRe: /vitesse|rpm|rotation/i }, { groupRe: /d[ée]bit|airflow|flux/i }, { groupRe: /bruit|noise/i }],
+  netcard: [{ groupRe: /vitesse|d[ée]bit|speed/i }, { groupRe: /interface|pcie|pci/i }, { groupRe: /port/i }],
+  cooler: [{ groupRe: /socket|support/i }, { groupRe: /hauteur|height/i }, { groupRe: /\btdp\b|puissance/i }, { groupRe: /ventilateur|fan|taille/i }, { groupRe: /bruit|noise/i }],
+};
+
+const FILTER_HELP = {
+  tdp: { fr: "TDP (enveloppe thermique) : chaleur maximale dissipée par le composant. Plus il est bas, plus le refroidissement est simple et silencieux.", en: "TDP (thermal design power): the maximum heat the part dissipates. Lower means easier, quieter cooling.", wiki: "https://fr.wikipedia.org/wiki/Thermal_Design_Power" },
+  threads: { fr: "Nombre de threads (cœurs logiques) : au-delà des cœurs physiques, il aide les charges parallèles (rendu, compilation, IA).", en: "Thread count (logical cores): beyond physical cores, it helps parallel workloads (rendering, compiling, AI).", wiki: "https://fr.wikipedia.org/wiki/Simultaneous_multithreading" },
+  frequency: { fr: "Fréquence d'horloge : nombre de cycles par seconde. Une fréquence plus haute accélère les tâches légères/mono-cœur.", en: "Clock frequency: cycles per second. Higher clock speeds up light/single-core tasks.", wiki: "https://fr.wikipedia.org/wiki/Fr%C3%A9quence_d%27horloge" },
+  socket: { fr: "Socket : le support physique du processeur sur la carte mère. Le CPU et la carte mère doivent partager le même socket.", en: "Socket: the physical CPU mount on the motherboard. CPU and motherboard must share the same socket.", wiki: "https://fr.wikipedia.org/wiki/Socket_de_processeur" },
+  capacity: { fr: "Capacité de stockage : espace disponible. Prévoyez de la marge pour l'OS, les jeux et les médias.", en: "Storage capacity: available space. Leave headroom for the OS, games and media.", wiki: "https://fr.wikipedia.org/wiki/Capacit%C3%A9_de_stockage" },
+  speed: { fr: "Débit/Vitesse : données transférées par seconde. Plus élevé = transferts plus rapides.", en: "Speed/throughput: data transferred per second. Higher means faster transfers.", wiki: "https://fr.wikipedia.org/wiki/D%C3%A9bit_binaire" },
+  brand: { fr: "Fabricant : marque qui conçoit le produit (influe sur la garantie et la qualité).", en: "Manufacturer: the brand that designs the product (affects warranty and quality).", wiki: "" },
+  availability: { fr: "Disponibilité : délai de livraison. Filtrez pour n'afficher que les produits expédiés rapidement.", en: "Availability: delivery speed. Filter to show only quickly shipped products.", wiki: "" },
+  price: { fr: "Prix : budget minimal et maximal. Le curseur sélectionne les produits dans cette fourchette.", en: "Price: minimum and maximum budget. The slider keeps products within that range.", wiki: "" },
+  deal: { fr: "Bon plan : n'affiche que les produits actuiellement en promotion (remise ≥ 5 %).", en: "Deals: show only products currently discounted (≥ 5% off).", wiki: "" },
+};
+function filterHelp(name) {
+  const s = String(name).toLowerCase();
+  if (/tdp|thermal/.test(s)) return FILTER_HELP.tdp;
+  if (/thread/.test(s)) return FILTER_HELP.threads;
+  if (/fr[ée]quence|frequenz|frequency/.test(s)) return FILTER_HELP.frequency;
+  if (/socket|support|sockel|prise/.test(s)) return FILTER_HELP.socket;
+  if (/capacit|kapazit|capacity/.test(s)) return FILTER_HELP.capacity;
+  if (/vitesse|d[ée]bit|speed|gb\/s/.test(s)) return FILTER_HELP.speed;
+  if (BRAND_RE.test(s)) return FILTER_HELP.brand;
+  if (AVAIL_RE.test(s)) return FILTER_HELP.availability;
+  if (/prix|price/.test(s)) return FILTER_HELP.price;
+  return null;
+}
+function infoBtn(name) {
+  const h = (name === 'price' ? FILTER_HELP.price : name === 'deal' ? FILTER_HELP.deal : filterHelp(name)) || {};
+  const tip = h[lang] || h.fr || '';
+  if (!tip && !h.wiki) return '';
+  return `<button type="button" class="f-info" data-tip="${esc(tip)}" data-wiki="${esc(h.wiki || '')}" aria-label="Aide"><i class="fa-solid fa-circle-info"></i></button>`;
+}
+
+function numOf(name) {
+  const s = String(name).toLowerCase().replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = s.match(/(\d+(?:[.,]\d+)?)/);
+  if (!m) return null;
+  const unit = (s.match(UNIT_RE) || [])[1] || '';
+  return { n: parseFloat(m[1].replace(',', '.')), unit: unit.toLowerCase() };
+}
+function rangeStops(g) {
+  const byNum = g.options.map(o => { const p = numOf(o.name); return p ? { n: p.n, id: o.id, unit: p.unit } : null; });
+  if (byNum.some(x => !x)) return null;
+  const stops = [...new Set(byNum.map(x => x.n))].sort((a, b) => a - b);
+  if (stops.length < 2) return null;
+  const unit = (byNum.find(x => x.unit) || {}).unit || '';
+  return { unit, stops, byNum };
+}
+function isRangeGroup(g) {
+  if (NON_RANGE_RE.test(g.name) || !RANGE_GROUP_RE.test(g.name)) return false;
+  return !!rangeStops(g);
+}
+function resolveQuick(def, d) {
+  const g = d.groups.find(x => def.groupRe.test(x.name));
+  if (!g) return null;
+  const opt = g.options.find(o => (def.exact ? def.exact.test(o.name) : def.optRe.test(o.name)));
+  return opt ? { gid: g.id, oid: opt.id } : null;
+}
+function dynamicQuick(key, d) {
+  if (key !== 'cooler' || !pickerSocketToken) return [];
+  return [{ label: pickerSocketToken, groupRe: /socket|support|sockel|prise/i, optRe: new RegExp(pickerSocketToken.replace(/[^a-z0-9]/gi, '.?'), 'i') }];
+}
+function priceChanged() {
+  const p = pickerFilterData && pickerFilterData.price;
+  if (!p || p.min == null || p.max == null) return false;
+  return String(pickerPrice.from) !== String(p.min) || String(pickerPrice.to) !== String(p.max);
+}
+function filterActive() { return Object.keys(pickerSel).some(g => (pickerSel[g] || []).length) || pickerDiscount || priceChanged(); }
+function activeCount() {
+  let n = Object.keys(pickerSel).filter(g => (pickerSel[g] || []).length).length;
+  if (priceChanged()) n++;
+  if (pickerDiscount) n++;
+  return n;
+}
+function toggleFacet(gid, oid, on) {
+  const cur = pickerSel[gid] || [];
+  const has = cur.includes(oid);
+  const want = on === undefined ? !has : !!on;
+  let next = want ? (has ? cur : [...cur, oid]) : cur.filter(x => x !== oid);
+  if (next.length) pickerSel[gid] = next; else delete pickerSel[gid];
+}
+
+/* ---------- render ---------- */
+function buildEnumBlock(g, cls) {
+  const sel = pickerSel[g.id] || [];
+  const opts = g.options.map(o => `<label class="f-opt"><input type="checkbox" data-gid="${g.id}" data-oid="${o.id}"${sel.includes(o.id) ? ' checked' : ''}> <span>${esc(o.name)}</span>${o.hits ? `<em>${o.hits}</em>` : ''}</label>`).join('');
+  const long = g.options.length > 8;
+  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name)}</div><div class="f-opts${long ? ' collapsed' : ''}">${opts}</div>${long ? `<button type="button" class="f-moreless">${lang === 'en' ? 'Show all' : 'Voir tout'} <i class="fa-solid fa-chevron-down"></i></button>` : ''}</div>`;
+}
+function buildRangeBlock(g, cls) {
+  const info = rangeStops(g);
+  if (!info) return buildEnumBlock(g, cls);
+  const { stops, unit, byNum } = info;
+  const selNums = (pickerSel[g.id] || []).map(id => { const r = byNum.find(x => x.id === id); return r ? r.n : null; }).filter(n => n != null);
+  const lo = selNums.length ? Math.min(...selNums) : stops[0];
+  const hi = selNums.length ? Math.max(...selNums) : stops[stops.length - 1];
+  const fmt = n => (Math.round(n * 100) / 100) + (unit ? ' ' + unit : '');
+  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name)}</div><div class="f-range" data-gid="${g.id}"><input type="range" class="f-rlo" min="0" max="${stops.length - 1}" step="1" value="${stops.indexOf(lo)}"><input type="range" class="f-rhi" min="0" max="${stops.length - 1}" step="1" value="${stops.indexOf(hi)}"><span class="f-rlbl">${esc(fmt(lo))} – ${esc(fmt(hi))}</span></div></div>`;
+}
+function buildMoreHtml(d) {
+  const parts = [`<p class="hint f-hint">${esc(t('picker.filtersHint'))}</p>`];
+  if (d.price && d.price.min != null && d.price.max != null && d.price.max > d.price.min) {
+    const lo = pickerPrice.from == null ? d.price.min : pickerPrice.from;
+    const hi = pickerPrice.to == null ? d.price.max : pickerPrice.to;
+    parts.push(`<div class="f-grp f-always" data-gid="__price"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Price' : 'Prix'}</span>${infoBtn('price')}</div><div class="f-range" data-gid="__price" data-kind="price"><input type="range" class="f-rlo" min="${d.price.min}" max="${d.price.max}" step="1" value="${lo}"><input type="range" class="f-rhi" min="${d.price.min}" max="${d.price.max}" step="1" value="${hi}"><span class="f-rlbl">${eur(lo)} – ${eur(hi)}</span></div></div>`);
+  }
+  const brand = d.groups.find(g => BRAND_RE.test(g.name));
+  if (brand) parts.push(buildEnumBlock(brand, 'f-always'));
+  const avail = d.groups.find(g => AVAIL_RE.test(g.name));
+  if (avail) parts.push(buildEnumBlock(avail, 'f-always'));
+  parts.push(`<div class="f-grp f-always"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Deals' : 'Bon plan'}</span>${infoBtn('deal')}</div><label class="f-opt"><input type="checkbox" data-special="deal"${pickerDiscount ? ' checked' : ''}> <span>${lang === 'en' ? 'Discounted (≥ 5%)' : 'En promotion (≥ 5 %)'}</span></label></div>`);
+  const consumed = new Set();
+  if (brand) consumed.add(brand.id);
+  if (avail) consumed.add(avail.id);
+  (PICKER_MORE[pickerCatKey] || []).forEach(def => {
+    const g = d.groups.find(x => def.groupRe.test(x.name));
+    if (!g || consumed.has(g.id) || BRAND_RE.test(g.name) || AVAIL_RE.test(g.name)) return;
+    consumed.add(g.id);
+    parts.push(isRangeGroup(g) ? buildRangeBlock(g, 'f-more') : buildEnumBlock(g, 'f-more'));
+  });
+  d.groups.forEach(g => {
+    if (consumed.has(g.id) || BRAND_RE.test(g.name) || AVAIL_RE.test(g.name)) return;
+    parts.push(isRangeGroup(g) ? buildRangeBlock(g) : buildEnumBlock(g));
+  });
+  return parts.join('');
+}
+function renderRootQuick(host) {
+  ROOT_QUICK_CATS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'qf-pill' + (pickerCatKey === c.key ? ' active' : '');
+    b.textContent = c.label;
+    b.onclick = () => selectRootQuick(pickerCatKey === c.key ? null : c);
+    host.appendChild(b);
+  });
+  host.classList.remove('hidden');
+}
+function renderQuickPills(host) {
+  const d = pickerFilterData; if (!d) { host.classList.add('hidden'); return; }
+  const defs = [...(PICKER_QUICK[pickerCatKey] || []), ...dynamicQuick(pickerCatKey, d)];
+  const seen = new Set();
+  defs.forEach(def => {
+    const r = resolveQuick(def, d);
+    if (!r || seen.has(def.label)) return;
+    seen.add(def.label);
+    const active = (pickerSel[r.gid] || []).includes(r.oid);
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'qf-pill' + (active ? ' active' : ''); b.textContent = def.label;
+    b.onclick = () => { toggleFacet(r.gid, r.oid); applyPickerFilters(); renderPickerFilters(); };
+    host.appendChild(b);
+  });
+  host.classList.toggle('hidden', !host.children.length);
+}
+function renderPickerFilters() {
+  const quickHost = $('#pickerQuick'), moreWrap = $('#pickerMoreWrap'), panel = $('#pickerFilters');
+  if (!quickHost || !panel) return;
+  quickHost.innerHTML = '';
+  if (pickerCatKey === 'root') renderRootQuick(quickHost);
+  else renderQuickPills(quickHost);
+  const d = pickerFilterData;
+  const has = !!(d && d.groups && d.groups.length);
+  if (moreWrap) moreWrap.classList.toggle('hidden', !has && !(pickerFilterBusy && pickerCatKey !== 'root'));
+  const badge = $('#pickerMoreCount');
+  if (badge) { const n = activeCount(); badge.textContent = n ? String(n) : ''; badge.classList.toggle('hidden', !n); }
+  const btn = $('#pickerMoreBtn'); if (btn) btn.classList.toggle('active', pickerMoreOpen);
+  if (pickerFilterBusy && !has) {
+    panel.classList.remove('hidden');
+    panel.innerHTML = `<p class="hint">${lang === 'en' ? 'Loading filters…' : 'Chargement des filtres…'}</p>`;
+    return;
+  }
+  panel.classList.toggle('hidden', !pickerMoreOpen);
+  if (!pickerMoreOpen || !has) return;
+  panel.innerHTML = buildMoreHtml(d);
+}
+function setIdealoTarget(url, label, key) {
+  currentIdealoUrl = url;
+  if (label) currentCatLabel = label;
+  if (key) currentCatKey = key;
+  const a = $('#pickerIdealoSearch'); if (a) a.href = url;
+  const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
+}
+function selectRootQuick(c) {
+  if (!c) {
+    const root = IDEALO_CATS[0];
+    setIdealoTarget(root.url, root.label, 'root');
+    loadIdealoList(root.url);
+    pickerSetupFilters(root.url, 'root');
+    return;
+  }
+  setIdealoTarget(c.url, c.label, c.key);
+  loadIdealoList(c.url);
+  pickerSetupFilters(c.url, c.key);
+}
+function applyPickerFilters() {
+  if (!pickerFilterBase) return;
+  const d = pickerFilterData || { byFacet: {} };
+  const pa = priceChanged();
+  const url = Idealo.composeUrl(pickerFilterBase, {
+    selected: pickerSel, byFacet: d.byFacet,
+    priceFrom: pa ? pickerPrice.from : '', priceTo: pa ? pickerPrice.to : '',
+    discountFrom: pickerDiscount ? 5 : '',
+  });
+  setIdealoTarget(url, null, null);
+  savePickerFilters();
+  loadIdealoList(url);
+}
+function savePickerFilters() {
+  if (!pickerFilterBase) return;
+  try {
+    const all = load(LS.prefs, {});
+    const store = { ...(all.idealFilters || {}) };
+    if (filterActive()) store[pickerCatKey] = { sel: pickerSel, price: pickerPrice, discount: pickerDiscount };
+    else delete store[pickerCatKey];
+    save(LS.prefs, { ...all, idealFilters: store });
+  } catch { /* ignore */ }
+}
+function pickerResetFilters(url, key) {
+  pickerCatKey = key; pickerFilterBase = url;
+  pickerFilterData = null; pickerSel = {}; pickerPrice = { from: null, to: null }; pickerDiscount = false;
+  pickerFilterBusy = false; pickerFilterErr = ''; pickerRestored = false; pickerSocketToken = null;
+  renderPickerFilters();
+}
+async function pickerSetupFilters(url, key) {
+  pickerResetFilters(url, key);
+  if (key === 'root' || !Idealo.filters || !Idealo.parseCatUrl || !Idealo.parseCatUrl(url)) { renderPickerFilters(); return; }
+  const my = ++filterSeq;
+  pickerFilterBusy = true; renderPickerFilters();
+  const data = await Idealo.filters(url);
+  if (my !== filterSeq) return;
+  pickerFilterBusy = false;
+  pickerFilterData = data;
+  pickerFilterErr = data.error || '';
+  pickerPrice = { from: data.price ? data.price.min : null, to: data.price ? data.price.max : null };
+  const saved = ((load(LS.prefs, {}) || {}).idealFilters || {})[key];
+  if (saved && (Object.keys(saved.sel || {}).length || saved.discount)) {
+    pickerSel = saved.sel || {};
+    pickerPrice = saved.price || pickerPrice;
+    pickerDiscount = !!saved.discount;
+    pickerRestored = true;
+    renderPickerFilters();
+    if (filterActive()) applyPickerFilters();
+    else renderPickerFilters();
+    return;
+  }
+  renderPickerFilters();
+  applyAutoQuick(key);
+}
+function applyAutoQuick(key) {
+  const d = pickerFilterData; if (!d || !d.groups.length) return;
+  const my = filterSeq;
+  const ok = () => my === filterSeq && pickerFilterData === d;
+  const pick = (gid, oid) => { toggleFacet(gid, oid, true); };
+  const byOpt = (groupRe, optRe) => { const g = d.groups.find(x => groupRe.test(x.name)); const o = g && g.options.find(x => optRe.test(x.name)); return o ? { gid: g.id, oid: o.id } : null; };
+  const done = () => { if (!ok()) return; renderPickerFilters(); applyPickerFilters(); };
+  const socketLabel = { AM4: /am4/i, AM5: /am5/i, LGA1700: /17[07]0/i, LGA1770: /17[07]0/i, LGA1851: /185[01]/i, sTR5: /tr5/i };
+  if (key === 'keyboard') { const r = byOpt(/type.*clavier|disposition|layout|clavier/i, /azerty|fr/i); if (r) { pick(r.gid, r.oid); done(); } return; }
+  if (key === 'multiprise') { const r = byOpt(/type.*prise|prise|socket|stecker/i, /schuko|type f|type e|fr/i); if (r) { pick(r.gid, r.oid); done(); } return; }
+  if (key === 'mb' || key === 'cooler') {
+    cpuSocketKey().then(tok => {
+      if (!ok()) return;
+      if (tok) pickerSocketToken = tok === 'LGA1700' ? '1700' : tok === 'LGA1770' ? '1770' : tok === 'LGA1851' ? '1851' : tok;
+      const re = socketLabel[tok] || new RegExp(tok, 'i');
+      const r = byOpt(/socket|support|sockel|prise/i, re);
+      if (r) { pick(r.gid, r.oid); done(); }
+      else renderPickerFilters();
+    }).catch(() => { /* ignore */ });
+    return;
+  }
+  if (key === 'ram') {
+    mbDdrKey().then(k => { if (!k || !ok()) return; const r = byOpt(/type.*m[ée]moire|m[ée]moire.*type|type de ram|ram.?type/i, new RegExp(k, 'i')); if (r) { pick(r.gid, r.oid); done(); } }).catch(() => { /* ignore */ });
+    return;
+  }
+}
+function onFilterChange(e) {
+  const t = e.target;
+  if (t.dataset && t.dataset.special === 'deal') { pickerDiscount = t.checked; applyPickerFilters(); renderPickerFilters(); return; }
+  if (t.dataset && t.dataset.gid && t.dataset.oid) {
+    toggleFacet(t.dataset.gid, t.dataset.oid, t.checked);
+    applyPickerFilters(); renderPickerFilters(); return;
+  }
+  if (t.classList && t.classList.contains('f-rlo') || t.classList && t.classList.contains('f-rhi')) {
+    commitRange(t); applyPickerFilters(); renderPickerFilters(); return;
+  }
+}
+function onFilterInput(e) {
+  const t = e.target;
+  if (!t.classList) return;
+  if (t.classList.contains('f-rlo') || t.classList.contains('f-rhi')) updateRangeLabel(t, true);
+}
+function onFilterClick(e) {
+  const ml = e.target.closest && e.target.closest('.f-moreless');
+  if (ml) { const host = ml.parentElement.querySelector('.f-opts'); if (host) { host.classList.toggle('collapsed'); ml.classList.toggle('open'); } return; }
+  const info = e.target.closest && e.target.closest('.f-info');
+  if (info) { showFilterTip(info); }
+}
+function updateRangeLabel(input, clamp) {
+  const box = input.closest('.f-range'); if (!box) return;
+  const lo = box.querySelector('.f-rlo'), hi = box.querySelector('.f-rhi');
+  let a = +lo.value, b = +hi.value;
+  if (clamp) { if (a > b) { if (input === lo) b = a; else a = b; lo.value = a; hi.value = b; } }
+  const lbl = box.querySelector('.f-rlbl');
+  if (!lbl) return;
+  if (box.dataset && box.dataset.kind === 'price') lbl.textContent = eur(+lo.value) + ' – ' + eur(+hi.value);
+  else {
+    const g = pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid);
+    const info = g && rangeStops(g);
+    if (info) { const u = info.unit ? ' ' + info.unit : ''; lbl.textContent = (Math.round(info.stops[+lo.value] * 100) / 100) + u + ' – ' + (Math.round(info.stops[+hi.value] * 100) / 100) + u; }
+  }
+}
+function commitRange(input) {
+  const box = input.closest('.f-range'); if (!box) return;
+  const lo = box.querySelector('.f-rlo'), hi = box.querySelector('.f-rhi');
+  let a = +lo.value, b = +hi.value; if (a > b) { const t = a; a = b; b = t; lo.value = a; hi.value = b; }
+  if (box.dataset.kind === 'price') { pickerPrice = { from: Math.min(+lo.value, +hi.value), to: Math.max(+lo.value, +hi.value) }; return; }
+  const g = pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid);
+  const info = g && rangeStops(g);
+  if (!g || !info) return;
+  const loN = info.stops[a], hiN = info.stops[b];
+  const ids = info.byNum.filter(x => x.n >= loN && x.n <= hiN).map(x => x.id);
+  if (ids.length) pickerSel[g.id] = ids; else delete pickerSel[g.id];
+}
+function showFilterTip(btn) {
+  const tip = $('#pickerTip'); if (!tip) return;
+  const txt = btn.dataset.tip || '';
+  const wiki = btn.dataset.wiki || '';
+  tip.innerHTML = `${esc(txt)}${wiki ? ` <a href="${esc(wiki)}" target="_blank" rel="noopener">${lang === 'en' ? 'Learn more' : 'En savoir plus'} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}`;
+  tip.classList.remove('hidden');
+  const r = btn.getBoundingClientRect();
+  tip.style.top = (r.bottom + 8) + 'px';
+  tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - tip.offsetWidth - 12)) + 'px';
+}
+function hideFilterTip() { const tip = $('#pickerTip'); if (tip) tip.classList.add('hidden'); }
+function pickerPriceActive() { return !!(pickerFilterData && pickerFilterBase) && priceChanged(); }
 
 /* ---------- Product form ---------- */
 function openProductForm(slotId, p, opts = {}) {
@@ -3992,6 +4412,7 @@ function bind() {
     $('#pickerIdealoSearch').href = url;
     const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
     currentCatLabel = `“${q}”`;
+    pickerResetFilters('', ''); pickerMoreOpen = false; renderPickerFilters();
     loadIdealoList(url);
   };
   $('#idealoGo').onclick = goIdealo;
@@ -4013,6 +4434,17 @@ function bind() {
     else loadIdealoList(null, 'variant');
   });
   $('#idealoMore').onclick = () => idealMore();
+  const moreBtn = $('#pickerMoreBtn');
+  if (moreBtn) moreBtn.onclick = () => { pickerMoreOpen = !pickerMoreOpen; renderPickerFilters(); };
+  const fpanel = $('#pickerFilters');
+  if (fpanel) {
+    fpanel.addEventListener('change', onFilterChange);
+    fpanel.addEventListener('input', onFilterInput);
+    fpanel.addEventListener('click', onFilterClick);
+  }
+  document.addEventListener('mouseover', e => { const b = e.target.closest && e.target.closest('.f-info'); if (b) showFilterTip(b); });
+  document.addEventListener('mouseout', e => { const b = e.target.closest && e.target.closest('.f-info'); if (b) hideFilterTip(); });
+  document.addEventListener('click', e => { if (!e.target.closest || !e.target.closest('.f-info')) hideFilterTip(); });
   $('#idealoRetry').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh');
   $('#idealoChoose').onclick = async () => {
     if (!activeSlot) return;
