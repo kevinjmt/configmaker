@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=117">
+<link rel="stylesheet" href="./assets/css/app.css?v=118">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -152,6 +152,7 @@
         <div class="sum-head">
           <div class="sum-id"><i class="fa-solid fa-computer"></i><strong id="sumConfigName">Ma Config</strong><span class="ver-chip" id="sumVersionChip">—</span></div>
           <button id="sumSaveBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-floppy-disk"></i><span data-i18n="hero.save">Sauver</span></button>
+          <button id="sumClose" class="icon-btn sum-close" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="pill tabs small" role="tablist" aria-label="Résumés">
           <button id="sumDesc" class="active"><i class="fa-solid fa-list"></i><span data-i18n="sum.desc">Description</span></button>
@@ -226,6 +227,18 @@
   </section>
 </div>
 
+<div id="mobileScrim" class="mobile-scrim hidden" aria-hidden="true"></div>
+<div id="mobileTotalBar" class="mobile-totalbar hidden">
+  <button id="mobileTotalBtn" class="mobile-totalbtn" aria-controls="summaryPanel" aria-expanded="false">
+    <span class="mt-main">
+      <span class="mt-label" id="mtLabel">Total livraison incluse</span>
+      <strong class="mt-total" id="mtTotal">0 €</strong>
+      <span class="mt-delivery" id="mtDelivery">livraison 0 €</span>
+    </span>
+    <span class="mt-arrow"><i class="fa-solid fa-chevron-up"></i></span>
+  </button>
+</div>
+
 <footer class="footer">
   <div class="footer-inner">
     <div class="footer-brand">
@@ -267,7 +280,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=10"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=126"></script>
+<script src="./assets/js/app.js?v=127"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
