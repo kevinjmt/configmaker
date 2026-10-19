@@ -1543,9 +1543,9 @@ const ROOT_QUICK_CATS = [
 
 const BRAND_RE = /fabricant|manufactur|brand|marque|hersteller/i;
 const AVAIL_RE = /disponibilit|availability|verf[üu]gbar|lieferzeit|\bstock\b/i;
-const RANGE_GROUP_RE = /fr[ée]quence|frequenz|frequency|\btdp\b|puissance|power|watt|capacit|kapazit|volume|taille|diam|dimension|d[ée]bit|speed|vitesse|poids|weight|thread|coeur|cœur|core|\brpm\b|\bbruit\b|noise|sonore|autonomie|batterie|m[ée]moire|\bram\b|r[ée]solution|resolution|\bhz\b|longueur|largeur|profondeur|hauteur|charge|nombre|module|latence|slot|port|cache|rotation|transfert|d[ée]lai|consommation|dpi/i;
+const RANGE_GROUP_RE = /fr[ée]quence|frequenz|frequency|\btdp\b|puissance|power|watt|capacit|kapazit|volume|taille|diam|dimension|d[ée]bit|speed|vitesse|poids|weight|thread|coeur|cœur|core|\bpouces?\b|\brpm\b|\bbruit\b|noise|sonore|autonomie|batterie|m[ée]moire|\bram\b|r[ée]solution|resolution|\bhz\b|longueur|largeur|profondeur|hauteur|charge|nombre|module|latence|slot|port|cache|rotation|transfert|d[ée]lai|consommation|dpi/i;
 const NON_RANGE_RE = /s[ée]rie|type de produit|nom de code|fabricant|adapt[ée]|emballage|couleur|color|puce|graphique|mod[eè]le|brand|marque|hersteller|product type|type de processeur|type de laptop|disponibilit|availability|support|syst[eè]me|interface|entr[ée]e|sortie|codage|standard|protocole|format|dalle|fichier|formats|norme|connexion|alimentation|refroidissement|connecteurs|bo[iî]tier|utilisation|fonction/i;
-const UNIT_RE = /(ghz|mhz|watts?|\bw\b|\bto\b|\btb\b|\bgo\b|\bgb\b|\bmm\b|\bcm\b|\brpm\b|\bdb\b|gb\/s|mb\/s|gbps|mbps|\bkg\b|\bhz\b|\bms\b|\bmo\b|dpi|cfm)/i;
+const UNIT_RE = /(ghz|mhz|watts?|\bw\b|\bto\b|\btb\b|\bgo\b|\bgb\b|\bmm\b|\bcm\b|\bpouces?\b|\brpm\b|\bdb\b|mt\/s|gb\/s|mb\/s|gbps|mbps|\bkg\b|\bhz\b|\bms\b|\bmo\b|dpi|cfm)/i;
 
 /* Curated Idealo filter allow-list, per component type, in display order.
    Each entry resolves to a real Idealo "filterGroups" group by exact FR name.
@@ -1565,7 +1565,7 @@ const PICKER_SCHEMA = {
       { label: 'AMD', groups: ['Fabricant'], pick: /^amd\b/i },
     ],
     more: [
-      { group: 'Nombre de threads', help: 'threads' },
+      { group: 'Nombre de threads', help: 'threads', kind: 'enum', single: true },
       { group: 'Fréquence', help: 'frequency' },
       { group: 'TDP (Thermal Design Power)', help: 'tdp' },
     ],
@@ -1590,10 +1590,10 @@ const PICKER_SCHEMA = {
       { label: '64 Go', groups: ['Capacité mémoire'], pick: /^64\s*go/i },
     ],
     more: [
-      { group: 'Nombre de modules', help: 'modules' },
-      { group: 'Capacité mémoire', help: 'capacity' },
-      { group: 'Taux de transfert', help: 'speed', kind: 'enum' },
-      { group: 'Temps de latence', help: 'latency', kind: 'enum' },
+      { group: 'Nombre de modules', help: 'modules', single: true },
+      { group: 'Capacité mémoire', help: 'capacity', single: true },
+      { group: 'Taux de transfert', help: 'speed', single: true },
+      { group: 'Temps de latence', help: 'latency' },
       { group: 'Type ECC', help: 'ecc', kind: 'enum' },
     ],
   },
@@ -1629,9 +1629,10 @@ const PICKER_SCHEMA = {
   },
   case: {
     quick: [
-      { label: 'ATX', groups: ['Format de carte mère supporté'], pick: /^atx$/i },
-      { label: 'Micro-ATX', groups: ['Format de carte mère supporté'], pick: /micro/i },
-      { label: 'Mini-ITX', groups: ['Format de carte mère supporté'], pick: /mini/i },
+      { label: 'Boîtier Mini-ITX', groups: ['Type de produit'], pick: /bo[iî]tier mini.?itx/i },
+      { label: 'Mini-tour', groups: ['Type de produit'], pick: /^mini\s*tour/i },
+      { label: 'Moyen tour', groups: ['Type de produit'], pick: /^moyenne?\s*tour/i },
+      { label: 'Grand tour', groups: ['Type de produit'], pick: /^grande?\s*tour/i },
     ],
     more: [
       { group: 'Type de produit', help: 'caseType' },
@@ -2132,6 +2133,11 @@ function numOf(name) {
   const unit = (s.match(UNIT_RE) || [])[1] || '';
   return { n: parseFloat(m[1].replace(',', '.')), unit: unit.toLowerCase() };
 }
+function prettyUnit(u) {
+  const s = String(u || '');
+  const map = { go: 'Go', to: 'To', mo: 'Mo', gb: 'GB', tb: 'TB', w: 'W', kw: 'kW', ghz: 'GHz', mhz: 'MHz', hz: 'Hz', khz: 'kHz', db: 'dB', 'mt/s': 'MT/s', 'gb/s': 'GB/s', 'mb/s': 'MB/s', gbps: 'Gbps', mbps: 'Mbps' };
+  return map[s] || s;
+}
 function rangeStops(g) {
   const byNum = g.options.map(o => { const p = numOf(o.name); return p ? { n: p.n, id: o.id, unit: p.unit } : null; });
   if (byNum.some(x => !x)) return null;
@@ -2201,9 +2207,31 @@ function toggleFacet(gid, oid, on) {
 
 /* ---------- render ---------- */
 function buildListBlock(g, entry, cls) {
+  const single = !!entry.single;
   const sel = pickerSel[g.id] || [];
-  const opts = g.options.map(o => `<label class="f-opt" data-name="${esc(normName(o.name))}"><input type="checkbox" data-gid="${g.id}" data-oid="${o.id}"${sel.includes(o.id) ? ' checked' : ''}> <span>${esc(o.name)}</span>${o.hits ? `<em>${o.hits}</em>` : ''}</label>`).join('');
+  const opts = g.options.map(o => {
+    const checked = sel.includes(o.id) ? ' checked' : '';
+    const input = single
+      ? `<input type="radio" name="pf-${g.id}" data-gid="${g.id}" data-oid="${o.id}" data-single="1"${checked}>`
+      : `<input type="checkbox" data-gid="${g.id}" data-oid="${o.id}"${checked}>`;
+    return `<label class="f-opt" data-name="${esc(normName(o.name))}">${input} <span>${esc(o.name)}</span>${o.hits ? `<em>${o.hits}</em>` : ''}</label>`;
+  }).join('');
   return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name, entry)}</div><div class="f-searchrow"><i class="fa-solid fa-magnifying-glass"></i><input type="search" class="f-search" data-gid="${g.id}" placeholder="${esc(t('picker.searchOpt'))}"></div><div class="f-opts f-scroll">${opts}</div></div>`;
+}
+function sliderFmt(m) {
+  return i => { const it = m.items[i] || {}; return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + prettyUnit(m.unit) : '')) : it.name; };
+}
+function buildSingleSliderBlock(g, entry, cls, numeric) {
+  const m = modelOf(g, numeric);
+  if (m.items.length < 2) return buildListBlock(g, entry, cls);
+  const sel = pickerSel[g.id] || [];
+  const found = sel.length ? m.items.findIndex(x => x.id === sel[0]) : 0;
+  const val = found >= 0 ? found : 0;
+  const fmt = sliderFmt(m);
+  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name, entry)}</div>` +
+    `<div class="f-range" data-gid="${g.id}" data-single="1"${m.numeric ? ' data-numeric="1"' : ''}>` +
+    `<div class="dslider"><div class="dtrack"></div><input type="range" class="f-rsingle" min="0" max="${m.items.length - 1}" step="1" value="${val}" aria-label="${esc(g.name)}"></div>` +
+    `<span class="f-rlbl">${esc(fmt(val))}</span></div></div>`;
 }
 function buildSliderBlock(g, entry, cls, numeric) {
   const m = modelOf(g, numeric);
@@ -2212,7 +2240,7 @@ function buildSliderBlock(g, entry, cls, numeric) {
   const idxs = sel.map(id => m.items.findIndex(x => x.id === id)).filter(i => i >= 0);
   const lo = idxs.length ? Math.min(...idxs) : 0;
   const hi = idxs.length ? Math.max(...idxs) : m.items.length - 1;
-  const fmt = i => { const it = m.items[i] || {}; return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + m.unit : '')) : it.name; };
+  const fmt = sliderFmt(m);
   return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name, entry)}</div>` +
     `<div class="f-range" data-gid="${g.id}"${m.numeric ? ' data-numeric="1"' : ''}>` +
     `<div class="dslider"><div class="dtrack"></div><input type="range" class="f-rlo" min="0" max="${m.items.length - 1}" step="1" value="${lo}" aria-label="min"><input type="range" class="f-rhi" min="0" max="${m.items.length - 1}" step="1" value="${hi}" aria-label="max"></div>` +
@@ -2221,9 +2249,10 @@ function buildSliderBlock(g, entry, cls, numeric) {
 function renderGroupBlock(g, entry, cls) {
   entry = entry || {};
   const big = g.options.length > 10;
-  if (entry.kind === 'enum') return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
-  if (entry.kind === 'range') return buildSliderBlock(g, entry, cls, true);
-  if (rangeStops(g)) return buildSliderBlock(g, entry, cls, true);
+  if (entry.kind === 'enum') return (entry.single || big) ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
+  if (entry.kind === 'range') return entry.single ? buildSingleSliderBlock(g, entry, cls, true) : buildSliderBlock(g, entry, cls, true);
+  if (rangeStops(g)) return entry.single ? buildSingleSliderBlock(g, entry, cls, true) : buildSliderBlock(g, entry, cls, true);
+  if (entry.single) return buildListBlock(g, entry, cls);
   return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
 }
 function buildMoreHtml(d) {
@@ -2438,10 +2467,17 @@ function onFilterChange(e) {
   const t = e.target;
   if (t.dataset && t.dataset.special === 'deal') { pickerDiscount = t.checked; applyPickerFilters(); renderPickerFilters(); return; }
   if (t.dataset && t.dataset.gid && t.dataset.oid) {
-    toggleFacet(t.dataset.gid, t.dataset.oid, t.checked);
+    if (t.dataset.single) {
+      if (t.checked) pickerSel[t.dataset.gid] = [t.dataset.oid]; else delete pickerSel[t.dataset.gid];
+    } else {
+      toggleFacet(t.dataset.gid, t.dataset.oid, t.checked);
+    }
     applyPickerFilters(); renderPickerFilters(); return;
   }
-  if (t.classList && t.classList.contains('f-rlo') || t.classList && t.classList.contains('f-rhi')) {
+  if (t.classList && t.classList.contains('f-rsingle')) {
+    commitSingle(t); applyPickerFilters(); renderPickerFilters(); return;
+  }
+  if (t.classList && (t.classList.contains('f-rlo') || t.classList.contains('f-rhi'))) {
     commitRange(t); applyPickerFilters(); renderPickerFilters(); return;
   }
 }
@@ -2454,6 +2490,7 @@ function onFilterInput(e) {
     grp.querySelectorAll('.f-opt').forEach(l => { l.style.display = (!q || (l.dataset.name || '').includes(q)) ? '' : 'none'; });
     return;
   }
+  if (t.classList.contains('f-rsingle')) { updateSingleLabel(t); return; }
   if (t.classList.contains('f-rlo') || t.classList.contains('f-rhi')) {
     t.style.zIndex = t.classList.contains('f-rhi') ? '4' : '5';
     updateRangeLabel(t, true);
@@ -2467,7 +2504,7 @@ function rangeFmt(box, g, i) {
   if (box.dataset.kind === 'price') return eur(i);
   const m = modelOf(g, box.dataset.numeric === '1');
   const it = m.items[i] || {};
-  return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + m.unit : '')) : (it.name || '');
+  return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + prettyUnit(m.unit) : '')) : (it.name || '');
 }
 function updateRangeLabel(input, clamp) {
   const box = input.closest('.f-range'); if (!box) return;
@@ -2489,6 +2526,25 @@ function commitRange(input) {
   const m = modelOf(g, box.dataset.numeric === '1');
   const ids = m.items.slice(a, b + 1).map(x => x.id);
   if (ids.length) pickerSel[g.id] = ids; else delete pickerSel[g.id];
+}
+function singleModel(box) {
+  const g = pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid);
+  if (!g) return {};
+  return { g, m: modelOf(g, box.dataset.numeric === '1') };
+}
+function updateSingleLabel(input) {
+  const box = input.closest('.f-range'); if (!box) return;
+  const lbl = box.querySelector('.f-rlbl'); if (!lbl) return;
+  const { g, m } = singleModel(box);
+  if (!m || !m.items) return;
+  lbl.textContent = rangeFmt(box, g, +input.value);
+}
+function commitSingle(input) {
+  const box = input.closest('.f-range'); if (!box) return;
+  const { g, m } = singleModel(box);
+  if (!g || !m || !m.items) return;
+  const it = m.items[+input.value];
+  if (it) pickerSel[g.id] = [it.id];
 }
 function showFilterTip(btn) {
   const tip = $('#pickerTip'); if (!tip) return;
