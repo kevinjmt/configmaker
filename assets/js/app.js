@@ -101,6 +101,8 @@ const I18N = {
     'alts.see': 'Voir les alternatives',
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
     'picker.moreFilters': 'Plus de filtres',
+    'picker.clearFilters': 'Effacer les filtres',
+    'picker.searchOpt': 'Rechercher…',
     'picker.filtersHint': "Filtres Idealo identiques au site. Plusieurs valeurs dans un même filtre = OU ; les filtres se cumulent = ET.",
     'sum.desc': 'Description', 'sum.charts': 'Graphiques', 'sum.power': 'Conso.', 'sum.compat': 'Compat', 'sum.fold': 'Résumé', 'sum.powerTitle': 'Consommation (W)',
     'bench.title': 'Benchmarks', 'bench.open': 'Voir sur YouTube', 'bench.copy': 'Copier la recherche',
@@ -155,6 +157,8 @@ const I18N = {
     'alts.see': 'See alternatives',
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
     'picker.moreFilters': 'More filters',
+    'picker.clearFilters': 'Clear filters',
+    'picker.searchOpt': 'Search…',
     'picker.filtersHint': 'Idealo filters, identical to the site. Several values in one filter = OR; filters combine = AND.',
     'sum.desc': 'Summary', 'sum.charts': 'Charts', 'sum.power': 'Power', 'sum.compat': 'Compat', 'sum.fold': 'Summary', 'sum.powerTitle': 'Power draw (W)',
     'bench.title': 'Benchmarks', 'bench.open': 'Open on YouTube', 'bench.copy': 'Copy search',
@@ -1539,99 +1543,586 @@ const ROOT_QUICK_CATS = [
 
 const BRAND_RE = /fabricant|manufactur|brand|marque|hersteller/i;
 const AVAIL_RE = /disponibilit|availability|verf[üu]gbar|lieferzeit|\bstock\b/i;
-const RANGE_GROUP_RE = /fr[ée]quence|frequenz|frequency|\btdp\b|puissance|power|watt|capacit|kapazit|volume|taille|diam|d[ée]bit|speed|vitesse|poids|weight|thread|coeur|cœur|core|\brpm\b|bruit|noise|autonomie|batterie|m[ée]moire|\bram\b|r[ée]solution|resolution|\bhz\b/i;
-const NON_RANGE_RE = /s[ée]rie|type de produit|nom de code|fabricant|adapt[ée]|emballage|couleur|color|puce|graphique|mod[eè]le|brand|marque|hersteller|product type|type de processeur|type de laptop|disponibilit|availability/i;
-const UNIT_RE = /(ghz|mhz|watts?|\bw\b|\bto\b|\btb\b|\bgo\b|\bgb\b|\bmm\b|\bcm\b|\brpm\b|\bdb\b|gb\/s|mb\/s|gbps|mbps|\bkg\b|\bhz\b|\bms\b|\bmo\b)/i;
+const RANGE_GROUP_RE = /fr[ée]quence|frequenz|frequency|\btdp\b|puissance|power|watt|capacit|kapazit|volume|taille|diam|dimension|d[ée]bit|speed|vitesse|poids|weight|thread|coeur|cœur|core|\brpm\b|\bbruit\b|noise|sonore|autonomie|batterie|m[ée]moire|\bram\b|r[ée]solution|resolution|\bhz\b|longueur|largeur|profondeur|hauteur|charge|nombre|module|latence|slot|port|cache|rotation|transfert|d[ée]lai|consommation|dpi/i;
+const NON_RANGE_RE = /s[ée]rie|type de produit|nom de code|fabricant|adapt[ée]|emballage|couleur|color|puce|graphique|mod[eè]le|brand|marque|hersteller|product type|type de processeur|type de laptop|disponibilit|availability|support|syst[eè]me|interface|entr[ée]e|sortie|codage|standard|protocole|format|dalle|fichier|formats|norme|connexion|alimentation|refroidissement|connecteurs|bo[iî]tier|utilisation|fonction/i;
+const UNIT_RE = /(ghz|mhz|watts?|\bw\b|\bto\b|\btb\b|\bgo\b|\bgb\b|\bmm\b|\bcm\b|\brpm\b|\bdb\b|gb\/s|mb\/s|gbps|mbps|\bkg\b|\bhz\b|\bms\b|\bmo\b|dpi|cfm)/i;
 
-const PICKER_QUICK = {
-  cpu: [
-    { label: 'Intel', groupRe: BRAND_RE, optRe: /^intel\b/i },
-    { label: 'AMD', groupRe: BRAND_RE, optRe: /^amd\b/i },
-  ],
-  gpu: [
-    { label: 'NVIDIA', groupRe: BRAND_RE, optRe: /nvidia|geforce/i },
-    { label: 'AMD', groupRe: BRAND_RE, optRe: /^(amd|radeon)\b/i },
-  ],
-  mb: [
-    { label: 'AM4', groupRe: /socket|support|sockel|prise/i, optRe: /am4/i },
-    { label: 'AM5', groupRe: /socket|support|sockel|prise/i, optRe: /am5/i },
-    { label: 'LGA 1700', groupRe: /socket|support|sockel|prise/i, optRe: /17[07]0/i },
-    { label: 'LGA 1851', groupRe: /socket|support|sockel|prise/i, optRe: /185[01]/i },
-  ],
-  ram: [
-    { label: 'DDR5', groupRe: /type.*m[ée]moire|m[ée]moire.*type|type de ram|speichertyp|ram.?type/i, optRe: /ddr5/i },
-    { label: 'DDR4', groupRe: /type.*m[ée]moire|m[ée]moire.*type|type de ram|speichertyp|ram.?type/i, optRe: /ddr4/i },
-    { label: 'EXPO', groupRe: /profil|profile|xmp|expo/i, optRe: /expo/i },
-    { label: 'XMP', groupRe: /profil|profile|xmp|expo/i, optRe: /xmp/i },
-  ],
-  ssd: [1, 2, 4, 8].map(n => ({ label: n + ' To', groupRe: /capacit|kapazit|capacity/i, optRe: new RegExp('^' + n + '\\s*(to|tb)\\b', 'i') })),
-  hdd: [1, 2, 4, 8, 12].map(n => ({ label: n + ' To', groupRe: /capacit|kapazit|capacity/i, optRe: new RegExp('^' + n + '\\s*(to|tb)\\b', 'i') })),
-  case: [
-    { label: 'ATX', groupRe: /format|facteur|type|form/i, optRe: /^(e-?atx|atx)$/i },
-    { label: 'Micro-ATX', groupRe: /format|facteur|type|form/i, optRe: /micro|m-?atx|µ-?atx/i },
-    { label: 'Mini-ITX', groupRe: /format|facteur|type|form/i, optRe: /mini|itx/i },
-  ],
-  psu: [
-    { label: '80+ Gold', groupRe: /efficacit|certif|80|rendement/i, optRe: /gold|\bor\b/i },
-    { label: '80+ Platinum', groupRe: /efficacit|certif|80|rendement/i, optRe: /platin/i },
-    { label: '80+ Titanium', groupRe: /efficacit|certif|80|rendement/i, optRe: /titan/i },
-  ],
-  fans: [
-    { label: '120 mm', groupRe: /taille|dimension|diam/i, optRe: /^120\s*mm/i },
-    { label: '140 mm', groupRe: /taille|dimension|diam/i, optRe: /^140\s*mm/i },
-  ],
-  netcard: [
-    { label: '1 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /(^|\D)1\s*(gb\/s|gbps|gbit)/i },
-    { label: '2,5 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /2[.,]5/i },
-    { label: '10 Gb/s', groupRe: /vitesse|d[ée]bit|speed/i, optRe: /10\s*(gb\/s|gbps|gbit)/i },
-  ],
-  cooler: [],
+/* Curated Idealo filter allow-list, per component type, in display order.
+   Each entry resolves to a real Idealo "filterGroups" group by exact FR name.
+   quick  → one-click pills (select a named option, or swap a base facet).
+   more   → full filter blocks (kind:'range' numeric slider | 'enum' list/slider;
+            omitted kind = auto: numeric → slider, enum >10 options → search list). */
+const MB_SOCKET_FACETS = [
+  { label: 'AM4', facet: '8155199' },
+  { label: 'AM5', facet: '103797439' },
+  { label: 'LGA 1700', facet: '103797438' },
+  { label: 'LGA 1851', facet: '106264935' },
+];
+const PICKER_SCHEMA = {
+  cpu: {
+    quick: [
+      { label: 'Intel', groups: ['Fabricant'], pick: /^intel\b/i },
+      { label: 'AMD', groups: ['Fabricant'], pick: /^amd\b/i },
+    ],
+    more: [
+      { group: 'Nombre de threads', help: 'threads' },
+      { group: 'Fréquence', help: 'frequency' },
+      { group: 'TDP (Thermal Design Power)', help: 'tdp' },
+    ],
+  },
+  mb: {
+    quick: MB_SOCKET_FACETS.map(s => ({ ...s, baseFacet: true })),
+    more: [
+      { group: 'Format', help: 'format' },
+      { group: "Nombre d'emplacements RAM", help: 'slots' },
+      { group: 'Standard Ethernet', help: 'ethernet', kind: 'enum' },
+      { group: 'Nombre de slots PCIe x16', help: 'pcie' },
+      { group: 'Nombre de slots PCIe x1', help: 'pcie' },
+    ],
+  },
+  ram: {
+    quick: [
+      { label: 'EXPO', groups: ['Profil OC'], pick: /expo/i },
+      { label: 'XMP', groups: ['Profil OC'], pick: /xmp/i },
+      { label: '16 Go', groups: ['Capacité mémoire'], pick: /^16\s*go/i },
+      { label: '32 Go', groups: ['Capacité mémoire'], pick: /^32\s*go/i },
+      { label: '48 Go', groups: ['Capacité mémoire'], pick: /^48\s*go/i },
+      { label: '64 Go', groups: ['Capacité mémoire'], pick: /^64\s*go/i },
+    ],
+    more: [
+      { group: 'Nombre de modules', help: 'modules' },
+      { group: 'Capacité mémoire', help: 'capacity' },
+      { group: 'Taux de transfert', help: 'speed', kind: 'enum' },
+      { group: 'Temps de latence', help: 'latency', kind: 'enum' },
+      { group: 'Type ECC', help: 'ecc', kind: 'enum' },
+    ],
+  },
+  cooler: {
+    quick: [
+      { label: 'Aircooler', groups: ['Type de produit'], pick: /ventirad|refroidisseur|tower|top.?blow|air/i },
+      { label: 'AIO', groups: ['Type de produit'], pick: /watercool|aio|liquide|kit/i },
+    ],
+    more: [],
+  },
+  ssd: {
+    quick: [
+      { label: 'M.2', groups: ['Facteur de forme'], pick: /m\.?2/i },
+      { label: 'SATA', groups: ['Protocole', 'Bus', 'Interface'], pick: /sata/i },
+      { label: '1 To', groups: ['Capacité en Go', 'Capacité de stockage'], pick: /^1\s*(?:to\b|[-–])/i },
+      { label: '2 To', groups: ['Capacité en Go', 'Capacité de stockage'], pick: /^2\s*to/i },
+    ],
+    more: [
+      { group: 'Capacité en Go', help: 'capacity' },
+      { group: 'Vitesse de transfert (lecture)', help: 'read' },
+      { group: 'Vitesse de transfert (écriture)', help: 'write' },
+      { group: 'Volume d\u2019écriture (nombre total d\u2019octets écrits)', help: 'tbw' },
+    ],
+  },
+  gpu: {
+    quick: [],
+    more: [
+      { group: 'Série', help: 'series' },
+      { group: 'Capacité de mémoire', help: 'memory' },
+      { group: 'Total Board Power', help: 'power' },
+      { group: 'Version PCIe', help: 'pcie', kind: 'enum' },
+    ],
+  },
+  case: {
+    quick: [
+      { label: 'ATX', groups: ['Format de carte mère supporté'], pick: /^atx$/i },
+      { label: 'Micro-ATX', groups: ['Format de carte mère supporté'], pick: /micro/i },
+      { label: 'Mini-ITX', groups: ['Format de carte mère supporté'], pick: /mini/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'caseType' },
+      { group: 'Format de carte mère supporté', help: 'format' },
+      { group: 'Ventilateurs préinstallés', help: 'fansIncluded' },
+      { group: 'Nombre max. de ventilateurs', help: 'fansTotal' },
+      { group: 'Baie 2,5" internes', help: 'bays25' },
+      { group: 'Baies 3,5" internes', help: 'bays35' },
+      { group: 'Connecteurs sur façade avant', help: 'connectivity', kind: 'enum' },
+      { group: 'Longueur max. de la carte graphique', help: 'gpuLength' },
+      { group: 'Hauteur max. du ventilateur de processeur', help: 'cpuCoolerHeight' },
+    ],
+  },
+  psu: {
+    quick: [
+      { label: '850 W', groups: ['Puissance continue'], pick: /^850\s*w/i },
+      { label: '1000 W', groups: ['Puissance continue'], pick: /^1000\s*w/i },
+    ],
+    more: [
+      { group: 'Puissance continue', help: 'power' },
+      { group: "Certificat d'efficacité", help: 'certification', kind: 'enum' },
+      { group: 'Facteur de forme', help: 'psuForm', kind: 'enum' },
+    ],
+  },
+  hdd: {
+    quick: [2, 4, 6, 8, 10].map(n => ({ label: n + ' To', groups: ['Capacité de stockage', 'Capacité en Go'], pick: new RegExp('^' + n + '\\s*to', 'i') })),
+    more: [
+      { group: 'Capacité de stockage', help: 'capacity' },
+      { group: 'Format', help: 'hddForm', kind: 'enum' },
+      { group: 'Mémoire cache', help: 'cache' },
+      { group: 'Vitesse de rotation', help: 'rotation' },
+    ],
+  },
+  netcard: {
+    quick: [
+      { label: 'SFP+', groups: ['Connexion LAN', 'Type de produit', 'Protocole LAN'], pick: /sfp/i },
+      { label: 'Ethernet 10 Gb/s', groups: ['Standard Ethernet', 'Protocole LAN'], pick: /\b10\s*g(?:b|igabit)/i },
+      { label: 'Wi-Fi', groups: ['Type de produit', 'Fonction Wi-Fi', 'Standard Wi-Fi'], pick: /wi.?fi|wlan/i },
+    ],
+    more: [
+      { group: 'Bus', help: 'bus', kind: 'enum' },
+      { group: 'Fonction Wi-Fi', help: 'wifiFunc', kind: 'enum' },
+      { group: 'Standard Wi-Fi', help: 'wifiStd', kind: 'enum' },
+      { group: 'Vitesse de transfert', help: 'speed' },
+    ],
+  },
+  fans: {
+    quick: [
+      { label: '120 mm', groups: ['Dimensions (Lxhxl)', 'Type de produit'], pick: /^120/i },
+      { label: '140 mm', groups: ['Dimensions (Lxhxl)', 'Type de produit'], pick: /^140/i },
+      { label: 'Normal', groups: ["Direction du flux d'air"], pick: /normal|standard|souffl|blowing/i },
+      { label: 'Reversed', groups: ["Direction du flux d'air"], pick: /invers|reverse|aspir|sucking|retourn/i },
+    ],
+    more: [
+      { group: "Débit d'air", help: 'airflow' },
+      { group: "Flux d'air", help: 'airFlux', kind: 'enum' },
+      { group: 'Niveau sonore max.', help: 'noise' },
+      { group: 'Vitesse de rotation', help: 'rotation' },
+    ],
+  },
+  desk: {
+    quick: [],
+    more: [
+      { group: 'Hauteur', help: 'height' },
+      { group: 'Largeur', help: 'width' },
+      { group: 'Profondeur', help: 'depth' },
+    ],
+  },
+  screen: {
+    quick: [
+      { label: '1080p', groups: ['Résolution'], pick: /1080|full hd|fhd/i },
+      { label: '1440p', groups: ['Résolution'], pick: /1440|wqhd|qhd/i },
+      { label: '4K', groups: ['Résolution'], pick: /2160|4k|uhd/i },
+      { label: '24"', groups: ['Taille de l\u2019écran', "Taille de l'écran"], pick: /^24/i },
+      { label: '27"', groups: ['Taille de l\u2019écran', "Taille de l'écran"], pick: /^27/i },
+      { label: 'OLED', groups: ['Dalle'], pick: /oled/i },
+      { label: 'IPS', groups: ['Dalle'], pick: /ips/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'screenType' },
+      { group: 'Taille de l\u2019écran', help: 'screenSize' },
+      { group: 'Résolution', help: 'resolution', kind: 'enum' },
+      { group: 'Caractéristiques ergonomiques', help: 'ergonomics', kind: 'enum' },
+      { group: 'Dalle', help: 'panel', kind: 'enum' },
+      { group: 'Entrée vidéo', help: 'videoIn', kind: 'enum' },
+      { group: 'Format de l\u2019écran', help: 'screenFormat', kind: 'enum' },
+      { group: 'Multi Mode', help: 'multimode', kind: 'enum' },
+      { group: 'Rayon de courbure', help: 'curvature' },
+      { group: 'Synchronisation', help: 'sync', kind: 'enum' },
+      { group: 'Taux de rafraîchissement', help: 'refresh' },
+      { group: 'Temps de réponse', help: 'response' },
+    ],
+  },
+  keyboard: {
+    quick: [
+      { label: 'AZERTY', groups: ['Langue du clavier'], pick: /azerty|fran[cç]ais|^fr\b/i },
+      { label: 'QWERTY (US)', groups: ['Langue du clavier'], pick: /qwerty|anglais|^us\b/i },
+    ],
+    more: [
+      { group: 'Design', help: 'design', kind: 'enum' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+    ],
+  },
+  mouse: {
+    quick: [
+      { label: 'Wired', groups: ['Alimentation', 'Interface'], pick: /fil|câble|cable|usb/i },
+      { label: 'Wireless', groups: ['Alimentation', 'Interface'], pick: /sans fil|wireless|radio|bluetooth|batterie|accu/i },
+    ],
+    more: [
+      { group: 'Résolution max.', help: 'dpi' },
+      { group: 'Style', help: 'style', kind: 'enum' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+      { group: 'Alimentation', help: 'power', kind: 'enum' },
+      { group: 'Fonctions gamer', help: 'gamer', kind: 'enum' },
+      { group: 'Nombre de touches', help: 'buttons' },
+    ],
+  },
+  pad: {
+    quick: [
+      { label: 'Gaming', groups: ['Type de produit'], pick: /gaming|gamer|jeu/i },
+      { label: 'Standard', groups: ['Type de produit'], pick: /standard|classique|normal/i },
+      { label: 'USB', groups: ['Équipement', 'Adapté pour', 'Type de produit'], pick: /usb/i },
+    ],
+    more: [
+      { group: 'Longueur', help: 'length' },
+      { group: 'Largeur', help: 'width' },
+      { group: 'Équipement', help: 'equipment', kind: 'enum' },
+      { group: 'Matière', help: 'material', kind: 'enum' },
+      { group: 'Propriétés', help: 'properties', kind: 'enum' },
+    ],
+  },
+  headset: {
+    quick: [
+      { label: 'Wired', groups: ['Mode de transmission', 'Type de connexion'], pick: /fil|câble|jack|usb/i },
+      { label: 'Bluetooth', groups: ['Mode de transmission', 'Type de connexion'], pick: /bluetooth|\bbt\b/i },
+      { label: 'Radio', groups: ['Mode de transmission'], pick: /radio|sans fil|wireless|2[,.]4/i },
+    ],
+    more: [
+      { group: 'Format', help: 'format', kind: 'enum' },
+      { group: 'Équipement', help: 'equipment', kind: 'enum' },
+      { group: 'Propriétés microphone', help: 'microphone', kind: 'enum' },
+      { group: 'Type de connexion', help: 'connection', kind: 'enum' },
+    ],
+  },
+  webcam: {
+    quick: [
+      { label: '1080p', groups: ['Résolution'], pick: /1080|full hd|fhd/i },
+      { label: '4K', groups: ['Résolution'], pick: /2160|4k|uhd/i },
+      { label: '60 fps', groups: ['Cadence rafale'], pick: /^60/i },
+    ],
+    more: [
+      { group: 'Résolution', help: 'resolution' },
+      { group: 'Cadence rafale', help: 'fps' },
+      { group: 'Mise au point', help: 'focus', kind: 'enum' },
+      { group: 'Résolution mode Photo', help: 'photoRes' },
+      { group: 'Support', help: 'support', kind: 'enum' },
+      { group: "Version de l'interface USB", help: 'usbVersion', kind: 'enum' },
+    ],
+  },
+  gamepad: {
+    quick: [
+      { label: 'Wired', groups: ['Type de connexion', 'Connectique'], pick: /fil|câble|usb/i },
+      { label: 'Wireless', groups: ['Type de connexion', 'Connectique'], pick: /sans fil|wireless|radio|2[,.]4/i },
+      { label: 'Bluetooth', groups: ['Type de connexion', 'Connectique'], pick: /bluetooth|\bbt\b/i },
+      { label: 'USB', groups: ['Type de connexion', 'Connectique'], pick: /usb/i },
+      { label: 'USB-C', groups: ['Type de connexion', 'Connectique'], pick: /usb.?c/i },
+    ],
+    more: [],
+  },
+  ups: {
+    quick: [],
+    more: [
+      { group: 'Puissance effective', help: 'power' },
+      { group: 'Autonomie', help: 'batteryLife' },
+      { group: 'Boîtier', help: 'enclosure', kind: 'enum' },
+      { group: 'Dispositif de protection', help: 'protection', kind: 'enum' },
+    ],
+  },
+  multiprise: {
+    quick: [],
+    more: [
+      { group: 'Nombre de prises', help: 'plugs' },
+      { group: 'Longueur de câble', help: 'cableLength' },
+      { group: 'Avec interrupteur', help: 'switch', kind: 'enum' },
+      { group: 'Puissance max.', help: 'power' },
+      { group: 'Protection contre les surtensions', help: 'surge' },
+    ],
+  },
+  switch: {
+    quick: [],
+    more: [
+      { group: 'Type de produit', help: 'switchType', kind: 'enum' },
+      { group: 'Débit de transfert de données', help: 'speed' },
+      { group: 'Port PoE', help: 'poe' },
+      { group: 'Ports de commutation', help: 'ports' },
+      { group: 'Puissance totale PoE', help: 'poePower' },
+      { group: 'Taux de transfert de paquets', help: 'pps' },
+    ],
+  },
+  router: {
+    quick: [
+      { label: 'Wi-Fi 7', groups: ['Standard Wi-Fi'], pick: /wi.?fi ?7|\bbe\b/i },
+      { label: 'Wi-Fi 6/6E', groups: ['Standard Wi-Fi'], pick: /wi.?fi ?6|\bax\b/i },
+    ],
+    more: [
+      { group: 'Débit Wi-Fi', help: 'wifiSpeed' },
+      { group: 'Bande de fréquence Wi-Fi', help: 'wifiBand', kind: 'enum' },
+      { group: 'Codage', help: 'codage', kind: 'enum' },
+      { group: 'Standard Ethernet', help: 'ethernet', kind: 'enum' },
+      { group: 'Vitesse de téléchargement max.', help: 'speed' },
+    ],
+  },
+  nas: {
+    quick: [1, 2, 4, 6, 8].map(n => ({ label: n + ' baie' + (n > 1 ? 's' : ''), groups: ['Emplacements pour disques durs', 'Type de produit'], pick: new RegExp('^' + n + '\\b', 'i') })),
+    more: [
+      { group: 'Type de produit', help: 'nasType', kind: 'enum' },
+      { group: 'Mémoire vive (RAM)', help: 'ram' },
+      { group: 'Capacité de stockage', help: 'capacity' },
+      { group: 'Cœur de processeur', help: 'cores' },
+      { group: 'Emplacements pour disques durs', help: 'bays' },
+      { group: 'Format disque dur', help: 'hddForm', kind: 'enum' },
+      { group: 'Type de disque dur', help: 'hddType', kind: 'enum' },
+      { group: 'Type de RAID', help: 'raid', kind: 'enum' },
+    ],
+  },
+  graphictab: {
+    quick: [
+      { label: 'Stylus', groups: ['Accessoires & outil de commande'], pick: /crayon|stylus|pen/i },
+      { label: 'Finger', groups: ['Accessoires & outil de commande'], pick: /doigt|finger/i },
+      { label: 'Mouse', groups: ['Accessoires & outil de commande'], pick: /souris|mouse/i },
+      { label: 'Wired', groups: ['Interface'], pick: /fil|usb|câble/i },
+      { label: 'Wireless', groups: ['Interface'], pick: /sans fil|wireless|bluetooth/i },
+    ],
+    more: [
+      { group: 'Résolution', help: 'resolution' },
+      { group: 'Accessoires & outil de commande', help: 'accessory', kind: 'enum' },
+      { group: 'Conçu pour', help: 'designedFor', kind: 'enum' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+      { group: 'Sensibilité à la pression', help: 'pressure' },
+    ],
+  },
+  usbstick: {
+    quick: [
+      { label: 'USB-C', groups: ['Type de produit', 'Interface supplémentaire'], pick: /usb.?c/i },
+      ...[32, 64, 128, 256].map(n => ({ label: n + ' Go', groups: ['Capacité de mémoire'], pick: new RegExp('^' + n + '\\s*go', 'i') })),
+    ],
+    more: [
+      { group: 'Capacité de mémoire', help: 'capacity' },
+      { group: 'Type de produit', help: 'usbType', kind: 'enum' },
+      { group: 'Vitesse de transfert (lecture)', help: 'read' },
+      { group: 'Vitesse de transfert (écriture)', help: 'write' },
+      { group: 'Fermeture', help: 'closure', kind: 'enum' },
+    ],
+  },
+  memcard: {
+    quick: [
+      { label: 'SD', groups: ['Type de produit'], pick: /carte sd|^sd/i },
+      { label: 'micro-SD', groups: ['Type de produit'], pick: /micro/i },
+      ...[32, 64, 128, 256].map(n => ({ label: n + ' Go', groups: ['Capacité de mémoire'], pick: new RegExp('^' + n + '\\s*go', 'i') })),
+    ],
+    more: [
+      { group: 'Type de produit', help: 'cardType', kind: 'enum' },
+      { group: 'Capacité de mémoire', help: 'capacity' },
+      { group: 'Classe de vitesse vidéo', help: 'videoClass' },
+      { group: 'Classe de vitesse UHS', help: 'uhsClass', kind: 'enum' },
+      { group: 'Classe SD', help: 'sdClass', kind: 'enum' },
+      { group: 'Standard UHS', help: 'uhsStd', kind: 'enum' },
+      { group: 'Vitesse de lecture', help: 'read' },
+      { group: "Vitesse d'écriture", help: 'write' },
+    ],
+  },
+  dock: {
+    quick: [
+      { label: 'Thunderbolt', groups: ['Type de produit', 'Interface externe'], pick: /thunderbolt|usb ?4/i },
+    ],
+    more: [
+      { group: 'Interface externe', help: 'extInterface', kind: 'enum' },
+      { group: 'Type de produit', help: 'dockType', kind: 'enum' },
+      { group: 'Sortie vidéo', help: 'videoOut', kind: 'enum' },
+      { group: 'Connexion USB 3.0', help: 'usb3' },
+      { group: 'Nombre de ports USB-C', help: 'usbCPorts' },
+    ],
+  },
+  printer: {
+    quick: [
+      { label: 'A4', groups: ["Format d'impression DIN"], pick: /a4/i },
+      { label: 'A3', groups: ["Format d'impression DIN"], pick: /a3/i },
+      { label: 'Cartouches indiv.', groups: ['Type de cartouche', 'Type de produit'], pick: /individuel|séparé|separ/i },
+      { label: 'Multi-couleur', groups: ['Type de cartouche', 'Type de produit'], pick: /multi|tricolore|3 couleurs/i },
+      { label: "Réservoir d'encre", groups: ['Type de cartouche', 'Type de produit'], pick: /réservoir|reservoir|ecotank|encre/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'printerType', kind: 'enum' },
+      { group: 'Type de cartouche', help: 'cartridge', kind: 'enum' },
+      { group: 'Capacité papier max.', help: 'paper' },
+      { group: 'Connectique', help: 'connectivity', kind: 'enum' },
+      { group: "Fonction d'impression", help: 'printFunc', kind: 'enum' },
+      { group: 'Fonction scanner', help: 'scanFunc', kind: 'enum' },
+      { group: "Format d'impression DIN", help: 'printFormat', kind: 'enum' },
+      { group: 'Photocopieur', help: 'copier', kind: 'enum' },
+      { group: "Vitesse d'impression max. (noir & blanc)", help: 'printSpeed' },
+    ],
+  },
+  extssd: {
+    quick: [
+      { label: 'USB4', groups: ['Interface'], pick: /usb4/i },
+      { label: 'USB-C 3.2 Gen2', groups: ['Interface'], pick: /gen2 type-c|3\.2 gen2(?!x2)/i },
+      { label: 'USB-C 3.2 Gen2x2', groups: ['Interface'], pick: /gen2x2/i },
+      { label: 'USB-C 3.2 Gen1', groups: ['Interface'], pick: /gen1/i },
+    ],
+    more: [
+      { group: 'Capacité en Go', help: 'capacity' },
+      { group: 'Vitesse de transfert (lecture)', help: 'read' },
+      { group: 'Vitesse de transfert (écriture)', help: 'write' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+    ],
+  },
+  extstorage: {
+    quick: [2, 4, 6, 8, 10].map(n => ({ label: n + ' To', groups: ['Capacité de stockage', 'Capacité en Go'], pick: new RegExp('^' + n + '\\s*to', 'i') })),
+    more: [
+      { group: 'Capacité de stockage', help: 'capacity' },
+      { group: 'Mémoire cache', help: 'cache' },
+      { group: 'Vitesse de rotation', help: 'rotation' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+    ],
+  },
+  speakers: {
+    quick: [
+      { label: '2.1', groups: ['Système de haut-parleurs', 'Système'], pick: /2[.,]?1/i },
+      { label: '5.1', groups: ['Système de haut-parleurs', 'Système'], pick: /5[.,]?1/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'speakerType', kind: 'enum' },
+      { group: 'Mode de transmission', help: 'transmission', kind: 'enum' },
+      { group: 'Système de haut-parleurs', help: 'speakerSystem', kind: 'enum' },
+      { group: 'Adapté pour', help: 'adaptedFor', kind: 'enum' },
+      { group: 'Commande haut-parleurs', help: 'control', kind: 'enum' },
+      { group: 'Entrées analogiques', help: 'analogIn', kind: 'enum' },
+      { group: 'Entrées numériques', help: 'digitalIn', kind: 'enum' },
+      { group: 'Puissance PMPO', help: 'pmpo' },
+      { group: 'Puissance RMS', help: 'rms' },
+      { group: 'Système', help: 'system', kind: 'enum' },
+    ],
+  },
+  soundcard: {
+    quick: [],
+    more: [
+      { group: 'Type de produit', help: 'soundType', kind: 'enum' },
+      { group: 'Utilisation', help: 'usage', kind: 'enum' },
+      { group: 'Interface', help: 'interface', kind: 'enum' },
+      { group: 'Système supporté', help: 'supportedOS', kind: 'enum' },
+      { group: 'Bittiefe', help: 'bitDepth' },
+      { group: 'Construction', help: 'build', kind: 'enum' },
+      { group: 'Entrée', help: 'input', kind: 'enum' },
+      { group: 'Entrée ligne', help: 'lineIn', kind: 'enum' },
+      { group: 'Format Dolby', help: 'dolby', kind: 'enum' },
+      { group: "Fréquence d'échantillonnage max.", help: 'sampleRate' },
+      { group: 'Rapport signal/bruit', help: 'snr' },
+      { group: 'Sortie', help: 'output', kind: 'enum' },
+      { group: 'Sortie ligne', help: 'lineOut', kind: 'enum' },
+    ],
+  },
+  capture: {
+    quick: [
+      { label: 'Boîtier', groups: ['Type de produit'], pick: /bo[iî]tier|externe|external/i },
+      { label: 'Carte', groups: ['Type de produit'], pick: /carte|card|interne|internal/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'captureType', kind: 'enum' },
+      { group: "Formats d'image", help: 'imageFormats', kind: 'enum' },
+      { group: 'Formats vidéo', help: 'videoFormats', kind: 'enum' },
+      { group: "Interface d'entrée", help: 'inputIface', kind: 'enum' },
+      { group: 'Interface de sortie', help: 'outputIface', kind: 'enum' },
+      { group: 'Bus', help: 'bus', kind: 'enum' },
+      { group: 'Compatible vidéo analogique', help: 'analogVideo', kind: 'enum' },
+    ],
+  },
+  monitorarm: {
+    quick: [
+      { label: 'VESA 100×100', groups: ['Norme de fixation'], pick: /100/i },
+      { label: 'VESA 75×75', groups: ['Norme de fixation'], pick: /75/i },
+      { label: '2 écrans', groups: ['Nombre maximal de moniteurs'], pick: /^2/i },
+      { label: '3 écrans', groups: ['Nombre maximal de moniteurs'], pick: /^3/i },
+    ],
+    more: [
+      { group: 'Type de produit', help: 'armType', kind: 'enum' },
+      { group: 'Nombre maximal de moniteurs', help: 'maxMonitors' },
+      { group: 'Adapté pour écran de', help: 'screenRange' },
+      { group: 'Charge max.', help: 'maxLoad' },
+      { group: 'Norme de fixation', help: 'vesa', kind: 'enum' },
+      { group: 'Inclinable', help: 'tilt', kind: 'enum' },
+      { group: 'Pivotant', help: 'swivel', kind: 'enum' },
+    ],
+  },
 };
 
-const PICKER_MORE = {
-  cpu: [{ groupRe: /nombre de threads|thread|coeur|cœur|core/i }, { groupRe: /fr[ée]quence(?! turbo)/i }, { groupRe: /\btdp\b/i }],
-  gpu: [{ groupRe: /m[ée]moire vid[ée]o|vram|memory size/i }, { groupRe: /\btdp\b|puissance|power/i }, { groupRe: /longueur|length/i }, { groupRe: /chipset|puce|gpu/i }],
-  ram: [{ groupRe: /capacit/i }, { groupRe: /fr[ée]quence/i }, { groupRe: /latence|cas/i }],
-  mb: [{ groupRe: /format|facteur/i }, { groupRe: /slot.*ram|m[ée]moire|dimm/i }, { groupRe: /ethernet|lan|r[ée]seau/i }, { groupRe: /pcie|pci express/i }],
-  ssd: [{ groupRe: /format|facteur/i }, { groupRe: /capacit/i }, { groupRe: /interface|nvme|sata/i }, { groupRe: /lecture|read/i }, { groupRe: /[ée]criture|write/i }],
-  hdd: [{ groupRe: /capacit/i }, { groupRe: /format/i }, { groupRe: /vitesse|rpm|rotation/i }, { groupRe: /interface/i }],
-  psu: [{ groupRe: /puissance|power|watt/i }, { groupRe: /efficacit|certif|80|rendement/i }, { groupRe: /format|facteur/i }, { groupRe: /modulaire|modular/i }],
-  case: [{ groupRe: /format|facteur/i }, { groupRe: /alimentation|psu/i }, { groupRe: /longueur.*gpu|carte graphique/i }, { groupRe: /hauteur.*ventirad|refroid/i }],
-  fans: [{ groupRe: /taille|dimension|diam/i }, { groupRe: /vitesse|rpm|rotation/i }, { groupRe: /d[ée]bit|airflow|flux/i }, { groupRe: /bruit|noise/i }],
-  netcard: [{ groupRe: /vitesse|d[ée]bit|speed/i }, { groupRe: /interface|pcie|pci/i }, { groupRe: /port/i }],
-  cooler: [{ groupRe: /socket|support/i }, { groupRe: /hauteur|height/i }, { groupRe: /\btdp\b|puissance/i }, { groupRe: /ventilateur|fan|taille/i }, { groupRe: /bruit|noise/i }],
-};
-
+const W = 'https://fr.wikipedia.org/wiki/';
 const FILTER_HELP = {
-  tdp: { fr: "TDP (enveloppe thermique) : chaleur maximale dissipée par le composant. Plus il est bas, plus le refroidissement est simple et silencieux.", en: "TDP (thermal design power): the maximum heat the part dissipates. Lower means easier, quieter cooling.", wiki: "https://fr.wikipedia.org/wiki/Thermal_Design_Power" },
-  threads: { fr: "Nombre de threads (cœurs logiques) : au-delà des cœurs physiques, il aide les charges parallèles (rendu, compilation, IA).", en: "Thread count (logical cores): beyond physical cores, it helps parallel workloads (rendering, compiling, AI).", wiki: "https://fr.wikipedia.org/wiki/Simultaneous_multithreading" },
-  frequency: { fr: "Fréquence d'horloge : nombre de cycles par seconde. Une fréquence plus haute accélère les tâches légères/mono-cœur.", en: "Clock frequency: cycles per second. Higher clock speeds up light/single-core tasks.", wiki: "https://fr.wikipedia.org/wiki/Fr%C3%A9quence_d%27horloge" },
-  socket: { fr: "Socket : le support physique du processeur sur la carte mère. Le CPU et la carte mère doivent partager le même socket.", en: "Socket: the physical CPU mount on the motherboard. CPU and motherboard must share the same socket.", wiki: "https://fr.wikipedia.org/wiki/Socket_de_processeur" },
-  capacity: { fr: "Capacité de stockage : espace disponible. Prévoyez de la marge pour l'OS, les jeux et les médias.", en: "Storage capacity: available space. Leave headroom for the OS, games and media.", wiki: "https://fr.wikipedia.org/wiki/Capacit%C3%A9_de_stockage" },
-  speed: { fr: "Débit/Vitesse : données transférées par seconde. Plus élevé = transferts plus rapides.", en: "Speed/throughput: data transferred per second. Higher means faster transfers.", wiki: "https://fr.wikipedia.org/wiki/D%C3%A9bit_binaire" },
-  brand: { fr: "Fabricant : marque qui conçoit le produit (influe sur la garantie et la qualité).", en: "Manufacturer: the brand that designs the product (affects warranty and quality).", wiki: "" },
-  availability: { fr: "Disponibilité : délai de livraison. Filtrez pour n'afficher que les produits expédiés rapidement.", en: "Availability: delivery speed. Filter to show only quickly shipped products.", wiki: "" },
-  price: { fr: "Prix : budget minimal et maximal. Le curseur sélectionne les produits dans cette fourchette.", en: "Price: minimum and maximum budget. The slider keeps products within that range.", wiki: "" },
-  deal: { fr: "Bon plan : n'affiche que les produits actuiellement en promotion (remise ≥ 5 %).", en: "Deals: show only products currently discounted (≥ 5% off).", wiki: "" },
+  tdp: { fr: "TDP (enveloppe thermique) : chaleur maximale dissipée par le composant. Plus il est bas, plus le refroidissement est simple et silencieux.", en: "TDP (thermal design power): the maximum heat the part dissipates. Lower means easier, quieter cooling.", wiki: W + 'Thermal_Design_Power' },
+  threads: { fr: "Nombre de threads (cœurs logiques) : au-delà des cœurs physiques, il aide les charges parallèles (rendu, compilation, IA).", en: "Thread count (logical cores): beyond physical cores, it helps parallel workloads (rendering, compiling, AI).", wiki: W + 'Simultaneous_multithreading' },
+  frequency: { fr: "Fréquence d'horloge : nombre de cycles par seconde. Une fréquence plus haute accélère les tâches légères/mono-cœur.", en: "Clock frequency: cycles per second. Higher clock speeds up light/single-core tasks.", wiki: W + 'Fr%C3%A9quence_d%27horloge' },
+  cores: { fr: "Cœurs : unités de calcul indépendantes. Plus de cœurs = meilleures performances en charge parallèle.", en: "Cores: independent compute units. More cores means better parallel performance.", wiki: W + 'Processeur_multic%C5%93ur' },
+  socket: { fr: "Socket : le support physique du processeur sur la carte mère. Le CPU et la carte mère doivent partager le même socket.", en: "Socket: the physical CPU mount on the motherboard. CPU and motherboard must share the same socket.", wiki: W + 'Socket_de_processeur' },
+  capacity: { fr: "Capacité de stockage : espace disponible. Prévoyez de la marge pour l'OS, les jeux et les médias.", en: "Storage capacity: available space. Leave headroom for the OS, games and media.", wiki: W + 'Capacit%C3%A9_de_stockage' },
+  memory: { fr: "Mémoire (VRAM) : mémoire de la carte graphique. Plus de VRAM = textures et hautes résolutions plus confortables.", en: "Video memory (VRAM): graphics card memory. More VRAM means higher resolutions and textures.", wiki: W + 'M%C3%A9moire_vid%C3%A9o' },
+  ram: { fr: "Mémoire vive (RAM) : mémoire de travail du système. Trop peu entraîne des ralentissements.", en: "System RAM: the working memory. Too little causes slowdowns.", wiki: W + 'M%C3%A9moire_vive' },
+  modules: { fr: "Nombre de modules (barrettes) : plus de barrettes (ex. 2×16 Go) activent le double canal et améliorent les débits.", en: "Module count: more sticks (e.g. 2×16 GB) enable dual-channel and improve throughput.", wiki: W + 'Dual_channel' },
+  latency: { fr: "Latence CAS (CL) : délai avant que la mémoire ne réponde. Plus bas = plus rapide à fréquence égale.", en: "CAS latency (CL): delay before memory responds. Lower is faster at equal frequency.", wiki: W + 'CAS_latency' },
+  ecc: { fr: "ECC : mémoire à correction d'erreurs, fiabilise les données (serveurs/station).", en: "ECC: error-correcting memory that improves data reliability (servers/workstations).", wiki: W + 'Code_correcteur_d%27erreur' },
+  speed: { fr: "Débit/Vitesse : données transférées par seconde. Plus élevé = transferts plus rapides.", en: "Speed/throughput: data transferred per second. Higher means faster transfers.", wiki: W + 'D%C3%A9bit_binaire' },
+  tbw: { fr: "TBW (endurance) : volume total de données que le SSD peut écrire avant usure. Plus élevé = durée de vie plus longue.", en: "TBW (endurance): total bytes a SSD can write before wear-out. Higher means longer life.", wiki: W + 'Endurance_(informatique)' },
+  read: { fr: "Vitesse de lecture : débit en lecture séquentielle. Accélère les chargements.", en: "Read speed: sequential read throughput. Speeds up loading.", wiki: W + 'Solid-state_drive' },
+  write: { fr: "Vitesse d'écriture : débit en écriture séquentielle. Compte pour les gros transferts.", en: "Write speed: sequential write throughput. Matters for large transfers.", wiki: W + 'Solid-state_drive' },
+  cache: { fr: "Mémoire cache : mémoire tampon rapide intégrée au disque/CPU.", en: "Cache: fast buffer memory built into the drive/CPU.", wiki: W + 'M%C3%A9moire_cache' },
+  rotation: { fr: "Vitesse de rotation : tours par minute d'un disque dur mécanique (rpm). Plus élevé = accès plus rapide.", en: "Rotation speed: RPM of a mechanical hard drive. Higher means faster access.", wiki: W + 'Disque_dur' },
+  format: { fr: "Format : dimensions/standard physique. Il doit être compatible avec le boîtier ou la carte mère.", en: "Form factor: physical size/standard. Must match the case or motherboard.", wiki: '' },
+  certification: { fr: "Certification 80 Plus : rendement de l'alimentation (Bronze < Argent < Or < Platine < Titane). Plus c'est haut, moins il y a de pertes.", en: "80 Plus rating: PSU efficiency (Bronze < Silver < Gold < Platinum < Titanium). Higher means fewer losses.", wiki: W + '80_PLUS' },
+  psuForm: { fr: "Facteur de forme d'alimentation (ATX, SFX…) : doit correspondre à l'emplacement du boîtier.", en: "PSU form factor (ATX, SFX…): must match the case bay.", wiki: W + 'Alimentation_ATX' },
+  slots: { fr: "Nombre d'emplacements : quantité de modules que l'on peut installer.", en: "Slot count: how many modules can be installed.", wiki: '' },
+  pcie: { fr: "PCI Express : bus interne pour cartes d'extension. La version (3.0/4.0/5.0) définit le débit par voie.", en: "PCI Express: internal bus for expansion cards. The version (3.0/4.0/5.0) sets per-lane bandwidth.", wiki: W + 'PCI_Express' },
+  bus: { fr: "Bus : type de connecteur/transport utilisé (PCIe, USB…).", en: "Bus: connector/transport type used (PCIe, USB…).", wiki: '' },
+  interface: { fr: "Interface : type de connexion du périphérique (USB, SATA, NVMe, jack…).", en: "Interface: the peripheral connection type (USB, SATA, NVMe, jack…).", wiki: '' },
+  ethernet: { fr: "Ethernet : réseau filaire. Le débit (1 Gb/s, 2,5, 5, 10 Gb/s) fixe la vitesse réseau locale.", en: "Ethernet: wired networking. The rate (1 Gb/s, 2.5, 5, 10 Gb/s) sets LAN speed.", wiki: W + 'Ethernet' },
+  series: { fr: "Série/GPU : gamme du processeur graphique (ex. RTX 40, RX 7000). Détermine les performances.", en: "Series/GPU: graphics chip family (e.g. RTX 40, RX 7000). Sets performance.", wiki: W + 'Carte_graphique' },
+  power: { fr: "Puissance : consommation/énergie. Doit rester dans les limites de l'alimentation et du refroidissement.", en: "Power: energy draw. Must stay within PSU and cooling limits.", wiki: W + 'Puissance_%C3%A9lectrique' },
+  panel: { fr: "Dalle : technologie de l'écran (IPS, VA, OLED…). Influence couleurs, contraste et angles de vision.", en: "Panel: screen technology (IPS, VA, OLED…). Affects colors, contrast and viewing angles.", wiki: W + '%C3%89cran_%C3%A0_cristaux_liquides' },
+  resolution: { fr: "Résolution : nombre de pixels (1080p, 1440p, 4K). Plus élevée = image plus nette, plus exigeante pour le GPU.", en: "Resolution: pixel count (1080p, 1440p, 4K). Higher means sharper but heavier on the GPU.", wiki: W + 'R%C3%A9solution_d%27affichage' },
+  screenSize: { fr: "Taille de l'écran : diagonale en pouces.", en: "Screen size: diagonal in inches.", wiki: W + 'Pouce_(unit%C3%A9_de_longueur)' },
+  refresh: { fr: "Taux de rafraîchissement : images par seconde affichables (Hz). Plus élevé = jeu plus fluide.", en: "Refresh rate: images per second (Hz). Higher means smoother gaming.", wiki: W + 'Fr%C3%A9quence_de_rafra%C3%AEchissement' },
+  response: { fr: "Temps de réponse : délai de changement de couleur (ms). Plus bas = moins de rémanence.", en: "Response time: color-change delay (ms). Lower means less ghosting.", wiki: W + 'Temps_de_r%C3%A9ponse' },
+  sync: { fr: "Synchronisation : FreeSync/G-Sync adapte le rafraîchissement pour éviter le tearing.", en: "Sync: FreeSync/G-Sync adapts refresh to avoid tearing.", wiki: W + 'FreeSync' },
+  curvature: { fr: "Rayon de courbure : plus il est petit, plus l'écran est incurvé.", en: "Curvature radius: the smaller, the more curved the screen.", wiki: '' },
+  videoIn: { fr: "Entrée vidéo : connecteurs disponibles (HDMI, DisplayPort, USB-C…).", en: "Video input: available connectors (HDMI, DisplayPort, USB-C…).", wiki: '' },
+  dpi: { fr: "Résolution/Dpi : sensibilité de la souris (points par pouce). Plus élevé = mouvement plus précis.", en: "DPI: mouse sensitivity (dots per inch). Higher means finer tracking.", wiki: W + 'Points_par_pouce' },
+  ergonomics: { fr: "Ergonomie : réglages du support (hauteur, inclinaison, pivot).", en: "Ergonomics: stand adjustments (height, tilt, pivot).", wiki: '' },
+  buttons: { fr: "Nombre de touches/boutons additionnels programmables.", en: "Number of extra programmable buttons.", wiki: '' },
+  microphone: { fr: "Microphone : caractéristiques du micro intégré (réducteur de bruit, détachable…).", en: "Microphone: built-in mic features (noise cancelling, detachable…).", wiki: W + 'Microphone' },
+  connection: { fr: "Type de connexion : jack 3,5 mm, USB, USB-C, Bluetooth, XLR…", en: "Connection type: 3.5 mm jack, USB, USB-C, Bluetooth, XLR…", wiki: '' },
+  wifi: { fr: "Wi-Fi : réseau sans fil. Les générations (Wi-Fi 6/6E/7) augmentent débit et stabilité.", en: "Wi-Fi: wireless networking. Generations (Wi-Fi 6/6E/7) raise speed and stability.", wiki: W + 'Wi-Fi' },
+  wifiStd: { fr: "Standard Wi-Fi : génération du sans-fil (802.11ax = Wi-Fi 6, 802.11be = Wi-Fi 7).", en: "Wi-Fi standard: wireless generation (802.11ax = Wi-Fi 6, 802.11be = Wi-Fi 7).", wiki: W + 'IEEE_802.11' },
+  poe: { fr: "PoE : alimentation par le câble réseau. Pratique pour bornes et caméras.", en: "PoE: power over the network cable. Handy for access points and cameras.", wiki: W + 'Power_over_Ethernet' },
+  raid: { fr: "RAID : combinaison de disques pour la performance ou la redondance (RAID 0/1/5…).", en: "RAID: combining disks for performance or redundancy (RAID 0/1/5…).", wiki: W + 'RAID_(informatique)' },
+  batteryLife: { fr: "Autonomie : durée de fonctionnement sur batterie.", en: "Battery life: runtime on battery.", wiki: W + 'Batterie_d%27accumulateurs' },
+  protection: { fr: "Protection : parafoudre/surtension protégeant les appareils connectés.", en: "Protection: surge protection for connected devices.", wiki: W + 'Parafoudre' },
+  plugs: { fr: "Nombre de prises : nombre d'appareils pouvant être branchés.", en: "Number of outlets: how many devices can be plugged in.", wiki: '' },
+  cableLength: { fr: "Longueur de câble : portée de l'alimentation.", en: "Cable length: reach of the power strip.", wiki: '' },
+  surge: { fr: "Protection contre les surtensions : absorbe les pics de tension.", en: "Surge protection: absorbs voltage spikes.", wiki: W + 'Parafoudre' },
+  vesa: { fr: "Norme VESA : écartement des fixations (ex. 100×100 mm) au dos de l'écran.", en: "VESA standard: mounting hole spacing (e.g. 100×100 mm) on the monitor back.", wiki: W + 'VESA_Mounting_Interface' },
+  uhsClass: { fr: "Classe de vitesse UHS (U1/U3) : débit minimal garanti de la carte mémoire.", en: "UHS Speed Class (U1/U3): guaranteed minimum card write speed.", wiki: W + 'Carte_SD#Classes_de_vitesse' },
+  sdClass: { fr: "Classe SD (2/4/6/10) : débit minimal garanti.", en: "SD Speed Class (2/4/6/10): guaranteed minimum speed.", wiki: W + 'Carte_SD' },
+  uhsStd: { fr: "Standard UHS (I/II) : génération du bus de la carte mémoire.", en: "UHS standard (I/II): card bus generation.", wiki: W + 'Carte_SD' },
+  videoClass: { fr: "Classe vidéo (V6/V10/V30/V60/V90) : débit minimal pour l'enregistrement vidéo.", en: "Video Speed Class (V6/V10/V30/V60/V90): minimum write speed for video recording.", wiki: W + 'Carte_SD#Classes_de_vitesse' },
+  connector: { fr: "Connecteur : type de prise physique.", en: "Connector: physical plug type.", wiki: '' },
+  brand: { fr: "Fabricant : marque qui conçoit le produit (influe sur la garantie et la qualité).", en: "Manufacturer: the brand that designs the product (affects warranty and quality).", wiki: '' },
+  price: { fr: "Prix : budget minimal et maximal. Le curseur à deux poignées ne garde que les produits de cette fourchette.", en: "Price: minimum and maximum budget. The dual-handle slider keeps only products within that range.", wiki: '' },
+  deal: { fr: "Bon plan : n'affiche que les produits actuellement en promotion (remise ≥ 5 %).", en: "Deals: show only products currently discounted (≥ 5% off).", wiki: '' },
 };
-function filterHelp(name) {
-  const s = String(name).toLowerCase();
-  if (/tdp|thermal/.test(s)) return FILTER_HELP.tdp;
-  if (/thread/.test(s)) return FILTER_HELP.threads;
-  if (/fr[ée]quence|frequenz|frequency/.test(s)) return FILTER_HELP.frequency;
-  if (/socket|support|sockel|prise/.test(s)) return FILTER_HELP.socket;
-  if (/capacit|kapazit|capacity/.test(s)) return FILTER_HELP.capacity;
-  if (/vitesse|d[ée]bit|speed|gb\/s/.test(s)) return FILTER_HELP.speed;
-  if (BRAND_RE.test(s)) return FILTER_HELP.brand;
-  if (AVAIL_RE.test(s)) return FILTER_HELP.availability;
-  if (/prix|price/.test(s)) return FILTER_HELP.price;
+const HELP_MATCH = [
+  [/tdp|thermal/, 'tdp'], [/thread/, 'threads'], [/frequen|fr[ée]quence/, 'frequency'], [/coeur|cœur|\bcore|processeur/, 'cores'],
+  [/socket|sockel|support de processeur|prise/, 'socket'], [/capacit|kapazit/, 'capacity'], [/m[ée]moire vid|vram|board power|total board/, 'memory'],
+  [/\bram\b|m[ée]moire vive/, 'ram'], [/module/, 'modules'], [/latence|cas/, 'latency'], [/\becc\b/, 'ecc'],
+  [/vitesse|d[ée]bit|d[ée]lai|t[ée]l[ée]chargement|impression|rafra/, 'speed'], [/volume d.[ée]criture|tbw/, 'tbw'],
+  [/lecture|read/, 'read'], [/[ée]criture|write/, 'write'], [/cache/, 'cache'], [/rotation|\brpm\b/, 'rotation'],
+  [/format de carte|facteur de forme|form factor/, 'format'], [/certificat|efficacit|80 plus/, 'certification'],
+  [/alimentation|facteur|psu/, 'psuForm'], [/emplacement/, 'slots'], [/pcie|pci express/, 'pcie'], [/\bbus\b/, 'bus'],
+  [/interface/, 'interface'], [/ethernet|\blan\b/, 'ethernet'], [/s[ée]rie|gpu|graphique/, 'series'], [/puissance|\bpower\b|watt|pmpo|\brms\b/, 'power'],
+  [/dalle|panel|oled|ips/, 'panel'], [/r[ée]solution/, 'resolution'], [/taille/, 'screenSize'], [/rafra|refresh/, 'refresh'],
+  [/r[ée]ponse|latence/, 'response'], [/synchronisation|sync|freesync|g-sync/, 'sync'], [/courbure/, 'curvature'], [/entr[ée]e vid/, 'videoIn'],
+  [/\bdpi\b|r[ée]solution max/, 'dpi'], [/ergonom/, 'ergonomics'], [/touches|bouton/, 'buttons'], [/micro/, 'microphone'],
+  [/connexion/, 'connection'], [/wi.?fi|wlan/, 'wifiStd'], [/poe/, 'poe'], [/raid/, 'raid'], [/autonomie|batterie/, 'batteryLife'],
+  [/protection|surtension|parafoudre/, 'protection'], [/prise/, 'plugs'], [/c[âa]ble/, 'cableLength'], [/vesa|fixation/, 'vesa'],
+  [/uhs/, 'uhsClass'], [/classe sd/, 'sdClass'], [/vid[ée]o/, 'videoClass'],
+];
+function normName(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u2019/g, "'").replace(/\s+/g, ' ').trim();
+}
+function filterHelpKey(name) {
+  const s = normName(name);
+  for (const [re, key] of HELP_MATCH) if (re.test(s)) return key;
   return null;
 }
-function infoBtn(name) {
-  const h = (name === 'price' ? FILTER_HELP.price : name === 'deal' ? FILTER_HELP.deal : filterHelp(name)) || {};
-  const tip = h[lang] || h.fr || '';
-  if (!tip && !h.wiki) return '';
-  return `<button type="button" class="f-info" data-tip="${esc(tip)}" data-wiki="${esc(h.wiki || '')}" aria-label="Aide"><i class="fa-solid fa-circle-info"></i></button>`;
+function filterHelp(name) { const k = filterHelpKey(name); return k ? FILTER_HELP[k] : null; }
+function infoBtn(name, entry) {
+  let h = null;
+  if (entry && entry.help && FILTER_HELP[entry.help]) h = FILTER_HELP[entry.help];
+  if (!h && entry && entry.tip) h = { fr: entry.tip, en: entry.tip, wiki: entry.wiki || '' };
+  if (!h) h = filterHelp(name);
+  let tip = h ? (h[lang] || h.fr || '') : '';
+  const wiki = (h && h.wiki) || (entry && entry.wiki) || '';
+  if (!tip) tip = lang === 'en' ? `${name}: Idealo filter criterion. Use the slider/list to narrow the results.` : `${name} : critère de filtrage Idealo. Utilisez le curseur/la liste pour restreindre les résultats.`;
+  return `<button type="button" class="f-info" data-tip="${esc(tip)}" data-wiki="${esc(wiki)}" aria-label="Aide"><i class="fa-solid fa-circle-info"></i></button>`;
 }
 
 function numOf(name) {
@@ -1653,15 +2144,40 @@ function isRangeGroup(g) {
   if (NON_RANGE_RE.test(g.name) || !RANGE_GROUP_RE.test(g.name)) return false;
   return !!rangeStops(g);
 }
+/* Ordered options of a group for a slider: numeric (sorted by value) or enum (original order). */
+function modelOf(g, numeric) {
+  const items = g.options.map((o, i) => ({ id: o.id, name: o.name, n: (numOf(o.name) || {}).n || 0, idx: i }));
+  if (numeric) items.sort((a, b) => a.n - b.n);
+  return { numeric: !!numeric, unit: (numeric && (rangeStops(g) || {}).unit) || '', items };
+}
+function findGroup(d, names) {
+  if (!d || !d.groups) return null;
+  const list = (Array.isArray(names) ? names : [names]).map(normName);
+  for (const nm of list) {
+    if (!nm) continue;
+    let g = d.groups.find(x => normName(x.name) === nm) || d.groups.find(x => normName(x.name).includes(nm));
+    if (g) return g;
+  }
+  return null;
+}
+function pickForms(name) {
+  const raw = String(name || '');
+  return [raw, normName(raw), raw.replace(/[\s\u00a0\u202f.,]/g, '')];
+}
 function resolveQuick(def, d) {
-  const g = d.groups.find(x => def.groupRe.test(x.name));
-  if (!g) return null;
-  const opt = g.options.find(o => (def.exact ? def.exact.test(o.name) : def.optRe.test(o.name)));
-  return opt ? { gid: g.id, oid: opt.id } : null;
+  for (const nm of (def.groups || [def.group])) {
+    const g = findGroup(d, [nm]);
+    if (!g) continue;
+    for (const o of g.options) {
+      const forms = pickForms(o.name);
+      if (forms.some(f => def.pick.test(f))) return { gid: g.id, oid: o.id };
+    }
+  }
+  return null;
 }
 function dynamicQuick(key, d) {
-  if (key !== 'cooler' || !pickerSocketToken) return [];
-  return [{ label: pickerSocketToken, groupRe: /socket|support|sockel|prise/i, optRe: new RegExp(pickerSocketToken.replace(/[^a-z0-9]/gi, '.?'), 'i') }];
+  if (key !== 'cooler' || !pickerSocketToken || !d) return [];
+  return [{ label: pickerSocketToken, groups: ['Support de processeur compatible'], pick: new RegExp(pickerSocketToken.replace(/[^a-z0-9]/gi, '.?'), 'i') }];
 }
 function priceChanged() {
   const p = pickerFilterData && pickerFilterData.price;
@@ -1684,47 +2200,59 @@ function toggleFacet(gid, oid, on) {
 }
 
 /* ---------- render ---------- */
-function buildEnumBlock(g, cls) {
+function buildListBlock(g, entry, cls) {
   const sel = pickerSel[g.id] || [];
-  const opts = g.options.map(o => `<label class="f-opt"><input type="checkbox" data-gid="${g.id}" data-oid="${o.id}"${sel.includes(o.id) ? ' checked' : ''}> <span>${esc(o.name)}</span>${o.hits ? `<em>${o.hits}</em>` : ''}</label>`).join('');
-  const long = g.options.length > 8;
-  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name)}</div><div class="f-opts${long ? ' collapsed' : ''}">${opts}</div>${long ? `<button type="button" class="f-moreless">${lang === 'en' ? 'Show all' : 'Voir tout'} <i class="fa-solid fa-chevron-down"></i></button>` : ''}</div>`;
+  const opts = g.options.map(o => `<label class="f-opt" data-name="${esc(normName(o.name))}"><input type="checkbox" data-gid="${g.id}" data-oid="${o.id}"${sel.includes(o.id) ? ' checked' : ''}> <span>${esc(o.name)}</span>${o.hits ? `<em>${o.hits}</em>` : ''}</label>`).join('');
+  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name, entry)}</div><div class="f-searchrow"><i class="fa-solid fa-magnifying-glass"></i><input type="search" class="f-search" data-gid="${g.id}" placeholder="${esc(t('picker.searchOpt'))}"></div><div class="f-opts f-scroll">${opts}</div></div>`;
 }
-function buildRangeBlock(g, cls) {
-  const info = rangeStops(g);
-  if (!info) return buildEnumBlock(g, cls);
-  const { stops, unit, byNum } = info;
-  const selNums = (pickerSel[g.id] || []).map(id => { const r = byNum.find(x => x.id === id); return r ? r.n : null; }).filter(n => n != null);
-  const lo = selNums.length ? Math.min(...selNums) : stops[0];
-  const hi = selNums.length ? Math.max(...selNums) : stops[stops.length - 1];
-  const fmt = n => (Math.round(n * 100) / 100) + (unit ? ' ' + unit : '');
-  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name)}</div><div class="f-range" data-gid="${g.id}"><input type="range" class="f-rlo" min="0" max="${stops.length - 1}" step="1" value="${stops.indexOf(lo)}"><input type="range" class="f-rhi" min="0" max="${stops.length - 1}" step="1" value="${stops.indexOf(hi)}"><span class="f-rlbl">${esc(fmt(lo))} – ${esc(fmt(hi))}</span></div></div>`;
+function buildSliderBlock(g, entry, cls, numeric) {
+  const m = modelOf(g, numeric);
+  if (m.items.length < 2) return buildListBlock(g, entry, cls);
+  const sel = pickerSel[g.id] || [];
+  const idxs = sel.map(id => m.items.findIndex(x => x.id === id)).filter(i => i >= 0);
+  const lo = idxs.length ? Math.min(...idxs) : 0;
+  const hi = idxs.length ? Math.max(...idxs) : m.items.length - 1;
+  const fmt = i => { const it = m.items[i] || {}; return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + m.unit : '')) : it.name; };
+  return `<div class="f-grp ${cls || ''}" data-gid="${g.id}"><div class="f-head"><span class="f-name">${esc(g.name)}</span>${infoBtn(g.name, entry)}</div>` +
+    `<div class="f-range" data-gid="${g.id}"${m.numeric ? ' data-numeric="1"' : ''}>` +
+    `<div class="dslider"><div class="dtrack"></div><input type="range" class="f-rlo" min="0" max="${m.items.length - 1}" step="1" value="${lo}" aria-label="min"><input type="range" class="f-rhi" min="0" max="${m.items.length - 1}" step="1" value="${hi}" aria-label="max"></div>` +
+    `<span class="f-rlbl">${esc(fmt(lo))} – ${esc(fmt(hi))}</span></div></div>`;
+}
+function renderGroupBlock(g, entry, cls) {
+  entry = entry || {};
+  const big = g.options.length > 10;
+  if (entry.kind === 'enum') return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
+  if (entry.kind === 'range') return buildSliderBlock(g, entry, cls, true);
+  if (rangeStops(g)) return buildSliderBlock(g, entry, cls, true);
+  return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
 }
 function buildMoreHtml(d) {
   const parts = [`<p class="hint f-hint">${esc(t('picker.filtersHint'))}</p>`];
+  const consumed = new Set();
   if (d.price && d.price.min != null && d.price.max != null && d.price.max > d.price.min) {
     const lo = pickerPrice.from == null ? d.price.min : pickerPrice.from;
     const hi = pickerPrice.to == null ? d.price.max : pickerPrice.to;
-    parts.push(`<div class="f-grp f-always" data-gid="__price"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Price' : 'Prix'}</span>${infoBtn('price')}</div><div class="f-range" data-gid="__price" data-kind="price"><input type="range" class="f-rlo" min="${d.price.min}" max="${d.price.max}" step="1" value="${lo}"><input type="range" class="f-rhi" min="${d.price.min}" max="${d.price.max}" step="1" value="${hi}"><span class="f-rlbl">${eur(lo)} – ${eur(hi)}</span></div></div>`);
+    parts.push(`<div class="f-grp f-always" data-gid="__price"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Price' : 'Prix'}</span>${infoBtn('price', { help: 'price' })}</div>` +
+      `<div class="f-range" data-gid="__price" data-kind="price" data-numeric="1"><div class="dslider"><div class="dtrack"></div><input type="range" class="f-rlo" min="${d.price.min}" max="${d.price.max}" step="1" value="${lo}" aria-label="min"><input type="range" class="f-rhi" min="${d.price.min}" max="${d.price.max}" step="1" value="${hi}" aria-label="max"></div><span class="f-rlbl">${esc(eur(lo))} – ${esc(eur(hi))}</span></div></div>`);
   }
   const brand = d.groups.find(g => BRAND_RE.test(g.name));
-  if (brand) parts.push(buildEnumBlock(brand, 'f-always'));
-  const avail = d.groups.find(g => AVAIL_RE.test(g.name));
-  if (avail) parts.push(buildEnumBlock(avail, 'f-always'));
-  parts.push(`<div class="f-grp f-always"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Deals' : 'Bon plan'}</span>${infoBtn('deal')}</div><label class="f-opt"><input type="checkbox" data-special="deal"${pickerDiscount ? ' checked' : ''}> <span>${lang === 'en' ? 'Discounted (≥ 5%)' : 'En promotion (≥ 5 %)'}</span></label></div>`);
-  const consumed = new Set();
-  if (brand) consumed.add(brand.id);
-  if (avail) consumed.add(avail.id);
-  (PICKER_MORE[pickerCatKey] || []).forEach(def => {
-    const g = d.groups.find(x => def.groupRe.test(x.name));
-    if (!g || consumed.has(g.id) || BRAND_RE.test(g.name) || AVAIL_RE.test(g.name)) return;
-    consumed.add(g.id);
-    parts.push(isRangeGroup(g) ? buildRangeBlock(g, 'f-more') : buildEnumBlock(g, 'f-more'));
-  });
-  d.groups.forEach(g => {
-    if (consumed.has(g.id) || BRAND_RE.test(g.name) || AVAIL_RE.test(g.name)) return;
-    parts.push(isRangeGroup(g) ? buildRangeBlock(g) : buildEnumBlock(g));
-  });
+  if (brand) { consumed.add(brand.id); parts.push(buildListBlock(brand, { help: 'brand' }, 'f-always')); }
+  parts.push(`<div class="f-grp f-always"><div class="f-head"><span class="f-name">${lang === 'en' ? 'Deals' : 'Bon plan'}</span>${infoBtn('deal', { help: 'deal' })}</div><label class="f-opt"><input type="checkbox" data-special="deal"${pickerDiscount ? ' checked' : ''}> <span>${lang === 'en' ? 'Discounted (≥ 5%)' : 'En promotion (≥ 5 %)'}</span></label></div>`);
+  const schema = PICKER_SCHEMA[pickerCatKey];
+  if (schema) {
+    (schema.more || []).forEach(entry => {
+      const g = findGroup(d, entry.group || entry.groups);
+      if (!g || consumed.has(g.id)) return;
+      consumed.add(g.id);
+      parts.push(renderGroupBlock(g, entry, 'f-more'));
+    });
+  } else {
+    d.groups.forEach(g => {
+      if (consumed.has(g.id) || BRAND_RE.test(g.name) || AVAIL_RE.test(g.name)) return;
+      consumed.add(g.id);
+      parts.push(renderGroupBlock(g, {}, ''));
+    });
+  }
   return parts.join('');
 }
 function renderRootQuick(host) {
@@ -1738,21 +2266,31 @@ function renderRootQuick(host) {
   host.classList.remove('hidden');
 }
 function renderQuickPills(host) {
-  const d = pickerFilterData; if (!d) { host.classList.add('hidden'); return; }
-  const defs = [...(PICKER_QUICK[pickerCatKey] || []), ...dynamicQuick(pickerCatKey, d)];
+  const d = pickerFilterData;
+  const schema = PICKER_SCHEMA[pickerCatKey];
+  const defs = [...((schema && schema.quick) || []), ...dynamicQuick(pickerCatKey, d)];
   const seen = new Set();
   defs.forEach(def => {
-    const r = resolveQuick(def, d);
-    if (!r || seen.has(def.label)) return;
-    seen.add(def.label);
-    const active = (pickerSel[r.gid] || []).includes(r.oid);
+    if (seen.has(def.label)) return; seen.add(def.label);
+    let active = false, onclick = null;
+    if (def.baseFacet) {
+      active = baseHasFacet(def.facet);
+      onclick = () => switchBaseFacet(def.facet);
+    } else {
+      if (!d) return;
+      const r = resolveQuick(def, d);
+      if (!r) return;
+      active = (pickerSel[r.gid] || []).includes(r.oid);
+      onclick = () => { toggleFacet(r.gid, r.oid); applyPickerFilters(); renderPickerFilters(); };
+    }
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'qf-pill' + (active ? ' active' : ''); b.textContent = def.label;
-    b.onclick = () => { toggleFacet(r.gid, r.oid); applyPickerFilters(); renderPickerFilters(); };
+    b.onclick = onclick;
     host.appendChild(b);
   });
   host.classList.toggle('hidden', !host.children.length);
 }
+function pickerToolsHost() { const p = $('#pickerFilters'); return p && p.closest('.picker-tools'); }
 function renderPickerFilters() {
   const quickHost = $('#pickerQuick'), moreWrap = $('#pickerMoreWrap'), panel = $('#pickerFilters');
   if (!quickHost || !panel) return;
@@ -1765,13 +2303,17 @@ function renderPickerFilters() {
   const badge = $('#pickerMoreCount');
   if (badge) { const n = activeCount(); badge.textContent = n ? String(n) : ''; badge.classList.toggle('hidden', !n); }
   const btn = $('#pickerMoreBtn'); if (btn) btn.classList.toggle('active', pickerMoreOpen);
+  const clearBtn = $('#pickerClearFilters');
+  if (clearBtn) clearBtn.classList.toggle('hidden', !filterActive());
+  const open = pickerMoreOpen && has;
+  const host = pickerToolsHost(); if (host) host.classList.toggle('filters-open', open); // hide component results while filtering
   if (pickerFilterBusy && !has) {
     panel.classList.remove('hidden');
     panel.innerHTML = `<p class="hint">${lang === 'en' ? 'Loading filters…' : 'Chargement des filtres…'}</p>`;
     return;
   }
-  panel.classList.toggle('hidden', !pickerMoreOpen);
-  if (!pickerMoreOpen || !has) return;
+  panel.classList.toggle('hidden', !open);
+  if (!open) return;
   panel.innerHTML = buildMoreHtml(d);
 }
 function setIdealoTarget(url, label, key) {
@@ -1780,6 +2322,20 @@ function setIdealoTarget(url, label, key) {
   if (key) currentCatKey = key;
   const a = $('#pickerIdealoSearch'); if (a) a.href = url;
   const f = $('#idealoOpenFallback'); if (f) f.onclick = () => window.open(url, '_blank', 'noopener');
+}
+function baseHasFacet(fid) {
+  const p = Imm_parseCat(pickerFilterBase);
+  return !!(p && p.facets.includes(String(fid)));
+}
+function Imm_parseCat(url) { try { return Idealo.parseCatUrl(url); } catch { return null; } }
+function switchBaseFacet(fid) {
+  const p = Imm_parseCat(pickerFilterBase) || Imm_parseCat(catUrl(pickerCatKey));
+  if (!p) return;
+  const url = `${p.origin}/cat/${p.catId}F${fid}/${p.slug}`;
+  ++pickerSeq;
+  applyCatUrl(pickerCatKey, url);
+  loadIdealoList(url, 'fresh');
+  pickerSetupFilters(url, pickerCatKey);
 }
 function selectRootQuick(c) {
   if (!c) {
@@ -1822,6 +2378,15 @@ function pickerResetFilters(url, key) {
   pickerFilterBusy = false; pickerFilterErr = ''; pickerRestored = false; pickerSocketToken = null;
   renderPickerFilters();
 }
+function pickerClearFilters() {
+  const p = pickerFilterData && pickerFilterData.price;
+  pickerSel = {}; pickerDiscount = false;
+  pickerPrice = { from: p ? p.min : null, to: p ? p.max : null };
+  savePickerFilters();
+  renderPickerFilters();
+  loadIdealoList(pickerFilterBase || currentIdealoUrl);
+  applyAutoQuick(pickerCatKey);
+}
 async function pickerSetupFilters(url, key) {
   pickerResetFilters(url, key);
   if (key === 'root' || !Idealo.filters || !Idealo.parseCatUrl || !Idealo.parseCatUrl(url)) { renderPickerFilters(); return; }
@@ -1855,21 +2420,17 @@ function applyAutoQuick(key) {
   const byOpt = (groupRe, optRe) => { const g = d.groups.find(x => groupRe.test(x.name)); const o = g && g.options.find(x => optRe.test(x.name)); return o ? { gid: g.id, oid: o.id } : null; };
   const done = () => { if (!ok()) return; renderPickerFilters(); applyPickerFilters(); };
   const socketLabel = { AM4: /am4/i, AM5: /am5/i, LGA1700: /17[07]0/i, LGA1770: /17[07]0/i, LGA1851: /185[01]/i, sTR5: /tr5/i };
-  if (key === 'keyboard') { const r = byOpt(/type.*clavier|disposition|layout|clavier/i, /azerty|fr/i); if (r) { pick(r.gid, r.oid); done(); } return; }
-  if (key === 'multiprise') { const r = byOpt(/type.*prise|prise|socket|stecker/i, /schuko|type f|type e|fr/i); if (r) { pick(r.gid, r.oid); done(); } return; }
+  if (key === 'keyboard') { const r = byOpt(/langue du clavier|type.*clavier|disposition|layout/i, /azerty|fr/i); if (r) { pick(r.gid, r.oid); done(); } return; }
+  if (key === 'multiprise') { const r = byOpt(/type de prise|prise|socket|stecker/i, /schuko|type f|type e/i); if (r) { pick(r.gid, r.oid); done(); } return; }
   if (key === 'mb' || key === 'cooler') {
     cpuSocketKey().then(tok => {
       if (!ok()) return;
       if (tok) pickerSocketToken = tok === 'LGA1700' ? '1700' : tok === 'LGA1770' ? '1770' : tok === 'LGA1851' ? '1851' : tok;
       const re = socketLabel[tok] || new RegExp(tok, 'i');
-      const r = byOpt(/socket|support|sockel|prise/i, re);
+      const r = byOpt(/support de processeur|socket|sockel|prise/i, re);
       if (r) { pick(r.gid, r.oid); done(); }
       else renderPickerFilters();
     }).catch(() => { /* ignore */ });
-    return;
-  }
-  if (key === 'ram') {
-    mbDdrKey().then(k => { if (!k || !ok()) return; const r = byOpt(/type.*m[ée]moire|m[ée]moire.*type|type de ram|ram.?type/i, new RegExp(k, 'i')); if (r) { pick(r.gid, r.oid); done(); } }).catch(() => { /* ignore */ });
     return;
   }
 }
@@ -1887,38 +2448,46 @@ function onFilterChange(e) {
 function onFilterInput(e) {
   const t = e.target;
   if (!t.classList) return;
-  if (t.classList.contains('f-rlo') || t.classList.contains('f-rhi')) updateRangeLabel(t, true);
+  if (t.classList.contains('f-search')) {
+    const q = normName(t.value);
+    const grp = t.closest('.f-grp'); if (!grp) return;
+    grp.querySelectorAll('.f-opt').forEach(l => { l.style.display = (!q || (l.dataset.name || '').includes(q)) ? '' : 'none'; });
+    return;
+  }
+  if (t.classList.contains('f-rlo') || t.classList.contains('f-rhi')) {
+    t.style.zIndex = t.classList.contains('f-rhi') ? '4' : '5';
+    updateRangeLabel(t, true);
+  }
 }
 function onFilterClick(e) {
-  const ml = e.target.closest && e.target.closest('.f-moreless');
-  if (ml) { const host = ml.parentElement.querySelector('.f-opts'); if (host) { host.classList.toggle('collapsed'); ml.classList.toggle('open'); } return; }
   const info = e.target.closest && e.target.closest('.f-info');
   if (info) { showFilterTip(info); }
+}
+function rangeFmt(box, g, i) {
+  if (box.dataset.kind === 'price') return eur(i);
+  const m = modelOf(g, box.dataset.numeric === '1');
+  const it = m.items[i] || {};
+  return m.numeric ? ((Math.round((it.n || 0) * 100) / 100) + (m.unit ? ' ' + m.unit : '')) : (it.name || '');
 }
 function updateRangeLabel(input, clamp) {
   const box = input.closest('.f-range'); if (!box) return;
   const lo = box.querySelector('.f-rlo'), hi = box.querySelector('.f-rhi');
   let a = +lo.value, b = +hi.value;
-  if (clamp) { if (a > b) { if (input === lo) b = a; else a = b; lo.value = a; hi.value = b; } }
-  const lbl = box.querySelector('.f-rlbl');
-  if (!lbl) return;
-  if (box.dataset && box.dataset.kind === 'price') lbl.textContent = eur(+lo.value) + ' – ' + eur(+hi.value);
-  else {
-    const g = pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid);
-    const info = g && rangeStops(g);
-    if (info) { const u = info.unit ? ' ' + info.unit : ''; lbl.textContent = (Math.round(info.stops[+lo.value] * 100) / 100) + u + ' – ' + (Math.round(info.stops[+hi.value] * 100) / 100) + u; }
-  }
+  if (clamp) { if (a > b) { if (input === lo) { b = a; hi.value = b; } else { a = b; lo.value = a; } } }
+  const lbl = box.querySelector('.f-rlbl'); if (!lbl) return;
+  const isPrice = box.dataset.kind === 'price';
+  const g = isPrice ? null : (pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid));
+  lbl.textContent = rangeFmt(box, g, a) + ' – ' + rangeFmt(box, g, b);
 }
 function commitRange(input) {
   const box = input.closest('.f-range'); if (!box) return;
   const lo = box.querySelector('.f-rlo'), hi = box.querySelector('.f-rhi');
   let a = +lo.value, b = +hi.value; if (a > b) { const t = a; a = b; b = t; lo.value = a; hi.value = b; }
-  if (box.dataset.kind === 'price') { pickerPrice = { from: Math.min(+lo.value, +hi.value), to: Math.max(+lo.value, +hi.value) }; return; }
+  if (box.dataset.kind === 'price') { pickerPrice = { from: a, to: b }; return; }
   const g = pickerFilterData && pickerFilterData.groups.find(x => x.id === box.dataset.gid);
-  const info = g && rangeStops(g);
-  if (!g || !info) return;
-  const loN = info.stops[a], hiN = info.stops[b];
-  const ids = info.byNum.filter(x => x.n >= loN && x.n <= hiN).map(x => x.id);
+  if (!g) return;
+  const m = modelOf(g, box.dataset.numeric === '1');
+  const ids = m.items.slice(a, b + 1).map(x => x.id);
   if (ids.length) pickerSel[g.id] = ids; else delete pickerSel[g.id];
 }
 function showFilterTip(btn) {
@@ -4436,6 +5005,8 @@ function bind() {
   $('#idealoMore').onclick = () => idealMore();
   const moreBtn = $('#pickerMoreBtn');
   if (moreBtn) moreBtn.onclick = () => { pickerMoreOpen = !pickerMoreOpen; renderPickerFilters(); };
+  const clearBtn = $('#pickerClearFilters');
+  if (clearBtn) clearBtn.onclick = () => pickerClearFilters();
   const fpanel = $('#pickerFilters');
   if (fpanel) {
     fpanel.addEventListener('change', onFilterChange);
