@@ -323,11 +323,9 @@ function updateMobileTotalBar() {
   const show = isMobileView() && onConfig;
   bar.classList.toggle('hidden', !show);
   const label = $('#mtLabel'), total = $('#mtTotal'), deliv = $('#mtDelivery');
-  if (label) label.textContent = lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse';
-  if (total) total.textContent = eur(T.total);
-  if (deliv) deliv.textContent = T.deliv > 0
-    ? (lang === 'en' ? `incl. ${eur(T.deliv)} delivery` : `dont ${eur(T.deliv)} de livraison`)
-    : (lang === 'en' ? 'delivery included' : 'livraison incluse');
+  if (label) label.textContent = 'Total';
+  if (total) total.textContent = eur(T.total - T.deliv);
+  if (deliv) deliv.textContent = `${eur(T.total)} ${lang === 'en' ? `(incl. ${eur(T.deliv)} delivery)` : `(dont ${eur(T.deliv)} de livraison)`}`;
   if (!show) closeSummarySheet();
 }
 function showMobileScrim() {
@@ -5062,6 +5060,8 @@ function showPage(which) {
     $('#page-' + x).classList.toggle('hidden', x !== which);
     $('#tab' + x[0].toUpperCase() + x.slice(1)).classList.toggle('active', x === which);
   });
+  const page = $('#page-' + which);
+  if (page) { page.classList.remove('page-enter'); void page.offsetWidth; page.classList.add('page-enter'); }
   if (which !== 'config') {
     closeMobileSheets();
     if (activeSlot) closePicker();
