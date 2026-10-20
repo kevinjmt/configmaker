@@ -5062,7 +5062,14 @@ function showPage(which) {
     $('#tab' + x[0].toUpperCase() + x.slice(1)).classList.toggle('active', x === which);
   });
   const page = $('#page-' + which);
-  if (page) { page.classList.remove('page-enter'); void page.offsetWidth; page.classList.add('page-enter'); }
+  if (page) {
+    page.classList.remove('page-enter'); void page.offsetWidth; page.classList.add('page-enter');
+    page.addEventListener('animationend', function clearEnter(e) {
+      if (e.target !== page) return;
+      page.classList.remove('page-enter');
+      page.removeEventListener('animationend', clearEnter);
+    });
+  }
   if (which !== 'config') {
     closeMobileSheets();
     if (activeSlot) closePicker();
@@ -5083,7 +5090,7 @@ function applyLang() {
   document.documentElement.lang = lang;
   $$('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
   $$('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
-  $$('[data-i18n-title]').forEach(el => el.title = t(el.dataset.i18nTitle));
+  $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', el.title); });
   $('#langFlag').src = lang === 'fr' ? './assets/icons/uk.png' : './assets/icons/fr.png';
   $('#langBtn').title = lang === 'fr' ? 'Switch to English' : 'Passer en français';
 }
