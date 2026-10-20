@@ -93,7 +93,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
-    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative",
+    'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative", 'picker.detail': 'Fiche du composant', 'picker.openIdealo': 'Ouvrir sur Idealo',
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
     'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
     'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
@@ -150,7 +150,7 @@ const I18N = {
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
-    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative',
+    'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative', 'picker.detail': 'Component details', 'picker.openIdealo': 'Open on Idealo',
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
     'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
     'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
@@ -341,7 +341,7 @@ function hideMobileScrim() {
   if (!s) return;
   clearTimeout(sheetHideTimer);
   sheetHideTimer = setTimeout(() => {
-    if (!document.body.classList.contains('summary-sheet-open') && !document.body.classList.contains('picker-sheet-open')) s.classList.add('hidden');
+    if (!document.body.classList.contains('summary-sheet-open') && !document.body.classList.contains('picker-sheet-open') && !document.body.classList.contains('editor-sheet-open')) s.classList.add('hidden');
   }, 360);
 }
 function openSummarySheet() {
@@ -391,6 +391,7 @@ function closePickerSheet() {
   }, 380);
 }
 function closeMobileSheets() {
+  if (!$('#editorPanel').classList.contains('hidden')) closeEditorPanel();
   closeSummarySheet();
   closePickerSheet();
 }
@@ -1454,23 +1455,32 @@ function renderIdealo() {
   const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
   shown.forEach(it => {
     const card = document.createElement('div');
-    card.className = 'pick-card';
+    card.className = 'pick-card pick-result';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
     const directTip = lang === 'en' ? 'No dedicated Idealo page — links directly to the merchant offer' : "Pas de page Idealo dédiée — redirige directement vers l'offre marchand";
     const noPage = !it.url;
-    card.innerHTML = `${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}
-      <div class="pi"><div class="pn">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</div><div class="ps">${esc(it.specs)}</div>
-      <div class="ps">${it.offers ? `${it.offers} ${t('picker.offers')} · ` : ''}${it.price ? `${t('picker.from')} ${eur(it.price)}` : ''}</div></div>
-      <div><div class="pp">${it.price ? eur(it.price) : '—'}</div></div>`;
+    const desc = pickerItemDescription(it);
+    card.innerHTML = `
+      <span class="pick-media">${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}</span>
+      <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span><span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
+      <span class="pick-desc">${esc(desc)}</span>
+      <span class="pick-actions"></span>`;
+    card.onclick = e => { if (e.target.closest('.pick-actions')) return; if (noPage && it.src) { window.open(it.src, '_blank', 'noopener'); return; } openPickerDetail(it); };
+    card.onkeydown = e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target !== card) return;
+      e.preventDefault(); if (noPage && it.src) window.open(it.src, '_blank', 'noopener'); else openPickerDetail(it);
+    };
+    const wrap = card.querySelector('.pick-actions');
     const choose = document.createElement('button');
-    choose.className = 'mini-btn'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
-    choose.onclick = () => chooseIdealoItem(it);
-    const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
+    choose.className = 'mini-btn pick-choose'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
+    choose.onclick = e => { e.stopPropagation(); commitPickerItem(it); };
     wrap.append(choose);
     if (noPage && it.src) {
-      const show = document.createElement('button');
+      const show = document.createElement('a');
       show.className = 'mini-btn'; show.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${lang === 'en' ? "Show offer" : "Voir l'offre"}`;
-      show.title = 'issue is known, i am trying to fix it :)';
-      show.disabled = true;
+      show.href = it.src; show.target = '_blank'; show.rel = 'noopener';
       wrap.append(show);
     } else if (it.url) {
       const link = document.createElement('a');
@@ -1478,7 +1488,6 @@ function renderIdealo() {
       link.title = 'idealo.fr'; link.target = '_blank'; link.rel = 'noopener'; link.href = it.url;
       wrap.append(link);
     }
-    card.appendChild(wrap);
     host.appendChild(card);
   });
   const more = $('#idealoMore');
@@ -1497,73 +1506,120 @@ function renderIdealo() {
     }
   }
 }
-function chooseIdealoItem(it, opts = {}) {
-  if (!activeSlot) return;
-  const enrichSlot = activeSlot; // captured: activeSlot may change before fetches settle
+function pickerItemDescription(it, detailed = false) {
+  let txt = String((it && it.specs) || '').trim();
+  if (!txt) txt = it && it.offers ? `${it.offers} ${t('picker.offers')}` : '';
+  return detailed ? txt : txt.replace(/\s+/g, ' ').trim();
+}
+function pickerItemProduct(it) {
   const np = blankProduct();
-  np.name = it.name; np.image = it.img; np.idealo = it.url;
-  np.price = it.price || 0; np.specs = it.specs; np.vendor = it.vendor || '';
-  np.delivery = it.delivery || 0;
+  np.name = it.name || '';
+  np.image = it.img || '';
+  np.idealo = it.url || '';
+  np.price = Number(it.price) || 0;
+  np.specs = it.specs || '';
+  np.vendor = it.vendor || '';
+  np.delivery = Number(it.delivery) || 0;
   np.src = it.src || '';
-  openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
-  // Enrich in background from the /prix/ page: "Aperçu du produit" + cheapest merchant.
-  // Only untouched fields are filled; user input always wins.
-  if (!it.url) return;
-  const before = { name: np.name, image: np.image, price: String(np.price || ''), specs: np.specs, vendor: np.vendor, store: np.store, delivery: String(np.delivery || '') };
-  const syncEnrich = () => {
-    if ($('#modalOverlay').classList.contains('hidden')) { persist(); refresh(); return; }
-    const fn = $('#f_name');
-    if (!fn || fn.value !== before.name) return; // form closed or switched to another fiche
-    let changed = false;
-    const setIf = (id, key, val) => {
-      const f = $(id);
-      const v = val === undefined || val === null ? '' : String(val);
-      if (!f || !v || f.value !== before[key] || v === before[key]) return;
-      f.value = v; before[key] = v; changed = true;
-    };
-    setIf('#f_specs', 'specs', np.specs);
-    setIf('#f_price', 'price', np.price ? String(np.price) : '');
-    setIf('#f_image', 'image', np.image);
-    setIf('#f_vendor', 'vendor', np.vendor);
-    setIf('#f_store', 'store', np.store);
-    setIf('#f_del', 'delivery', np.delivery ? String(np.delivery) : '');
-    if (changed) toast(lang === 'en' ? 'Fiche enriched from Idealo' : 'Fiche enrichie depuis Idealo');
+  np.store = it.store || '';
+  np.promo = !!it.promo;
+  np.isBest = !!it.isBest;
+  if (it.datasheet) np.datasheet = it.datasheet;
+  if (it.variants && it.variants.items && it.variants.items.length) np.variants = it.variants;
+  return np;
+}
+function openPickerDetail(it) {
+  if (!activeSlot || !it) return;
+  pickerDetailItem = it;
+  const s = state.slots[activeSlot];
+  const fallback = s ? iconHtml(defOf(s).icon) : '<i class="fa-solid fa-microchip"></i>';
+  const desc = pickerItemDescription(it, true);
+  const meta = [it.offers ? `${it.offers} ${t('picker.offers')}` : '', it.vendor || ''].filter(Boolean).join(' · ');
+  const openBtn = it.url
+    ? `<a class="btn" id="pdOpen" href="${esc(it.url)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</a>`
+    : `<button class="btn" disabled title="${esc(lang === 'en' ? 'No Idealo page for this item' : 'Aucune page Idealo pour cet élément')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
+  const body = $('#pickerDetailBody');
+  body.innerHTML = `<div class="pd-hero">
+      <div class="pd-media">${it.img ? `<img src="${esc(it.img)}" alt="" onerror="this.remove()">` : fallback}</div>
+      <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
+        <div class="pd-price">${it.price ? eur(it.price) : '—'}</div>
+        ${meta ? `<div class="pd-meta">${esc(meta)}</div>` : ''}
+        <p class="pd-desc">${esc(desc || (lang === 'en' ? 'No description available.' : 'Aucune description disponible.'))}</p>
+      </div>
+    </div>
+    <div class="pd-actions">${openBtn}<button class="btn btn-primary" id="pdChoose"><i class="fa-solid fa-check"></i> ${esc(t('picker.chooseBtn'))}</button></div>`;
+  $('#pdChoose').onclick = () => commitPickerItem(it, { fromDetail: true });
+  const panel = $('#pickerPanel'), detail = $('#pickerDetail');
+  panel.classList.add('picker-detail-open');
+  panel.scrollTop = 0;
+  detail.classList.remove('hidden');
+  detail.scrollTop = 0;
+  $('#pickerDetailBack').focus?.();
+}
+function closePickerDetail() {
+  pickerDetailItem = null;
+  const panel = $('#pickerPanel'), detail = $('#pickerDetail');
+  if (panel) panel.classList.remove('picker-detail-open');
+  if (detail) { detail.classList.add('hidden'); detail.scrollTop = 0; }
+  const body = $('#pickerDetailBody'); if (body) body.innerHTML = '';
+}
+function enrichPickerItem(it, np, slotId) {
+  if (!it || !it.url || !/idealo\.fr\/prix\//i.test(it.url)) return;
+  const base = { name: np.name, image: np.image, price: np.price, specs: np.specs, vendor: np.vendor, delivery: np.delivery, store: np.store };
+  const same = (cur, key) => !cur[key] || String(cur[key]) === String(base[key]);
+  const current = () => {
+    const s = state.slots[slotId];
+    return s && s.products.find(x => x.id === np.id);
   };
   dsFetchStart(np); idealoAttempted.add(np.id);
-  const enrichments = [];
-  enrichments.push(Idealo.product(it.url).then(d => {
+  const productFetch = Idealo.product(it.url).then(d => {
+    if (!d || d.error || editingPid === np.id) return;
+    const cur = current(); if (!cur) return;
+    if (d.specs && same(cur, 'specs')) cur.specs = d.specs;
+    if (d.datasheet && !cur.datasheet) cur.datasheet = d.datasheet;
+    if (d.variants && d.variants.items && d.variants.items.length && !cur.variants) cur.variants = d.variants;
+    if (d.price && !cur.price) cur.price = d.price;
+    if (d.img && same(cur, 'image')) cur.image = d.img;
+    if (d.name && same(cur, 'name')) cur.name = d.name;
+  }).catch(() => {});
+  const offersFetch = Idealo.offers(it.url).then(r => {
+    if (!r || r.error || !r.offers.length || editingPid === np.id) return;
+    const cur = current(); if (!cur) return;
+    const o = r.offers[0];
+    if (o.merchant && same(cur, 'vendor')) cur.vendor = o.merchant;
+    if (o.price && same(cur, 'price')) cur.price = o.price;
+    if (o.delivered > 0 && o.price && same(cur, 'delivery')) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+    if (o.url && same(cur, 'store')) cur.store = o.url;
+    if (o.promo) cur.promo = true;
+    if (o.price) cur.isBest = o.price <= (it.price || o.price);
+  }).catch(() => {});
+  Promise.allSettled([productFetch, offersFetch]).then(() => {
     dsFetchEnd(np);
-    if (!d || d.error) return;
-    if (d.specs) np.specs = d.specs;
-    if (d.datasheet) np.datasheet = d.datasheet;
-    if (d.variants && d.variants.items && d.variants.items.length) np.variants = d.variants;
-    if (d.price && !np.price) np.price = d.price;
-    if (d.img && !np.image) np.image = d.img;
-    if (d.name && !before.name) np.name = d.name;
-    syncEnrich();
-  }).catch(() => dsFetchEnd(np)));
-  enrichments.push(Idealo.offers(it.url).then(r => {
-    if (!r || r.error || !r.offers.length) {
-      if (!$('#modalOverlay').classList.contains('hidden')) {
-        const fn = $('#f_name');
-        if (fn && fn.value === before.name) toast(lang === 'en' ? 'Auto merchant unavailable — use the store button' : 'Marchand auto indisponible — utilisez le bouton boutique');
-      }
-      return;
-    }
-    const o = r.offers[0]; // parser sorts ascending: cheapest first
-    if (!o) return;
-    if (o.merchant && !np.vendor) np.vendor = o.merchant;
-    if (o.price) np.price = o.price;
-    if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
-    if (o.url && !np.store) np.store = o.url;
-    if (o.promo) np.promo = true;
-    np.isBest = o.price <= (it.price || o.price);
-    syncEnrich();
-    queueAlternativeData(enrichSlot);
-  }));
-  Promise.allSettled(enrichments).then(() => { try { if (opts.onDone) opts.onDone(); } catch { /* ignore */ } });
+    if (editingPid === np.id || !current()) return;
+    persist(); compatCache = null; refresh();
+    queueAlternativeData(slotId);
+  });
+}
+function commitPickerItem(it) {
+  if (!activeSlot) return;
+  const slotId = activeSlot;
+  const s = state.slots[slotId]; if (!s) return;
+  const addOnly = pickerMode === 'add';
+  const prevSelected = s.selectedId;
+  const np = pickerItemProduct(it);
+  s.products.push(np);
+  if (!addOnly || !s.selectedId) s.selectedId = np.id;
+  if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected);
+  persist(); compatCache = null;
+  closePickerDetail();
+  closePicker();
+  refresh();
+  toast(lang === 'en' ? (addOnly ? 'Alternative added' : 'Component added') : (addOnly ? 'Alternative ajoutée' : 'Composant ajouté'));
+  enrichPickerItem(it, np, slotId);
+  queueAlternativeData(slotId);
 }
 let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
+let pickerDetailItem = null;
 /* Show the loading state while a dynamic default page is resolved. */
 function showPickerPending() {
   idealBase = ''; idealUrl = ''; idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE; idealNextUrl = null;
@@ -1579,6 +1635,7 @@ function resolveDefaultCat(key, seq) {
    .catch(() => { if (seq !== pickerSeq) return; const b = catUrl(key); applyCatUrl(key, b); loadIdealoList(b); pickerSetupFilters(b, key); });
 }
 function openPicker(id, mode = 'replace') {
+  closePickerDetail();
   pickerMode = mode;
   activeSlot = id;
   const s = state.slots[id], cur = sel(s), d = defOf(s);
@@ -1611,6 +1668,7 @@ function openPicker(id, mode = 'replace') {
   else resolveDefaultCat(key, seq);
 }
 function closePicker() {
+  closePickerDetail();
   activeSlot = null;
   if (isMobileView()) closePickerSheet();
   else { $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); }
@@ -2669,14 +2727,53 @@ function hideFilterTip() { const tip = $('#pickerTip'); if (tip) tip.classList.a
 function pickerPriceActive() { return !!(pickerFilterData && pickerFilterBase) && priceChanged(); }
 
 /* ---------- Product form ---------- */
+let editorReturn = null;
+function openEditorPanel(title, html) {
+  const panel = $('#editorPanel');
+  if (!panel) return false;
+  $('#editorTitle').textContent = title;
+  $('#editorBody').innerHTML = html;
+  $('#pickerPanel').classList.add('hidden');
+  $('#summaryPanel').classList.add('hidden');
+  document.body.classList.remove('picker-sheet-open', 'summary-sheet-open');
+  panel.classList.remove('hidden');
+  panel.scrollTop = 0; $('#editorBody').scrollTop = 0;
+  if (isMobileView()) {
+    showMobileScrim();
+    void panel.offsetHeight;
+    document.body.classList.add('editor-sheet-open');
+  } else {
+    document.body.classList.remove('editor-sheet-open');
+  }
+  return true;
+}
+function closeEditorPanel() {
+  const panel = $('#editorPanel');
+  if (!panel || panel.classList.contains('hidden')) return;
+  panel.classList.add('hidden');
+  const ret = editorReturn; editorReturn = null;
+  editingPid = null;
+  if (isMobileView()) {
+    document.body.classList.remove('editor-sheet-open');
+    if (ret === 'picker') openPickerSheet();
+    else if (ret === 'summary') openSummarySheet();
+    else hideMobileScrim();
+  } else {
+    if (ret === 'picker') { $('#pickerPanel').classList.remove('hidden'); renderPicker(); }
+    else $('#summaryPanel').classList.remove('hidden');
+  }
+}
 function openProductForm(slotId, p, opts = {}) {
   const isNew = !p;
   p = p || blankProduct();
+  closeModal();
+  const wasPicker = !$('#pickerPanel').classList.contains('hidden') || document.body.classList.contains('picker-sheet-open');
+  editorReturn = wasPicker ? 'picker' : (isMobileView() ? (document.body.classList.contains('summary-sheet-open') ? 'summary' : 'none') : 'summary');
   editingPid = p.id;
   const prevSelected = state.slots[slotId].selectedId;
   const alreadyListed = !!state.slots[slotId].products.some(x => x.id === p.id);
   const d = defOf(state.slots[slotId]);
-  openModal(isNew ? (lang === 'en' ? 'New fiche — ' : 'Nouvelle fiche — ') + slotName(slotId) : (lang === 'en' ? 'Edit fiche' : 'Modifier la fiche'), `
+  openEditorPanel(isNew ? (lang === 'en' ? 'New fiche — ' : 'Nouvelle fiche — ') + slotName(slotId) : (lang === 'en' ? 'Edit fiche' : 'Modifier la fiche'), `
     <div class="form-grid">
       <div class="fld full"><label>${lang === 'en' ? 'Name *' : 'Nom *'}</label><input id="f_name" value="${esc(p.name)}" placeholder="Ryzen 7 7800X3D"></div>
       <div class="fld"><label>${lang === 'en' ? 'Image URL' : 'Image (URL)'}</label><input id="f_image" value="${esc(p.image)}" placeholder="https://…"></div>
@@ -2693,7 +2790,7 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld full"><label>${lang === 'en' ? 'Store URL (offer link)' : 'URL boutique (lien de l’offre)'}</label><input id="f_store" value="${esc(p.store)}" placeholder="https://…"></div>
     </div>
     <div class="btn-row"><button class="btn btn-primary" id="f_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save fiche' : 'Enregistrer'}</button>
-    ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`, 'modal-wide');
+    ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   $('#f_manualOpen').onclick = () => { const u = $('#f_manual').value.trim(); if (u) window.open(u, '_blank', 'noopener'); };
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
@@ -2720,11 +2817,11 @@ function openProductForm(slotId, p, opts = {}) {
     if (!alreadyListed && !opts.addOnly && prevSelected && prevSelected !== p.id) {
       s.products = s.products.filter(x => x.id !== prevSelected); // replace mode: drop the previous fiche
     }
-    persist(); closeModal(); refresh(); renderPicker();
+    persist(); closeEditorPanel(); refresh(); renderPicker();
     toast(lang === 'en' ? (opts.addOnly ? 'Alternative added' : 'Fiche saved') : (opts.addOnly ? 'Alternative ajoutée' : 'Fiche enregistrée'));
   };
   const dp = $('#f_delP');
-  if (dp) dp.onclick = () => { const s = state.slots[slotId]; s.products = s.products.filter(x => x.id !== p.id); if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null; persist(); closeModal(); refresh(); renderPicker(); };
+  if (dp) dp.onclick = () => { const s = state.slots[slotId]; s.products = s.products.filter(x => x.id !== p.id); if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null; persist(); closeEditorPanel(); refresh(); renderPicker(); };
 }
 
 /* ---------- Merchants (from the Idealo /prix/ page, like picking the component) ---------- */
@@ -5185,11 +5282,13 @@ function bind() {
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
   $('#mobileTotalBtn').onclick = toggleSummarySheet;
   $('#mobileScrim').onclick = () => {
-    if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
+    if (document.body.classList.contains('editor-sheet-open')) closeEditorPanel();
+    else if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
   };
   $('#sumClose').onclick = closeSummarySheet;
   $('#summaryPanel').addEventListener('scroll', updatePowerTotalsReveal, { passive: true });
   $('#pickerClose').onclick = closePicker;
+  $('#pickerDetailBack').onclick = closePickerDetail;
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
@@ -5240,56 +5339,54 @@ function bind() {
   $('#idealoRefresh').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh', true);
   $('#idealoChoose').onclick = async () => {
     if (!activeSlot) return;
-    const url = $('#idealoUrl').value.trim();
-    if (!url || !/idealo\.fr\/prix\//i.test(url)) { toast(lang === 'en' ? 'Paste an exact /prix/ listing URL' : 'Collez une URL exacte de fiche /prix/'); return; }
-    const slotId = activeSlot, addOnly = pickerMode === 'add';
+    const raw = $('#idealoUrl').value.trim();
+    if (!raw) { toast(lang === 'en' ? 'Paste a component link' : 'Collez un lien de composant'); return; }
+    let url = raw;
+    try { url = new URL(raw, location.href).href; } catch { toast(lang === 'en' ? 'Invalid link' : 'Lien invalide'); return; }
+    if (!/^https?:\/\//i.test(url)) { toast(lang === 'en' ? 'Invalid link' : 'Lien invalide'); return; }
+    const isIdealo = /^https?:\/\/(?:[^/]+\.)?idealo\.fr\//i.test(url);
     const btn = $('#idealoChoose');
     const orig = btn.innerHTML;
+    const fallbackName = (() => {
+      try {
+        const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
+        return slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+      } catch { return ''; }
+    })();
+    if (!isIdealo) {
+      const np = blankProduct();
+      np.name = fallbackName;
+      np.store = url;
+      openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
+      return;
+    }
     btn.disabled = true;
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>${lang === 'en' ? 'Adding item…' : 'Ajout de l’élément…'}</span>`;
-    const np = blankProduct();
-    np.idealo = url;
-    dsFetchStart(np); idealoAttempted.add(np.id);
+    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>${lang === 'en' ? 'Reading link…' : 'Lecture du lien…'}</span>`;
     try {
       const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
       if ((!d || d.error) && (!r || r.error || !r.offers.length)) {
-        toast(lang === 'en' ? 'Idealo page unreachable — retry later' : 'Page Idealo injoignable — réessayez plus tard');
+        toast(lang === 'en' ? 'Idealo page unreachable — you can still edit it manually' : 'Page Idealo injoignable — vous pouvez la modifier manuellement');
+        const np = blankProduct();
+        np.name = fallbackName;
+        np.idealo = url;
+        openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
         return;
       }
-      if (d && !d.error) {
-        if (d.name) np.name = d.name;
-        if (d.img) np.image = d.img;
-        if (d.specs) np.specs = d.specs;
-        if (d.datasheet) np.datasheet = d.datasheet;
-        if (d.variants && d.variants.items && d.variants.items.length) np.variants = d.variants;
-        if (d.price && !np.price) np.price = d.price;
-      }
+      const it = { name: (d && d.name) || fallbackName, img: (d && d.img) || '', specs: (d && d.specs) || '', price: (d && d.price) || 0, url, offers: (r && !r.error && r.offers.length) || 0, vendor: '', delivery: 0, store: '', datasheet: (d && d.datasheet) || '', variants: (d && d.variants) || null };
       if (r && !r.error && r.offers.length) {
-        const o = r.offers[0]; // cheapest first
-        if (o.merchant && !np.vendor) np.vendor = o.merchant;
-        if (o.price) np.price = o.price;
-        if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
-        if (o.url && !np.store) np.store = o.url;
-        if (o.promo) np.promo = true;
+        const o = r.offers[0];
+        if (o.merchant) it.vendor = o.merchant;
+        if (o.price) it.price = o.price;
+        if (o.delivered > 0 && o.price) it.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+        if (o.url) it.store = o.url;
+        if (o.promo) it.promo = true;
       }
-      if (!np.name) { // fallback: prettified URL slug
-        try {
-          const slug = decodeURIComponent(url.split('?')[0].split('/').filter(Boolean).pop().replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim());
-          np.name = slug.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
-        } catch { /* ignore */ }
-      }
-      if (!np.name) { toast(lang === 'en' ? 'Could not read this page' : 'Lecture de la page impossible'); return; }
-      const s = state.slots[slotId];
-      if (!s) return;
-      const prevSelected = s.selectedId;
-      s.products.push(np);
-      if (!addOnly || !s.selectedId) s.selectedId = np.id;
-      if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected); // replace mode
-      persist(); compatCache = null; refresh(); renderPicker();
-      queueAlternativeData(slotId);
-      toast(lang === 'en' ? 'Component imported from Idealo' : 'Composant importé depuis Idealo');
+      if (!it.name) { toast(lang === 'en' ? 'Could not read this page' : 'Lecture de la page impossible'); return; }
+      $('#idealoUrl').value = '';
+      openPickerDetail(it);
+    } catch {
+      toast(lang === 'en' ? 'Could not read this link' : 'Lecture de ce lien impossible');
     } finally {
-      dsFetchEnd(np);
       btn.disabled = false;
       btn.innerHTML = orig;
     }
@@ -5305,6 +5402,7 @@ function bind() {
   $('#langBtn').onclick = () => { lang = lang === 'fr' ? 'en' : 'fr'; save(LS.prefs, { ...load(LS.prefs, {}), lang, theme: prefs.theme }); applyLang(); refresh(); };
   $('#installBtn').onclick = openInstall;
   $('#modalClose').onclick = closeModal;
+  $('#editorClose').onclick = closeEditorPanel;
   const aiPop = $('#aiPopup'), aiInput = $('#aiInput');
   const aiToggle = () => { if (aiPop) { aiPop.classList.toggle('hidden'); if (!aiPop.classList.contains('hidden') && aiInput) setTimeout(() => aiInput.focus(), 50); } };
   const aiSend = () => {
@@ -5331,6 +5429,8 @@ function bind() {
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (!$('#editorPanel').classList.contains('hidden')) { closeEditorPanel(); return; }
+    if (!$('#pickerDetail').classList.contains('hidden')) { closePickerDetail(); return; }
     closeModal();
     if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
   });
@@ -5340,13 +5440,15 @@ function bind() {
   $('#burgerClose').onclick = toggle;
   window.addEventListener('resize', () => {
     const mobile = isMobileView();
+    const editorOpen = !$('#editorPanel').classList.contains('hidden');
     updateMobileTotalBar();
     if (!mobile) {
-      document.body.classList.remove('summary-sheet-open', 'picker-sheet-open');
+      document.body.classList.remove('summary-sheet-open', 'picker-sheet-open', 'editor-sheet-open');
       $('#mobileScrim').classList.add('hidden');
-      if (activeSlot) { $('#pickerPanel').classList.remove('hidden'); $('#summaryPanel').classList.add('hidden'); }
-      else $('#summaryPanel').classList.remove('hidden');
-    } else if (activeSlot && !$('#pickerPanel').classList.contains('hidden') && !document.body.classList.contains('picker-sheet-open')) {
+      if (editorOpen) { $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.add('hidden'); }
+      else if (activeSlot) { $('#pickerPanel').classList.remove('hidden'); $('#summaryPanel').classList.add('hidden'); }
+      else { $('#summaryPanel').classList.remove('hidden'); }
+    } else if (!editorOpen && activeSlot && !$('#pickerPanel').classList.contains('hidden') && !document.body.classList.contains('picker-sheet-open')) {
       openPickerSheet();
     }
     updatePowerTotalsReveal();
