@@ -325,7 +325,7 @@ function updateMobileTotalBar() {
   const label = $('#mtLabel'), total = $('#mtTotal'), deliv = $('#mtDelivery');
   if (label) label.textContent = 'Total';
   if (total) total.textContent = eur(T.total - T.deliv);
-  if (deliv) deliv.textContent = `${eur(T.total)} ${lang === 'en' ? `(incl. ${eur(T.deliv)} delivery)` : `(dont ${eur(T.deliv)} de livraison)`}`;
+  if (deliv) deliv.textContent = lang === 'en' ? `(incl. delivery) ${eur(T.total)}` : `(avec livraison) ${eur(T.total)}`;
   if (!show) closeSummarySheet();
 }
 function showMobileScrim() {
@@ -351,6 +351,7 @@ function openSummarySheet() {
   document.body.classList.remove('picker-sheet-open');
   panel.classList.remove('hidden');
   panel.scrollTop = 0;
+  panel.classList.remove('power-revealed');
   $('#summaryBody').classList.remove('collapsed');
   showMobileScrim();
   void panel.offsetHeight;
@@ -1420,7 +1421,7 @@ function idealMore() {
   else if (!idealLoadingMore) loadIdealoList(null, 'more'); // ignore while a fetch is in flight
 }
 function renderIdealo() {
-  const host = $('#idealoList'); if (!host) return;
+  const host = $('#idealoResults'); if (!host) return;
   const st = $('#idealoStatus');
   const q = idealQ.trim().toLowerCase();
   let items = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q));
@@ -1589,6 +1590,7 @@ function openPicker(id, mode = 'replace') {
   }
   $('#pickerPanel').classList.remove('hidden');
   $('#pickerPanel').scrollTop = 0;
+  setPickerToolsOpen(false);
   $('#summaryPanel').classList.add('hidden');
   if (isMobileView()) openPickerSheet();
   else document.body.classList.remove('picker-sheet-open', 'summary-sheet-open');
@@ -1606,6 +1608,16 @@ function closePicker() {
   if (isMobileView()) closePickerSheet();
   else { $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.remove('hidden'); }
   renderSlots();
+}
+function setPickerToolsOpen(open) {
+  const panel = $('#pickerPanel');
+  if (!panel) return;
+  panel.classList.toggle('picker-tools-open', !!open);
+  const btn = $('#pickerToolsBtn');
+  if (btn) {
+    btn.classList.toggle('active', !!open);
+    btn.setAttribute('aria-expanded', String(!!open));
+  }
 }
 function renderPicker() {
   const s = state.slots[activeSlot]; if (!s) return;
@@ -2799,6 +2811,16 @@ function openDelivery(slotId) {
 }
 
 /* ---------- Summary ---------- */
+function updatePowerTotalsReveal() {
+  const panel = $('#summaryPanel'), pane = $('#sumPowerPane');
+  if (!panel) return;
+  if (!pane || pane.classList.contains('hidden') || !isMobileView()) {
+    panel.classList.remove('power-revealed');
+    return;
+  }
+  const nearBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 180;
+  panel.classList.toggle('power-revealed', nearBottom);
+}
 function switchSum(which) {
   sumTab = which;
   ['Desc', 'Charts', 'Power', 'Compat'].forEach(x => $('#sum' + x).classList.toggle('active', x.toLowerCase() === which));
@@ -2808,6 +2830,7 @@ function switchSum(which) {
   $('#sumCompatPane').classList.toggle('hidden', which !== 'compat');
   if (which !== 'desc') renderSumExtra();
   if (which === 'compat') renderCompat();
+  updatePowerTotalsReveal();
 }
 function renderSummary() {
   const T = totals();
@@ -3174,6 +3197,7 @@ function renderSumExtra() {
   ub.onclick = openUsageEditor;
   $('#sumPowerPane').appendChild(ub);
   refreshIcons();
+  updatePowerTotalsReveal();
 }
 
 /* ---------- Price history ---------- */
@@ -5157,6 +5181,7 @@ function bind() {
     if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
   };
   $('#sumClose').onclick = closeSummarySheet;
+  $('#summaryPanel').addEventListener('scroll', updatePowerTotalsReveal, { passive: true });
   $('#pickerClose').onclick = closePicker;
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
   const goIdealo = () => {
@@ -5191,6 +5216,8 @@ function bind() {
   $('#idealoMore').onclick = () => idealMore();
   const moreBtn = $('#pickerMoreBtn');
   if (moreBtn) moreBtn.onclick = () => { pickerMoreOpen = !pickerMoreOpen; renderPickerFilters(); };
+  const pickerToolsBtn = $('#pickerToolsBtn');
+  if (pickerToolsBtn) pickerToolsBtn.onclick = () => setPickerToolsOpen(!$('#pickerPanel').classList.contains('picker-tools-open'));
   const clearBtn = $('#pickerClearFilters');
   if (clearBtn) clearBtn.onclick = () => pickerClearFilters();
   const fpanel = $('#pickerFilters');
@@ -5314,6 +5341,7 @@ function bind() {
     } else if (activeSlot && !$('#pickerPanel').classList.contains('hidden') && !document.body.classList.contains('picker-sheet-open')) {
       openPickerSheet();
     }
+    updatePowerTotalsReveal();
     schedulePriceDraw();
   }, { passive: true });
   window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 10), { passive: true });

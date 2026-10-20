@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=121">
+<link rel="stylesheet" href="./assets/css/app.css?v=124">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -108,8 +108,9 @@
               <input id="idealoQuery" data-i18n-ph="picker.idealoPh" placeholder="Rechercher sur idealo.fr…">
               <button id="idealoClear" class="icon-btn mini-clear hidden" aria-label="Effacer"><i class="fa-solid fa-xmark"></i></button>
               <button id="idealoGo" class="mini-btn"><i class="fa-solid fa-arrow-right"></i></button>
+              <button id="pickerToolsBtn" class="icon-btn picker-tools-btn" aria-label="Filtres et tri" title="Filtres et tri" aria-controls="pickerToolsPanel" aria-expanded="false"><i class="fa-solid fa-filter"></i></button>
             </div>
-            <div class="tools-row">
+            <div class="tools-row" id="pickerToolsPanel">
               <div class="search-row grow mini">
                 <i class="fa-solid fa-filter"></i>
                 <input id="idealoFilter" data-i18n-ph="picker.filterPh" placeholder="Filtrer les résultats…">
@@ -120,19 +121,25 @@
                 <option value="desc" data-i18n="picker.sortDesc">Prix décroissant</option>
               </select>
             </div>
-            <div id="pickerQuick" class="picker-quick hidden" role="toolbar" aria-label="Filtres rapides"></div>
-            <div id="pickerMoreWrap" class="picker-morewrap hidden">
-              <button id="pickerMoreBtn" class="mini-btn picker-morebtn"><i class="fa-solid fa-sliders"></i> <span data-i18n="picker.moreFilters">Plus de filtres</span> <span id="pickerMoreCount" class="filter-badge hidden"></span></button>
-              <button id="pickerClearFilters" class="mini-btn picker-clearbtn hidden"><i class="fa-solid fa-eraser"></i> <span data-i18n="picker.clearFilters">Effacer les filtres</span></button>
+            <div class="picker-quickrow">
+              <div id="pickerQuick" class="picker-quick hidden" role="toolbar" aria-label="Filtres rapides"></div>
+              <div id="pickerMoreWrap" class="picker-morewrap hidden">
+                <button id="pickerMoreBtn" class="mini-btn picker-morebtn"><i class="fa-solid fa-sliders"></i> <span data-i18n="picker.moreFilters">Plus de filtres</span> <span id="pickerMoreCount" class="filter-badge hidden"></span></button>
+                <button id="pickerClearFilters" class="mini-btn picker-clearbtn hidden"><i class="fa-solid fa-eraser"></i> <span data-i18n="picker.clearFilters">Effacer les filtres</span></button>
+              </div>
             </div>
             <div id="pickerFilters" class="picker-filters hidden"></div>
             <div id="idealoStatus" class="hint"></div>
-            <div class="picker-links" id="idealoRetryWrap" style="display:none">
-              <button id="idealoRetry" class="btn btn-sm"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="picker.retry">Réessayer</span></button>
-              <button id="idealoOpenFallback" class="btn btn-sm"><i class="fa-solid fa-external-link"></i> idealo.fr</button>
+            <div id="idealoList" class="picker-list">
+              <div id="idealoResults" class="picker-results"></div>
+              <button id="idealoMore" class="add-row-btn hidden"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.more">Charger plus</span></button>
             </div>
-            <div id="idealoList" class="picker-list"></div>
-            <button id="idealoMore" class="add-row-btn hidden"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.more">Charger plus</span></button>
+        </div>
+        <div class="picker-foot">
+          <div class="picker-links" id="idealoRetryWrap" style="display:none">
+            <button id="idealoRetry" class="btn btn-sm"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="picker.retry">Réessayer</span></button>
+            <button id="idealoOpenFallback" class="btn btn-sm"><i class="fa-solid fa-external-link"></i> idealo.fr</button>
+          </div>
           <div class="picker-links">
             <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
           </div>
@@ -149,16 +156,18 @@
       </div>
       <!-- Summary -->
       <div id="summaryPanel" class="glass panel">
-        <div class="sum-head">
-          <div class="sum-id"><i class="fa-solid fa-computer"></i><strong id="sumConfigName">Ma Config</strong><span class="ver-chip" id="sumVersionChip">—</span></div>
-          <button id="sumSaveBtn" class="btn btn-sm btn-primary" title="Sauver" data-i18n-title="hero.save" aria-label="Sauver"><i class="fa-solid fa-floppy-disk"></i><span data-i18n="hero.save">Sauver</span></button>
-          <button id="sumClose" class="icon-btn sum-close" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="pill tabs small" role="tablist" aria-label="Résumés">
-          <button id="sumDesc" class="active"><i class="fa-solid fa-list"></i><span data-i18n="sum.desc">Description</span></button>
-          <button id="sumCharts"><i class="fa-solid fa-chart-pie"></i><span data-i18n="sum.charts">Graphiques</span></button>
-          <button id="sumPower"><i class="fa-solid fa-bolt"></i><span data-i18n="sum.power">Conso.</span></button>
-          <button id="sumCompat"><i class="fa-solid fa-shield-halved"></i><span data-i18n="sum.compat">Compat</span><span id="compatCount"></span></button>
+        <div class="sum-sticky">
+          <div class="sum-head">
+            <div class="sum-id"><i class="fa-solid fa-computer"></i><strong id="sumConfigName">Ma Config</strong><span class="ver-chip" id="sumVersionChip">—</span></div>
+            <button id="sumSaveBtn" class="btn btn-sm btn-primary" title="Sauver" data-i18n-title="hero.save" aria-label="Sauver"><i class="fa-solid fa-floppy-disk"></i><span data-i18n="hero.save">Sauver</span></button>
+            <button id="sumClose" class="icon-btn sum-close" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="pill tabs small" role="tablist" aria-label="Résumés">
+            <button id="sumDesc" class="active"><i class="fa-solid fa-list"></i><span data-i18n="sum.desc">Description</span></button>
+            <button id="sumCharts"><i class="fa-solid fa-chart-pie"></i><span data-i18n="sum.charts">Graphiques</span></button>
+            <button id="sumPower"><i class="fa-solid fa-bolt"></i><span data-i18n="sum.power">Conso.</span></button>
+            <button id="sumCompat"><i class="fa-solid fa-shield-halved"></i><span data-i18n="sum.compat">Compat</span><span id="compatCount"></span></button>
+          </div>
         </div>
         <button id="summaryFold" class="fold-btn"><i class="fa-solid fa-chevron-down"></i><span data-i18n="sum.fold">Résumé</span></button>
         <div id="summaryBody" class="summary-body">
@@ -280,7 +289,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=10"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=130"></script>
+<script src="./assets/js/app.js?v=133"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
