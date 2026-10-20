@@ -527,9 +527,9 @@ const Idealo = (() => {
     return { md, cached: false };
   }
 
-  async function list(url) {
+  async function list(url, force) {
     try {
-      const { md, cached } = await cachedMd(url);
+      const { md, cached } = await cachedMd(url, force);
       const p = parseMarkdown(md, url);
       return { items: p.items, next: p.next, cached };
     } catch (e) {

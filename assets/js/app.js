@@ -97,6 +97,7 @@ const I18N = {
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
     'picker.sortRel': 'Pertinence', 'picker.sortAsc': 'Prix croissant', 'picker.sortDesc': 'Prix décroissant',
     'picker.loading': 'Chargement des résultats Idealo…', 'picker.cached': 'liste en cache',
+    'picker.refresh': 'Rafraîchir la liste',
     'picker.err': 'Chargement impossible (limite de requêtes ou blocage). Réessayez dans une minute ou ouvrez sur idealo.fr.',
     'alts.see': 'Voir les alternatives',
     'picker.hint': "Listes Idealo chargées dans l'app : choisissez un produit pour pré-remplir sa fiche, ou collez l'URL /prix/ exacte. Listes en cache 6 h.",
@@ -153,6 +154,7 @@ const I18N = {
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
     'picker.sortRel': 'Relevance', 'picker.sortAsc': 'Price: low to high', 'picker.sortDesc': 'Price: high to low',
     'picker.loading': 'Loading Idealo results…', 'picker.cached': 'cached list',
+    'picker.refresh': 'Refresh list',
     'picker.err': 'Could not load the list (rate limit or block). Retry in a minute or open on idealo.fr.',
     'alts.see': 'See alternatives',
     'picker.hint': 'Idealo listings loaded in-app: pick a product to prefill its fiche, or paste the exact /prix/ URL. Lists cached 6h.',
@@ -1361,8 +1363,8 @@ function defaultCatUrl(key) {
 }
 const IDEAL_PAGE = 12;
 function idealKey(it) { return (it.url || it.img || ((it.name || '') + '|' + (it.price || 0))) + ''; }
-async function loadIdealoList(url, mode = 'fresh') {
-  // mode: 'fresh' (new base url) | 'more' (show more / fetch next sort variant)
+async function loadIdealoList(url, mode = 'fresh', force = false) {
+  // mode: 'fresh' (new base url) | 'more' (show more / fetch next sort variant); force bypasses cached listing
   const my = ++idealToken;
   if (mode === 'fresh') {
     idealBase = url; idealUrl = url;
@@ -1396,7 +1398,7 @@ async function loadIdealoList(url, mode = 'fresh') {
   }
   for (const v of need) {
     const u = v === 'rel' ? idealBase : Idealo.sortUrl(idealBase, v);
-    const r = await Idealo.list(u);
+    const r = await Idealo.list(u, force);
     if (my !== idealToken) return; // stale
     if (r.error) { idealErr = r.error; }
     else {
@@ -1422,7 +1424,7 @@ function idealMore() {
 }
 function renderIdealo() {
   const host = $('#idealoResults'); if (!host) return;
-  const st = $('#idealoStatus');
+  const st = $('#idealoStatusText');
   const q = idealQ.trim().toLowerCase();
   let items = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q));
   if (pickerPriceActive()) items = items.filter(it => !it.price || (it.price >= pickerPrice.from && it.price <= pickerPrice.to));
@@ -1443,6 +1445,11 @@ function renderIdealo() {
   } else {
     if (st) st.textContent = idealLoadingMore ? t('picker.loading') : `${currentCatLabel} · ${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
     if (idealLoadingMore) host.insertAdjacentHTML('beforeend', '<div class="skel"></div><div class="skel"></div>');
+  }
+  const rf = $('#idealoRefresh');
+  if (rf) {
+    rf.classList.toggle('hidden', !(idealCached && !idealBusy));
+    rf.disabled = idealBusy;
   }
   const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
   shown.forEach(it => {
@@ -5230,6 +5237,7 @@ function bind() {
   document.addEventListener('mouseout', e => { const b = e.target.closest && e.target.closest('.f-info'); if (b) hideFilterTip(); });
   document.addEventListener('click', e => { if (!e.target.closest || !e.target.closest('.f-info')) hideFilterTip(); });
   $('#idealoRetry').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh');
+  $('#idealoRefresh').onclick = () => loadIdealoList(idealBase || currentIdealoUrl, 'fresh', true);
   $('#idealoChoose').onclick = async () => {
     if (!activeSlot) return;
     const url = $('#idealoUrl').value.trim();

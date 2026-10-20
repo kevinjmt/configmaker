@@ -381,9 +381,10 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .chglist li.c-chg{color:var(--warning)}.chglist li.c-chg i{color:var(--warning)}
 .chglist li.c-meta{color:var(--muted)}.chglist li.c-meta i{color:var(--muted)}
 .chglist li span{min-width:0}
-.picker-list{display:flex;flex-direction:column;gap:10px;height:52vh;max-height:52vh;overflow:hidden}
-.picker-results{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
-.picker-list>.add-row-btn{flex:0 0 auto}
+.picker-list{display:flex;flex-direction:column;gap:10px;height:52vh;max-height:52vh;overflow-y:auto;overscroll-behavior:contain}
+.picker-results{display:flex;flex-direction:column;gap:10px}
+.picker-status{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.picker-circlebtn{width:30px;height:30px;padding:0!important;border-radius:50%;justify-content:center;flex:0 0 auto}
 .pick-card{display:flex;gap:12px;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--surface);align-items:center}
 .pick-card.current{border-color:var(--brand)}
 .pick-card img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:var(--bg-soft)}
@@ -411,7 +412,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .picker-morewrap{display:flex;gap:8px;align-items:center}
 .picker-morebtn{width:auto}
 .picker-morebtn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
-.picker-clearbtn{margin-left:auto;width:auto}
+.picker-clearbtn{margin-left:auto}
 .filter-badge{background:var(--brand);color:#fff;border-radius:999px;font-size:.68rem;font-weight:900;padding:1px 7px;margin-left:2px}
 .picker-morebtn.active .filter-badge{background:#fff;color:var(--ink)}
 /* hide the component result buttons while the filter panel is open */
@@ -503,12 +504,12 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .chart-card{flex:0 0 220px;border:none;border-radius:14px;padding:12px;background:var(--surface);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;position:sticky;top:8px;z-index:5}
 .chart-card h3{margin:0 0 6px 0;font-size:.85rem;flex:0 0 100%;text-align:center}
 .chart-card svg{flex:0 0 auto}
-#sumChartsPane{display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:62vh;padding-bottom:4px}
-#sumChartsPane .chart-card{flex:none;width:100%}
-#sumChartsPane .dsec.collapsed .chart-card,#sumChartsPane .dsec.collapsed .chart-list{display:none}
-#sumChartsPane .chart-list{display:flex;flex-direction:column;gap:2px;margin-top:8px}
-#sumChartsPane .chart-row .dot{flex:0 0 auto}
-#sumPowerPane .chart-card{position:static;top:auto;z-index:auto}
+#sumChartsPane,#sumPowerPane{display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:62vh;padding-bottom:4px}
+#sumChartsPane .chart-card,#sumPowerPane .chart-card{flex:none;width:100%}
+#sumChartsPane .dsec.collapsed .chart-card,#sumChartsPane .dsec.collapsed .chart-list,
+#sumPowerPane .dsec.collapsed .chart-card,#sumPowerPane .dsec.collapsed .chart-list{display:none}
+#sumChartsPane .chart-list,#sumPowerPane .chart-list{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+#sumChartsPane .chart-row .dot,#sumPowerPane .chart-row .dot{flex:0 0 auto}
 .chart-row.hl{background:rgba(26,135,68,.10);border-color:var(--brand)}
 .seg{display:flex;gap:6px;background:var(--bg-soft);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px;width:max-content;margin:10px 0}
 .seg button{border:none;background:transparent;padding:8px 14px;border-radius:var(--radius-pill);font-weight:800;color:var(--muted);cursor:pointer;font-size:.82rem}
@@ -979,8 +980,8 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   .pill-row::-webkit-scrollbar,.pill::-webkit-scrollbar,.pill.tabs.small::-webkit-scrollbar,.hero-block .pill-row.around>.pill::-webkit-scrollbar,.picker-quick::-webkit-scrollbar,.picker-morewrap::-webkit-scrollbar,.usage-tabs::-webkit-scrollbar,.seg::-webkit-scrollbar{display:none}
   .chart-card{position:static;flex:1 1 100%;width:100%;max-width:100%}
   .charts-row{flex-wrap:wrap;overflow:visible}
-  #sumChartsPane{max-height:none;overflow:visible;padding-bottom:0}
-  #sumChartsPane .chart-card{width:100%}
+  #sumChartsPane,#sumPowerPane{max-height:none;overflow:visible;padding-bottom:0}
+  #sumChartsPane .chart-card,#sumPowerPane .chart-card{width:100%}
   .modal:has(.wk){height:92dvh;max-height:92dvh}
   #modalBody:has(.wk){display:block;overflow:auto;padding:12px 12px 0;min-height:0;overscroll-behavior:contain}
   #modalBody:has(.wk) .usage-pane{display:block;min-height:0;flex:none;overflow:visible}
