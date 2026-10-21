@@ -1,11 +1,11 @@
-/* ConfigMaker v2.4 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.61 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.60';
+const APP_VERSION = '2.61';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -263,7 +263,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', dsClean: false, dsManual: false, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -469,6 +469,7 @@ let compatCache = null, compatLastGood = null, compatFold = {};
 const variantFetching = new Set();
 const idealoAttempted = new Set(); // product ids already enriched this session: render→fetch→render loops impossible
 const dsLoading = new Set(); // product ids with a datasheet fetch in flight
+const dsUpgradeAttempted = new Map(); // product id -> Idealo URL already requested this session
 let rsScheduled = false;
 function scheduleRenderSlots() { // deferred + deduped: never re-enters renderSlots synchronously
   if (rsScheduled) return;
@@ -480,9 +481,15 @@ function dsFetchEnd(p) { if (p && p.id && dsLoading.delete(p.id)) scheduleRender
 function ensureVariants(slotId) { // background: fiches with an Idealo URL missing variants/datasheet/image
   const s = state.slots[slotId], p = s && sel(s);
   if (!p || !p.idealo || typeof Idealo === 'undefined') return;
-  if (p.variants && p.datasheet && p.image && p.specs) return;
+  const needBasic = !p.variants || (!p.datasheet && !p.dsManual) || !p.image || !p.specs;
+  const needClean = !p.dsManual && (!p.datasheet || !p.dsClean);
+  if (!needBasic && !needClean) return;
   if (idealoAttempted.has(p.id) || variantFetching.has(p.idealo)) return;
   idealoAttempted.add(p.id);
+  /* The reader markdown is flat and lossy; upgrade to the exact HTML table in
+     the background (the raw text is already usable by the new parser). */
+  if (needClean) upgradeDatasheetFromIdealo(p);
+  if (!needBasic) return;
   variantFetching.add(p.idealo);
   dsFetchStart(p);
   Idealo.product(p.idealo).then(d => {
@@ -492,7 +499,11 @@ function ensureVariants(slotId) { // background: fiches with an Idealo URL missi
     const cur = s.products.find(x => x.id === p.id);
     if (!cur) return;
     let changed = false;
-    if (d.datasheet && !cur.datasheet) { cur.datasheet = d.datasheet; changed = true; }
+    if (d.datasheet && !cur.dsManual && !cur.datasheet) {
+      cur.datasheet = (typeof Compat !== 'undefined' && Compat.sanitizeDatasheet) ? Compat.sanitizeDatasheet(d.datasheet) : d.datasheet;
+      cur.dsClean = false;
+      changed = true;
+    }
     if (d.specs && !cur.specs) { cur.specs = d.specs; changed = true; }
     if (d.img && !cur.image) { cur.image = d.img; changed = true; }
     if (d.variants && d.variants.items && d.variants.items.length && !cur.variants) { cur.variants = d.variants; changed = true; }
@@ -545,7 +556,7 @@ async function ensureAlternativeData(slotId) {
         dsFetchEnd(cur);
         const c3 = s.products.find(x => x.id === cur.id);
         if (c3 && d && !d.error) {
-          if (d.datasheet) c3.datasheet = d.datasheet;
+          if (d.datasheet && !c3.dsManual) { c3.datasheet = (typeof Compat !== 'undefined' && Compat.sanitizeDatasheet) ? Compat.sanitizeDatasheet(d.datasheet) : d.datasheet; c3.dsClean = false; }
           if (d.specs && !c3.specs) c3.specs = d.specs;
           if (d.img && !c3.image) c3.image = d.img;
           if (d.variants && d.variants.items && d.variants.items.length && !c3.variants) c3.variants = d.variants;
@@ -923,7 +934,7 @@ async function selectVariant(slotId, url, cardPrice) {
       if (d.name) cur.name = d.name;
       if (d.img) cur.image = d.img;
       if (d.specs) cur.specs = d.specs;
-      if (d.datasheet) cur.datasheet = d.datasheet;
+      if (d.datasheet) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; cur.dsManual = false; }
       if (d.variants && d.variants.items && d.variants.items.length) cur.variants = d.variants;
     }
     cur.idealo = url;
@@ -937,6 +948,8 @@ async function selectVariant(slotId, url, cardPrice) {
     } else if (cardPrice > 0) cur.price = cardPrice;
     cur.verified = [];
     persist(); compatCache = null; refresh();
+    dsUpgradeAttempted.delete(cur.id);
+    if (cur.datasheet) upgradeDatasheetFromIdealo(cur).catch(() => false);
     toast(lang === 'en' ? 'Variant loaded — prices and compatibility updated' : 'Variante chargée — prix et compatibilité actualisés');
     queueAlternativeData(slotId);
   } catch {
@@ -970,7 +983,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
       if (d.name) cur.name = d.name;
       if (d.img && !cur.image) cur.image = d.img;
       if (d.specs) cur.specs = d.specs;
-      if (d.datasheet) cur.datasheet = d.datasheet;
+      if (d.datasheet) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; cur.dsManual = false; }
       if (d.variants && d.variants.items && d.variants.items.length) cur.variants = d.variants;
       if (d.price && !cur.price) cur.price = d.price;
     }
@@ -983,6 +996,8 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
       if (o.promo) cur.promo = true;
     }
     persist(); compatCache = null; refresh();
+    dsUpgradeAttempted.delete(cur.id);
+    if (cur.datasheet) upgradeDatasheetFromIdealo(cur).catch(() => false);
   } catch { /* keep card-level fiche */ } finally { variantLoading = null; dsFetchEnd(np); }
   queueAlternativeData(slotId);
 }
@@ -1590,14 +1605,16 @@ function cpuSocketToken(md) {
 async function ensureDatasheet(p) {
   if (!p) return '';
   if (p.datasheet) return p.datasheet;
+  if (p.dsManual) return ''; // a deliberately empty manual fiche must not auto-fetch
   if (!p.idealo || typeof Idealo === 'undefined') return '';
   try {
     if (dsLoading.has(p.id)) {
       for (let i = 0; i < 60 && dsLoading.has(p.id); i++) await new Promise(r => setTimeout(r, 250));
       if (p.datasheet) return p.datasheet;
+      if (p.dsManual) return '';
     }
     const d = await Idealo.product(p.idealo);
-    if (d && !d.error && d.datasheet) { p.datasheet = d.datasheet; persist(); compatCache = null; return p.datasheet; }
+    if (d && !d.error && d.datasheet && !p.dsManual) { p.datasheet = sanitizeDs(d.datasheet); p.dsClean = false; persist(); compatCache = null; return p.datasheet; }
   } catch { /* ignore */ }
   return '';
 }
@@ -1804,7 +1821,9 @@ function pickerItemProduct(it) {
   np.store = it.store || '';
   np.promo = !!it.promo;
   np.isBest = !!it.isBest;
-  if (it.datasheet) np.datasheet = it.datasheet;
+  np.dsClean = !!it.dsClean;
+  np.dsManual = !!it.dsManual;
+  if (it.datasheet) np.datasheet = sanitizeDs(it.datasheet);
   if (it.variants && it.variants.items && it.variants.items.length) np.variants = it.variants;
   return np;
 }
@@ -1832,19 +1851,98 @@ function pdDatasheetRows(it) {
   if (!it || !it.datasheet || typeof Compat === 'undefined' || !Compat.datasheetRows) return [];
   try { return Compat.datasheetRows(it.datasheet); } catch { return []; }
 }
+/* Number of usable lines: used to decide whether a clean HTML table is better
+   than the raw reader text, without ever replacing a hand-edited fiche. */
+function dsRowCount(text) {
+  if (!text || typeof Compat === 'undefined' || !Compat.datasheetRows) return 0;
+  try { return Compat.datasheetRows(text).length; } catch { return 0; }
+}
 function pdUrlKey(url) { return normTxt(url || '').replace(/\/+$/, '').trim(); }
-function pdSyncDatasheetToState(url, ds) {
+function sanitizeDs(text) {
+  if (typeof Compat !== 'undefined' && Compat.sanitizeDatasheet) return Compat.sanitizeDatasheet(text);
+  return String(text || '').replace(/\r\n?/g, '\n').trim().slice(0, 30000);
+}
+function pdSyncDatasheetToState(url, ds, opts = {}) {
   const key = pdUrlKey(url);
-  if (!key || !ds) return;
+  const clean = sanitizeDs(ds);
+  if (!key || !clean) return false;
   let changed = false;
   for (const sid of state.order) {
     const s = state.slots[sid];
     if (!s) continue;
     (s.products || []).forEach(p => {
-      if (!p.datasheet && pdUrlKey(p.idealo) === key) { p.datasheet = ds; changed = true; }
+      if (p.dsManual || pdUrlKey(p.idealo) !== key) return;
+      /* Never downgrade an exact HTML datasheet with the raw reader text. */
+      if (p.dsClean && !opts.force) return;
+      const cur = p.datasheet || '';
+      const better = opts.force || !cur || dsRowCount(clean) > dsRowCount(cur);
+      if (!better) return;
+      if (cur === clean) {
+        if (opts.clean && !p.dsClean) { p.dsClean = true; changed = true; }
+        return;
+      }
+      p.datasheet = clean;
+      if (opts.clean) p.dsClean = true;
+      changed = true;
     });
   }
   if (changed) { persist(); compatCache = null; }
+  return changed;
+}
+/* Automatically upgrade a product's raw reader datasheet to Idealo's exact
+   HTML table. Silent/background: the flat text is already parsed meanwhile. */
+async function upgradeDatasheetFromIdealo(p) {
+  if (!p || !p.id || p.dsManual || !p.idealo || typeof Idealo === 'undefined' || !Idealo.details) return false;
+  if (dsUpgradeAttempted.has(p.id)) return false;
+  const key = pdUrlKey(p.idealo);
+  dsUpgradeAttempted.set(p.id, key);
+  let det = null;
+  try { det = await Idealo.details(p.idealo); } catch { return false; }
+  if (pdUrlKey(p.idealo) !== key) {
+    if (dsUpgradeAttempted.get(p.id) === key) dsUpgradeAttempted.delete(p.id);
+    return false;
+  }
+  if (!det || det.error) return false;
+  const ds = datasheetTextFromDetails(det);
+  if (!ds) return false;
+  const clean = sanitizeDs(ds);
+  if (!clean) return false;
+  let changed = false;
+  /* New fiches are not in state yet: update the object passed to the editor. */
+  if (!p.dsManual) {
+    if (p.datasheet !== clean) { p.datasheet = clean; changed = true; }
+    if (!p.dsClean) { p.dsClean = true; changed = true; }
+  }
+  for (const sid of state.order) {
+    const s = state.slots[sid];
+    if (!s) continue;
+    (s.products || []).forEach(cur => {
+      if (!cur || cur.dsManual) return;
+      if (cur.id !== p.id && pdUrlKey(cur.idealo) !== key) return;
+      if (cur.dsClean && cur.datasheet === clean) return;
+      /* The HTML table is authoritative for labels/values; replace raw text
+         even when the line count is close. */
+      if (cur.datasheet !== clean) {
+        cur.datasheet = clean;
+        changed = true;
+      }
+      if (!cur.dsClean) { cur.dsClean = true; changed = true; }
+    });
+  }
+  if (changed) {
+    compatCache = null;
+    persist();
+    refresh();
+  }
+  /* The fiche editor may have been opened while the fetch was in flight. */
+  if (editingPid === p.id) {
+    const el = $('#f_ds');
+    if (el && !el.value.trim() && p.datasheet) {
+      el.value = sanitizeDs(p.datasheet);
+      el.dispatchEvent(new Event('input'));
+    }
+  }
+  return changed;
 }
 function pdQuickParts(it, detail) {
   if (detail) {
@@ -1897,9 +1995,14 @@ function pdOffersMask(st) {
 function pdDatasheetMask(st) {
   const it = st.item;
   const storedRows = pdDatasheetRows(it);
-  const secs = storedRows.length
-    ? [{ title: '', rows: storedRows.map(r => [r.label, r.value]) }]
-    : ((st.details && st.details.sections) || []);
+  const detailSecs = (st.details && st.details.sections) || [];
+  const detailCount = detailSecs.reduce((n, g) => n + ((g.rows && g.rows.length) || 0), 0);
+  /* The exact HTML table (with its group headings) wins over the flat reader
+     text, unless the user edited the fiche by hand. */
+  const useDetails = detailCount > 0 && !it.dsManual;
+  const secs = useDetails
+    ? detailSecs
+    : (storedRows.length ? [{ title: '', rows: storedRows.map(r => [r.label, r.value]) }] : (it.dsManual ? [] : detailSecs));
   if (st.loading && !secs.length) {
     return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement de la fiche technique et des offres…', 'Loading datasheet and offers…')}</span></div>
@@ -1909,23 +2012,19 @@ function pdDatasheetMask(st) {
     if (st.error) {
       return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
         <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error)}</span></div>
-        <button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></section>`;
+        ${st.item.url && !it.dsManual ? `<button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button>` : ''}</section>`;
     }
-    const parts = pdQuickParts(it, st.details);
-    const rows = (parts.length ? parts : [it.name || '', it.vendor || '', it.price ? eur(it.price) : '']).map((v, i) => `<div class="pd-fake-row"><span>${esc([pdTxt('Type de produit', 'Product type'), pdTxt('Processeur', 'Processor'), pdTxt('Mémoire', 'Memory'), pdTxt('Stockage', 'Storage')][i] || pdTxt('Caractéristique', 'Feature'))}</span><span>${esc(v || '—')}</span></div>`).join('');
-    return `<section class="pd-sec pd-ds pd-ds-locked" aria-label="${pdTxt('Fiche technique à charger', 'Datasheet to load')}">
-      <div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
-      <div class="pd-ds-teaser"><div class="pd-ds-fake" aria-hidden="true">${rows || '<div class="pd-fake-row"><span>Type de produit</span><span>—</span></div>'}</div>
-      <button class="btn btn-primary pd-ds-loadbtn" data-pd-act="load"><i class="fa-solid fa-cloud-arrow-down"></i> ${pdTxt('Charger toute la fiche technique', 'Load the full datasheet')}</button></div>
-      <p class="hint pd-ds-hint">${pdTxt('La fiche complète et les offres marchands seront chargées depuis Idealo.', 'The full datasheet and merchant offers will be loaded from Idealo.')}</p></section>`;
+    return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+      <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement automatique de la fiche technique…', 'Loading datasheet automatically…')}</span></div>
+      <div class="pd-ds-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section>`;
   }
   if (!secs.length) {
     return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
-      <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error || pdTxt('Aucune fiche technique disponible.', 'No datasheet available.'))}</span></div>
-      <button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></section>`;
+      <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error || (it.dsManual ? pdTxt('Fiche enregistrée vide.', 'Saved datasheet is empty.') : pdTxt('Aucune fiche technique disponible.', 'No datasheet available.')))}</span></div>
+      ${st.item.url && !it.dsManual ? `<button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button>` : ''}</section>`;
   }
   const groups = secs.map(g => `<div class="pd-ds-group">${g.title ? `<div class="pd-ds-group-title">${esc(g.title)}</div>` : ''}<table class="pd-ds-table"><tbody>${g.rows.map(r => `<tr><th scope="row">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table></div>`).join('');
-  const origin = storedRows.length ? pdTxt('enregistrée', 'stored') : (st.details && st.details.cached ? pdTxt('en cache', 'cached') : '');
+  const origin = !useDetails && storedRows.length ? pdTxt('enregistrée', 'stored') : (st.details && st.details.cached ? pdTxt('en cache', 'cached') : 'Idealo');
   return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span>${origin ? `<span class="pd-from">${origin}</span>` : ''}</div><div class="pd-ds-scroll">${groups}</div></section>`;
 }
 function renderPickerDetail(resetScroll) {
@@ -2016,8 +2115,14 @@ function openPickerDetail(it, opts = {}) {
   requestAnimationFrame(fitPickerDetail);
   setTimeout(fitPickerDetail, 80);
   $('#pickerDetailBack').focus?.();
-  if (!pdState.productLoaded && pdState.item.url && typeof Idealo !== 'undefined') loadPickerProduct(pdState);
-  if (opts.autoLoad) loadPickerDetailData();
+  /* Fiches are filled automatically: no manual "load datasheet" action. */
+  if (typeof Idealo !== 'undefined') {
+    if (pdState.item.url && !pdState.productLoaded) loadPickerProduct(pdState);
+    loadPickerDetailData();
+  } else {
+    pdState.error = pdTxt('Fiche indisponible pour le moment.', 'Datasheet unavailable right now.');
+    renderPickerDetail(false);
+  }
 }
 function closePickerDetail() {
   pdSeq++;
@@ -2036,7 +2141,10 @@ function applyDetailProduct(st, d) {
   if (d.specs) it.specs = d.specs;
   if (d.summary) it.summary = d.summary;
   if (d.images && d.images.length) it.images = d.images;
-  if (d.datasheet && !it.datasheet) it.datasheet = d.datasheet;
+  if (d.datasheet && !it.dsManual && (!it.datasheet || !it.dsClean)) {
+    /* Raw product text is only a fallback; the exact HTML table is preferred. */
+    if (!it.datasheet) { it.datasheet = sanitizeDs(d.datasheet); it.dsClean = false; }
+  }
   if (d.variants && d.variants.items && d.variants.items.length) it.variants = d.variants;
   if (!it.price && d.price) it.price = d.price;
   if (!it.offers && d.offers) it.offers = d.offers;
@@ -2049,7 +2157,7 @@ async function loadPickerProduct(st) {
     const d = await Idealo.product(url);
     if (!pdState || pdState !== st || seq !== pdSeq || st.item.url !== url) return;
     applyDetailProduct(st, d);
-    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet);
+    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet, { clean: !!st.item.dsClean, force: !!st.item.dsClean });
     renderPickerDetail(false);
   } catch { /* keep the listing data */ }
 }
@@ -2085,11 +2193,14 @@ async function loadPickerDetailData() {
       if (det.images && det.images.length) st.item.images = det.images;
       if (det.summary) st.item.summary = det.summary;
       const ds = datasheetTextFromDetails(det);
-      if (ds && !st.item.datasheet) st.item.datasheet = ds;
+      if (ds && !st.item.dsManual && (!st.item.datasheet || !st.item.dsClean || dsRowCount(ds) >= dsRowCount(st.item.datasheet))) {
+        st.item.datasheet = sanitizeDs(ds);
+        st.item.dsClean = true;
+      }
     } else {
       st.error = (det && det.error) ? det.error : pdTxt('Fiche indisponible pour le moment.', 'Datasheet unavailable right now.');
     }
-    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet);
+    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet, { clean: !!st.item.dsClean, force: !!st.item.dsClean });
   } catch (e) {
     if (pdState === st && seq === pdSeq) st.error = String((e && e.message) || e);
   } finally {
@@ -2190,7 +2301,7 @@ function enrichPickerItem(it, np, slotId) {
     if (!d || d.error || editingPid === np.id) return;
     const cur = current(); if (!cur) return;
     if (d.specs && same(cur, 'specs')) cur.specs = d.specs;
-    if (d.datasheet && !cur.datasheet) cur.datasheet = d.datasheet;
+    if (d.datasheet && !cur.dsManual && (!cur.datasheet || !cur.dsClean)) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; }
     if (d.variants && d.variants.items && d.variants.items.length && !cur.variants) cur.variants = d.variants;
     if (d.price && !cur.price) cur.price = d.price;
     if (d.img && same(cur, 'image')) cur.image = d.img;
@@ -2207,7 +2318,9 @@ function enrichPickerItem(it, np, slotId) {
     if (o.promo) cur.promo = true;
     if (o.price) cur.isBest = o.price <= (it.price || o.price);
   }).catch(() => {});
-  Promise.allSettled([productFetch, offersFetch]).then(() => {
+  /* Load the exact datasheet in the background at the same time. */
+  const dsUpgrade = upgradeDatasheetFromIdealo(np).catch(() => false);
+  Promise.allSettled([productFetch, offersFetch, dsUpgrade]).then(() => {
     dsFetchEnd(np);
     if (editingPid === np.id || !current()) return;
     persist(); compatCache = null; refresh();
@@ -2221,6 +2334,11 @@ function commitPickerItem(it) {
   const addOnly = pickerMode === 'add';
   const prevSelected = s.selectedId;
   const np = pickerItemProduct(it);
+  /* The detail panel usually has the exact HTML table already: keep it. */
+  if (pdState && pdState.details && pdState.item === it && !pdState.item.dsManual) {
+    const ds = datasheetTextFromDetails(pdState.details);
+    if (ds) { np.datasheet = sanitizeDs(ds); np.dsClean = true; }
+  }
   s.products.push(np);
   if (!addOnly || !s.selectedId) s.selectedId = np.id;
   if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected);
@@ -3466,7 +3584,7 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld"><label>${lang === 'en' ? 'Power (W, PC parts)' : 'Puissance (W, pièces PC)'}</label><input id="f_w" type="number" min="0" step="1" value="${p.watts ?? d.w ?? 0}"></div>
       <div class="fld"><label>${lang === 'en' ? 'PSU/UPS capacity (W, 0=auto)' : 'Puissance alim/onduleur (W, 0=auto)'}</label><input id="f_capW" type="number" min="0" step="1" value="${p.capW || ''}" placeholder="750"><div class="hint" id="f_capHint"></div></div>
       <div class="fld full"><label>${lang === 'en' ? 'Quick specs (one per line — paste from Idealo top)' : 'Specs rapides (une par ligne — copiées du haut de la fiche Idealo)'}</label><textarea id="f_specs" rows="3" placeholder="8 cœurs / 16 threads&#10;5,0 GHz boost, AM5">${esc(p.specs)}</textarea></div>
-      <div class="fld full"><label>${lang === 'en' ? 'Datasheet (one feature per line: Label: Value)' : 'Fiche technique (une caractéristique par ligne : Libellé: Valeur)'}</label><textarea id="f_ds" class="ds-editor" rows="9" maxlength="30000" spellcheck="false" placeholder="Socket: AM5&#10;Nombre de cœurs: 8&#10;Nombre de threads: 16&#10;TDP: 120 W">${esc(String(p.datasheet || '').slice(0, 30000))}</textarea><div class="hint" id="f_dsHint"></div></div>
+      <div class="fld full"><label>${lang === 'en' ? 'Datasheet (one feature per line: Label: Value)' : 'Fiche technique (une caractéristique par ligne : Libellé: Valeur)'}</label><textarea id="f_ds" class="ds-editor" rows="9" maxlength="30000" spellcheck="false" placeholder="Socket: AM5&#10;Nombre de cœurs: 8&#10;Nombre de threads: 16&#10;TDP: 120 W">${esc(sanitizeDs(p.datasheet))}</textarea><div class="hint" id="f_dsHint"></div><div class="ds-preview" id="f_dsPrev" aria-live="polite"></div></div>
       <div class="fld full"><label>URL Idealo</label><input id="f_idealo" value="${esc(p.idealo)}" placeholder="https://www.idealo.fr/…"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Manual URL' : 'URL du manuel'} <button type="button" class="mini-btn" id="f_manualOpen" title="${lang === 'en' ? 'Open manual in new tab' : 'Ouvrir le manuel dans un nouvel onglet'}" ${p.manual ? '' : 'disabled'}><i class="fa-solid fa-arrow-up-right-from-square"></i></button></label><input id="f_manual" value="${esc(p.manual)}" placeholder="https://…pdf"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Store URL (offer link)' : 'URL boutique (lien de l’offre)'}</label><input id="f_store" value="${esc(p.store)}" placeholder="https://…"></div>
@@ -3474,6 +3592,7 @@ function openProductForm(slotId, p, opts = {}) {
     <div class="btn-row"><button class="btn btn-primary" id="f_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save fiche' : 'Enregistrer'}</button>
     ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
   const dsEl = $('#f_ds'), dsHint = $('#f_dsHint');
+  let openedDs = sanitizeDs(p.datasheet);
   const dsStats = () => {
     if (!dsEl || !dsHint) return;
     const txt = dsEl.value;
@@ -3490,9 +3609,41 @@ function openProductForm(slotId, p, opts = {}) {
         : (filled ? 'Aucune ligne reconnue — utilisez Libellé: Valeur (ou un tableau | Libellé | Valeur |).' : 'Aucune fiche technique enregistrée.');
     }
     dsHint.classList.toggle('is-warn', filled > 0 && !rows.length);
+    const prev = $('#f_dsPrev');
+    if (prev) {
+      const shown = rows.slice(0, 28);
+      prev.innerHTML = shown.length
+        ? `<table><tbody>${shown.map(r => `<tr><th scope="row">${esc(r.label)}</th><td>${esc(r.value)}</td></tr>`).join('')}</tbody></table>`
+          + (rows.length > shown.length ? `<div class="ds-more">${rows.length - shown.length} ${lang === 'en' ? 'more lines…' : 'lignes supplémentaires…'}</div>` : '')
+        : '';
+    }
   };
   if (dsEl) dsEl.addEventListener('input', dsStats);
   dsStats();
+  /* Existing or new fiche with an Idealo link: fill the datasheet silently. */
+  if (!String(p.datasheet || '').trim() && p.idealo && !p.dsManual) {
+    if (dsHint) dsHint.textContent = lang === 'en' ? 'Loading datasheet automatically…' : 'Chargement automatique de la fiche technique…';
+    const pid = p.id;
+    upgradeDatasheetFromIdealo(p).catch(() => false).then(() => {
+      const cur = state.slots[slotId] && state.slots[slotId].products.find(x => x.id === pid);
+      const txt = sanitizeDs((cur && cur.datasheet) || p.datasheet || '');
+      if (txt) return txt;
+      /* Exact HTML table unavailable: fall back to the raw reader text. */
+      return ensureDatasheet(p).then(raw => sanitizeDs(raw || ''));
+    }).then(txt => {
+      if (editingPid !== pid) return;
+      const cur = state.slots[slotId] && state.slots[slotId].products.find(x => x.id === pid);
+      const finalTxt = txt || sanitizeDs((cur && cur.datasheet) || p.datasheet || '');
+      if (finalTxt && dsEl && !dsEl.value.trim()) {
+        dsEl.value = finalTxt;
+        /* This fill is automatic, not a manual edit: don't mark dsManual. */
+        openedDs = finalTxt;
+        dsEl.dispatchEvent(new Event('input'));
+      } else if (!finalTxt) {
+        dsStats();
+      }
+    }).catch(() => {});
+  }
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   $('#f_manualOpen').onclick = () => { const u = $('#f_manual').value.trim(); if (u) window.open(u, '_blank', 'noopener'); };
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
@@ -3511,12 +3662,29 @@ function openProductForm(slotId, p, opts = {}) {
     p.price = parseFloat(v('#f_price')) || 0; p.oldPrice = parseFloat(v('#f_old')) || 0;
     p.delivery = parseFloat(v('#f_del')) || 0; p.qty = parseInt(v('#f_qty')) || 1;
     p.watts = parseFloat(v('#f_w')) || 0; p.specs = $('#f_specs').value.trim();
-    const nextDs = ($('#f_ds') ? $('#f_ds').value : String(p.datasheet || '')).trim().slice(0, 30000);
-    const dsChanged = nextDs !== String(p.datasheet || '').trim();
-    p.datasheet = nextDs;
-    if (dsChanged) p.verified = [];
+    const typedDs = sanitizeDs($('#f_ds') ? $('#f_ds').value : String(p.datasheet || ''));
+    const beforeDs = sanitizeDs(p.datasheet);
+    /* Background enrichment may clean the stored fiche while the editor is
+       open: keep that upgrade unless the user actually typed something. */
+    const dsChanged = typedDs !== openedDs && typedDs !== beforeDs;
+    if (dsChanged) {
+      p.datasheet = typedDs;
+      p.dsManual = true;
+      p.dsClean = false;
+      p.verified = [];
+    } else {
+      p.datasheet = beforeDs || typedDs;
+    }
     p.capW = parseFloat(v('#f_capW')) || 0;
+    const prevIdealo = p.idealo;
     p.idealo = v('#f_idealo'); p.manual = v('#f_manual'); p.store = v('#f_store');
+    /* A new Idealo URL needs a fresh background lookup, even if the old
+       datasheet had already been marked as clean. */
+    if (pdUrlKey(prevIdealo) !== pdUrlKey(p.idealo)) {
+      idealoAttempted.delete(p.id);
+      dsUpgradeAttempted.delete(p.id);
+      if (!p.dsManual) p.dsClean = false;
+    }
     compatCache = null;
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
@@ -4762,7 +4930,11 @@ function cmpCell(html, val, num, eps, opts = {}) {
   return out;
 }
 function cmpSame(a, b) {
-  if (a && b && a.num != null && b.num != null) return Math.abs(a.num - b.num) <= Math.max(a.eps || 0, b.eps || 0, 0.001);
+  if (a && b && a.num != null && b.num != null) {
+    /* Datasheets (eps=0) must not hide a unit change: 5 cm ≠ 5 m. */
+    if (!a.eps && !b.eps && cmpMetricUnit(a.val) !== cmpMetricUnit(b.val)) return false;
+    return Math.abs(a.num - b.num) <= Math.max(a.eps || 0, b.eps || 0, 0.001);
+  }
   return String((a && a.val) || '') === String((b && b.val) || '');
 }
 function cmpStatusRank(st) {
@@ -4859,7 +5031,24 @@ function cmpColumnHead(c, full) {
   </th>`;
 }
 function cmpDsLabelKey(label) {
-  return normTxt(label || '').replace(/[\s.:]+$/, '').replace(/\s+/g, ' ').trim();
+  let k = normTxt(label || '').replace(/[’‘]/g, "'").replace(/\u00a0/g, ' ').replace(/[\s.:]+$/, '').replace(/\s+/g, ' ').trim();
+  const aliases = [
+    [/^nombre de c(?:œ|oe)urs(?: (?:de|du) processeur)?$/, 'nombre de coeurs'],
+    [/^nombre de threads(?: (?:de|du) processeur)?$/, 'nombre de threads'],
+    [/^nombre de fils(?: (?:de|du) processeur)?$/, 'nombre de threads'],
+    [/^(?:processeur graphique|graphics processor)$/, 'carte graphique'],
+    [/^(?:type|modele|nom) (?:de |du )?processeur$/, 'processeur'],
+    [/^facteur de forme$/, 'format'],
+    [/^sorties? video$/, 'sorties video'],
+    [/^connecteurs? (?:sur )?facade avant$/, 'connecteurs facade avant'],
+    [/^interface(?: de connexion)?$/, 'interface'],
+    [/^longueur(?: maximale)?(?: de la carte graphique)?$/, 'longueur'],
+    [/^capacite(?: de)? memoire$/, 'capacite memoire'],
+    [/^memoire video$/, 'memoire video'],
+    [/^socket(?: du processeur)?$/, 'socket'],
+  ];
+  for (const [re, out] of aliases) if (re.test(k)) return out;
+  return k;
 }
 function cmpMetricValue(value) {
   const s = String(value == null ? '' : value).replace(/\u00a0/g, ' ').trim();
@@ -4868,23 +5057,28 @@ function cmpMetricValue(value) {
   return m ? parseFloat(m[0].replace(',', '.')) : null;
 }
 function cmpMetricUnit(value) {
-  const m = String(value == null ? '' : value).match(/\b(ghz|mhz|gbps|mbps|gb\/s|mb\/s|tb|to|gb|go|mb|mo|kw|w|mm|cm|kg|g|%|rpm|hz|fps|db|v|a)\b/i);
+  /* Allow no space before the unit ("16Go", "5cm") while still requiring a
+     non-letter before it (so "gaming" does not look like grams). */
+  const m = String(value == null ? '' : value).match(/(?:^|[^a-z])(ghz|mhz|gbps|mbps|gb\/s|mb\/s|tb|to|gb|go|mb|mo|kw|w|mm|cm|kg|g|%|rpm|hz|fps|db|v|a|m)\b/i);
   return m ? m[1].toLowerCase() : '';
 }
 function cmpDsDirection(label) {
   const l = normTxt(label || '');
-  return /(consommation|consumption|power draw|puissance (?:absorb|electr|max)|tdp|tbp|bruit|noise|latence|latency|poids|weight|epaisseur|thickness|prix|price|delai|delay|temps de reponse|response time|input lag)/.test(l) ? 'low' : 'high';
+  return /(consommation|consumption|power draw|puissance|tdp|tbp|bruit|noise|niveau sonore|latence|latency|poids|weight|epaisseur|thickness|prix|price|delai|delay|temps de reponse|response time|input lag)/.test(l) ? 'low' : 'high';
 }
 function cmpDsRankable(label) {
   const l = normTxt(label || '');
-  if (/(prix|price|cout|cost|tarif)/.test(l)) return false;
-  return !/(dimension|longueur|largeur|hauteur|profondeur|length|width|height|depth|size|format|facteur de forme|diametre|diameter)/.test(l);
+  /* Identifiers, dimensions and categorical values are shown but never ranked:
+     a higher model number, socket or format has no "better" direction. */
+  if (/(prix|price|cout|cost|tarif|note|avis|rating|score global)/.test(l)) return false;
+  if (/^(processeur|processor|famille de processeur|carte graphique|graphics|gpu|chipset|modele|model|reference|fabricant|manufacturer|marque|brand|serie|series|type de produit|product type|type de (?:disque|memoire|ram|processeur|graphique|carte)|modele de processeur|nom du processeur|socket|support|interface|protocole|version|format|facteur de forme|puissance|dimension|taille|epaisseur|resolution|diagonale|ratio|aspect ratio|longueur|largeur|hauteur|profondeur|length|width|height|depth|size|diametre|diameter|connectique|connecteur|port|sortie|dalle|panel|couleur|color|garantie|warranty|alimentation|power supply|systeme|system|compatibilite|compatibility|disque optique|optical drive|boitier|case|courbure|curvature|tension|voltage|quantite|quantity|ventilateur|ventilateurs|refroidissement|cooling|controleur|controller|architecture|nombre de (?:barrettes|modules|ports|connecteurs|disques durs))\b/.test(l)) return false;
+  return !/(dimension|longueur|largeur|hauteur|profondeur|length|width|height|depth|diametre|diameter|facteur de forme|connectique|nombre de (?:barrettes|modules|ports|connecteurs))/.test(l);
 }
 function cmpDsCell(value, rankable) {
   const txt = String(value == null ? '' : value).trim();
   if (!txt) return cmpNoneCell('—');
   const n = rankable ? cmpMetricValue(txt) : null;
-  return cmpCell(`<span class="cmp-val">${esc(txt)}</span>`, txt, n, 0, { rankVal: n, rankable });
+  return cmpCell(`<span class="cmp-val">${esc(txt)}</span>`, normTxt(txt).replace(/\s+/g, ' ').trim(), n, 0, { rankVal: n, rankable });
 }
 function cmpDsRows(label, prods) {
   const parsed = prods.map(p => {
@@ -4904,7 +5098,10 @@ function cmpDsRows(label, prods) {
     const values = matches.map(v => v.join(' · '));
     if (!values.some(Boolean)) return;
     const units = [...new Set(values.map(cmpMetricUnit).filter(Boolean))];
-    const compound = matches.some(v => v.length > 1);
+    /* Composite/range values ("8 / 16", "2 x HDMI", "4,2-5,0 GHz") are shown
+       but never ranked: a single best number would be meaningless. */
+    const multiValue = v => /\d[^0-9,.]*[/+·;x×]\s*\d/i.test(v) || /\d\s*[-–—]\s*\d/.test(v);
+    const compound = matches.some(v => v.length > 1) || values.some(v => v.includes(' · ') || multiValue(v));
     const rankable = !compound && cmpDsRankable(item.label) && units.length <= 1;
     out.push({ label: item.label, cells: values.map(v => cmpDsCell(v, rankable)), detail: true, dir: cmpDsDirection(item.label) });
   });
@@ -4967,9 +5164,11 @@ function cmpSpecRows(data) {
         return cmpCell(`<div class="cmp-product"><div class="cmp-pname">${esc(p.name || '—')}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>${swap}`, (p.name || '') + '|' + price.toFixed(2), null, 0);
       });
       const hasAny = prods.some(Boolean);
-      const open = !!cmpState.openSpecs[id];
-      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: hasAny ? id : null, expandOpen: open });
-      if (hasAny && open) cmpDsRows(label, prods).forEach(r => rows.push(r));
+      /* Only show the chevron when there is something to expand. */
+      const canExpand = hasAny && prods.some(p => p && (p.datasheet || p.specs));
+      const open = !!cmpState.openSpecs[id] && canExpand;
+      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: canExpand ? id : null, expandOpen: open });
+      if (canExpand && open) cmpDsRows(label, prods).forEach(r => rows.push(r));
     });
   });
   if (!rows.length) return [];
@@ -4984,14 +5183,14 @@ function cmpBriefRows(data) {
   const daily = data.facts.map(f => Perf.dailyCriteria(f));
   const blocks = data.facts.map(f => Perf.proCriteria(f, f.gRank));
   const rows = [];
-  rows.push({ label: t('compare.daily'), cells: daily.map(r => cmpStatusCell(Perf.worstOf(r))) });
+  rows.push({ label: t('compare.daily'), cells: daily.map(r => cmpCriterionCell(Perf.worstRow(r))) });
   rows.push({ label: 'Cyberpunk 2077', cells: data.facts.map(f => {
     if (!f.cpuEntry || !f.gpuEntry) return cmpNeedCell(t('compare.needBoth'));
     const fps = Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: 'cp2077', res: f.res, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
     return cmpFpsCell(fps, `${cmpResLabel(f.res)} · High`);
   }) });
   [['video', t('bench.video')], ['compile', t('bench.compile')], ['ai', t('bench.ai')]].forEach(([k, label]) => {
-    rows.push({ label, cells: blocks.map(b => cmpStatusCell(Perf.worstOf(b[k] || []))) });
+    rows.push({ label, cells: blocks.map(b => cmpCriterionCell(Perf.worstRow(b[k] || []))) });
   });
   return rows;
 }
@@ -5242,7 +5441,7 @@ async function cmpSelectVariant(col, slotId, item) {
     if (!np.name) { toast(t('compare.variantErr')); return; }
     np.image = (d && !d.error && d.img) || item.img || '';
     np.specs = (d && !d.error && d.specs) || '';
-    np.datasheet = (d && !d.error && d.datasheet) || '';
+    np.datasheet = (d && !d.error && d.datasheet) ? sanitizeDs(d.datasheet) : '';
     np.variants = (d && !d.error && d.variants) || (s.products.find(x => x.id === s.selectedId)?.variants) || null;
     np.price = Number(item.price) || Number(d && d.price) || 0;
     if (r && !r.error && r.offers && r.offers.length) {
@@ -5780,7 +5979,7 @@ async function importAiProduct(slotId, it, link) {
     try {
       const d = await Idealo.product(it.url);
       if (d && !d.error) {
-        if (d.datasheet) np.datasheet = d.datasheet;
+        if (d.datasheet) { np.datasheet = sanitizeDs(d.datasheet); np.dsClean = false; }
         if (d.specs && !np.specs) np.specs = d.specs;
         if (d.name && !np.name) np.name = d.name;
         if (d.image && !np.image) np.image = d.image;
@@ -6488,6 +6687,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.61 — Fiches techniques automatiques</h3><p class="hint">La fiche technique est désormais remplie automatiquement à la sélection d’un composant, puis remplacée en arrière-plan par le tableau exact d’Idealo : les lignes « Libellé : valeur » sont enfin reconnues, sans la première ligne d’image inutile. La fiche reste éditable dans le formulaire avec un aperçu ligne par ligne et une modification manuelle n’est jamais écrasée. Dans le comparateur, chaque composant se déplie pour afficher sa fiche, les différences restent orange et le classement vert/rouge s’applique aux fiches comme aux benchmarks. L’icône de l’onglet reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.60 — Fiches techniques comparées</h3><p class="hint">Chaque composant du comparateur peut être déplié pour afficher sa fiche technique ligne par ligne, avec les meilleures valeurs en vert et les moins bonnes en rouge dès trois configurations. Les données sont enregistrées dans la fiche : aucune nouvelle requête au dépliage. La fiche d’un composant devient aussi éditable dans le formulaire (une ligne « Libellé : valeur »), et une fiche modifiée à la main n’est plus écrasée par l’enrichissement automatique.</p></div>
     <div class="chlog"><h3>v2.59 — Comparateur de configurations</h3><p class="hint">Nouvel onglet « Comparer » entre Benchmarks et Prix : la config actuelle en première colonne, jusqu’à quatre versions sauvegardées, avec toutes les specs, les totaux et les benchmarks (résumé d’usage, FPS par jeu et résolution, Geekbench, 3DMark, critères quotidien et charges lourdes). Le mode « Différences » met en évidence les cellules qui changent sans masquer les lignes. Les variantes et alternatives s’ouvrent dans une colonne de comparaison sans modifier le brouillon ni les sauvegardes. Tableaux lisibles sur mobile avec défilement horizontal synchronisé.</p></div>
     <div class="chlog"><h3>v2.58 — Favoris & sélection KJ</h3><p class="hint">Favoris globaux (cœur sur les cartes et les fiches, filtre rapide par catégorie, export dans « Export données ») et sélection KJ éditable dans un document unique : recommandé, déconseillé, top choix et testé, avec pastilles, teintes, animations à l’ouverture et filtres cumulables. Les sélections KJ absentes de la liste Idealo restent visibles en cartes légères.</p></div>

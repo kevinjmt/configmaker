@@ -743,6 +743,14 @@ body.gallery-open{overflow:hidden}
 .fld input,.fld select,.fld textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem;width:100%}
 .fld textarea.ds-editor{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.76rem;line-height:1.45;min-height:150px;resize:vertical}
 #f_dsHint.is-warn{color:var(--warning)}
+.ds-preview{margin-top:7px;border:1px solid var(--line);border-radius:12px;max-height:220px;overflow:auto;background:var(--surface)}
+.ds-preview:empty{display:none}
+.ds-preview table{width:100%;border-collapse:collapse;font-size:.74rem}
+.ds-preview th,.ds-preview td{padding:5px 8px;border-top:1px solid var(--line);text-align:left;vertical-align:top;line-height:1.3}
+.ds-preview tr:first-child th,.ds-preview tr:first-child td{border-top:0}
+.ds-preview th{width:42%;color:var(--muted);font-weight:800;background:var(--bg-soft)}
+.ds-preview td{overflow-wrap:anywhere}
+.ds-preview .ds-more{padding:6px 8px;border-top:1px solid var(--line);color:var(--muted);font-size:.7rem;font-weight:700}
 .list-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--surface)}
 .list-row .grow{flex:1;min-width:0}
 .merchant-row{cursor:pointer}
@@ -1025,6 +1033,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .cmp-rowhead small{display:block;margin-top:2px;color:var(--muted);font-size:.68rem;font-weight:600}
 .cmp-expand{display:inline-flex;align-items:center;justify-content:center;width:22px;height:20px;margin-left:6px;padding:0;border:1px solid var(--line-strong);border-radius:6px;background:var(--bg-soft);color:var(--muted);cursor:pointer;vertical-align:middle}
 .cmp-expand:hover{border-color:var(--brand);color:var(--brand-ink);background:var(--surface)}
+.cmp-expand[aria-expanded="true"]{border-color:var(--brand);background:var(--brand);color:#fff}
 .cmp-expand i{font-size:.62rem;transition:transform .18s ease}
 .cmp-detail-head th{background:color-mix(in srgb,var(--brand) 5%,var(--bg-soft));color:var(--brand-ink);font-size:.66rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase;padding-top:7px;padding-bottom:7px;border-top:1px dashed var(--line-strong)}
 .cmp-detail-head th span{display:inline-block;position:sticky;left:10px}
@@ -1061,10 +1070,10 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .cmp-retry{padding:4px 7px!important;font-size:.68rem!important}
 .cmp-diff-row .cmp-rowhead{color:var(--ink);background:color-mix(in srgb,var(--warning) 8%,var(--surface))}
 .cmp-changed{background:color-mix(in srgb,var(--warning) 16%,var(--surface))!important;box-shadow:inset 3px 0 0 rgba(245,159,0,.55)}
-.cmp-best{outline:2px solid rgba(47,158,68,.5);outline-offset:-2px}
-.cmp-worst{outline:2px solid rgba(224,49,49,.42);outline-offset:-2px}
-.cmp-best strong,.cmp-best .cmp-val{color:var(--success)}
-.cmp-worst strong,.cmp-worst .cmp-val{color:var(--danger)}
+.cmp-best{background:color-mix(in srgb,var(--success) 12%,var(--surface))!important;outline:2px solid rgba(47,158,68,.55);outline-offset:-2px;box-shadow:inset 3px 0 0 rgba(47,158,68,.7)}
+.cmp-worst{background:color-mix(in srgb,var(--danger) 11%,var(--surface))!important;outline:2px solid rgba(224,49,49,.48);outline-offset:-2px;box-shadow:inset 3px 0 0 rgba(224,49,49,.65)}
+.cmp-best strong,.cmp-best .cmp-val,.cmp-best .cmp-status,.cmp-best .cmp-crit,.cmp-best .cmp-crit i,.cmp-best .cmp-status .dot-ok,.cmp-best .cmp-status .dot-warn,.cmp-best .cmp-status .dot-err{color:var(--success)!important}
+.cmp-worst strong,.cmp-worst .cmp-val,.cmp-worst .cmp-status,.cmp-worst .cmp-crit,.cmp-worst .cmp-crit i,.cmp-worst .cmp-status .dot-ok,.cmp-worst .cmp-status .dot-warn,.cmp-worst .cmp-status .dot-err{color:var(--danger)!important}
 .cmp-diff-row .cmp-changed .cmp-pname{color:var(--ink)}
 #cmpBody.cmp-mode-diff .cmp-row:not(.cmp-diff-row){opacity:.46}
 #cmpBody.cmp-mode-diff .cmp-row.cmp-diff-row{opacity:1}

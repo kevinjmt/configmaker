@@ -504,7 +504,9 @@ const Idealo = (() => {
       const md2 = md.match(/## Détails du produit\s*([\s\S]*?)(?:## |\n\*   )/);
       if (md2) sec = md2[1];
     }
-    const lines = sec.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    const lines = sec
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       .split(/\n| {2,}/).map(s => s.replace(/^[\*_\-–:·\s]+/, '').trim())
       .filter(s => s && !/^(variante|neuf\b|d'occasion)/i.test(s));
     out.specs = lines.slice(0, 40).join('\n');
@@ -524,7 +526,15 @@ const Idealo = (() => {
     out.images = images;
     /* Raw "## Détails du produit" datasheet section (source of truth for Compat). */
     const mds = md.match(/## Détails du produit\s*([\s\S]*?)(?:\n## |\n\*\*Produits similaires|\n\*   \[)/);
-    if (mds) out.datasheet = mds[1].replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim().slice(0, 30000);
+    if (mds) out.datasheet = mds[1]
+      /* Remove image markdown first: stripping links alone leaves the leading
+         "!" behind, producing a useless "!Image 27: …" first datasheet line. */
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/^\s*!Image\b.*$/gmi, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/^\s*Image\s+\d+:\s*.*$/gmi, ' ')
+      .replace(/^\s*(?:afficher|voir|show|view)\b.*?(?:d[ée]tails|caract[ée]ristiques|more|less)\b.*$/gmi, ' ')
+      .trim().slice(0, 30000);
     out.variants = parseVariants(md);
     return out;
   }

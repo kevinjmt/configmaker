@@ -20,6 +20,21 @@
 const Perf = (() => {
   const WORST = { err: 3, warn: 2, unknown: 1, ok: 0 };
   const worstOf = rows => rows.filter(r => !r.neutral).reduce((w, r) => (WORST[r.st] > WORST[w] ? r.st : w), 'ok');
+  /* Limiting criterion of a block: worst status, then lowest bar value. */
+  function worstRow(rows) {
+    const list = (rows || []).filter(r => r && !r.neutral);
+    if (!list.length) return null;
+    let w = list[0];
+    list.forEach(r => {
+      const a = WORST[r.st] || 0, b = WORST[w.st] || 0;
+      if (a > b) { w = r; return; }
+      if (a !== b) return;
+      const va = r.bar && typeof r.bar.val === 'number' ? r.bar.val : null;
+      const vb = w.bar && typeof w.bar.val === 'number' ? w.bar.val : null;
+      if (va != null && vb != null && va < vb) w = r;
+    });
+    return w;
+  }
   let LANG = 'fr';
   function setLang(l) { LANG = l === 'en' ? 'en' : 'fr'; }
   const EN = () => LANG === 'en';
@@ -495,7 +510,7 @@ const Perf = (() => {
   }
 
   return {
-    setLang, worstOf, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, screenPanel, gpuRank, tierRank, igpuEntry,
+    setLang, worstOf, worstRow, threadsFromDatasheet, specsThreads, ramGB, diskGB, diskType, screenH, screenPanel, gpuRank, tierRank, igpuEntry,
     dailyCriteria, diskRow, proCriteria, matchCpu, matchGpu, ramMult, fpsFor,
     bottleneck, fpsColor, tsCombo, tsSingle, tsBottleneck, tsHwId, tsClear, gbScores, gbClear, tryParseJson,
   };

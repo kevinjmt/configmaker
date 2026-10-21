@@ -10,7 +10,8 @@
   "theme_color": "#1a8744",
   "lang": "fr",
   "icons": [
-    { "src": "assets/icons/configmakericon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "assets/icons/configmakericon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "assets/icons/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icons/configmakericon.png", "sizes": "2160x2160", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/configmakericon.png", "sizes": "2160x2160", "type": "image/png", "purpose": "maskable" }
   ]
 }

@@ -52,32 +52,177 @@ const Compat = (() => {
       .replace(/\s+/g, ' ')
       .trim();
   }
-  function dsRowLabel(s) { return mdClean(s).replace(/^[\s#\-–—•*]+/, '').replace(/[\s.:]+$/, '').trim(); }
-  function dsRowValue(s) { return mdClean(s).replace(/^[\s\-–—•*]+/, '').trim(); }
+  function dsRowLabel(s) { return mdClean(s).replace(/^[\s#!\-–—•*]+/, '').replace(/[\s.:]+$/, '').trim(); }
+  function dsRowValue(s) { return mdClean(s).replace(/^[\s!\-–—•*]+/, '').trim(); }
   function dsIsSep(s) { return /^:?-{2,}:?$/.test(String(s || '').replace(/\s/g, '')); }
+
+  /* Idealo's reader returns the "## Détails du produit" table as flat lines
+     ("Processeur Apple M6", "Nombre de cœurs de processeur 12 coeurs").
+     Strip image/HTML artefacts without destroying the label/value text. */
+  function sanitizeDatasheet(ds) {
+    return String(ds || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map(ln => ln
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/^\s*!?Image\s+\d+:\s*.*$/i, ' ')
+        /* Idealo's "show all/less details" UI line is never a real feature. */
+        .replace(/^\s*(?:afficher|voir|show|view)\b.*?(?:d[ée]tails|caract[ée]ristiques|more|less)\b.*$/i, ' ')
+        /* Keep tabs: datasheetRows() uses them as label/value separators. */
+        .replace(/[^\S\t]+/g, ' ')
+        .trim())
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 30000)
+      .trim();
+  }
+
+  /* Reader image captions survive link stripping as "!Image 27: …". */
+  function dsLooksLikeImage(line) {
+    return /^!?\s*image\b/i.test(String(line || '').replace(/^[\s#!\-–—•*]+/, '').trim());
+  }
+
+  const DS_GROUPS = new Set([
+    'processeur & chipset', 'processeur et chipset', 'stockage', 'carte graphique', 'interfaces',
+    'réseau', 'lecteurs', 'propriétés du boîtier', 'dimensions & poids', 'dimensions et poids',
+    'écran', 'audio', 'alimentation', 'refroidissement', 'connectivité', 'caractéristiques',
+    'général', 'design', 'performance', 'mémoire', 'connectique', 'contenu de l’emballage',
+    "contenu de l'emballage", 'logiciel', 'périphériques', 'batterie', 'appareil photo', 'vidéo',
+    'ports', 'détails', 'emballage', 'poids et dimensions', 'sécurité', 'énergie', 'affichage',
+    'stockage et mémoire', 'son', 'tuner tv', 'divers', 'produit', 'caractéristiques techniques',
+    'fiche technique', 'informations générales', 'connectivité et ports',
+    'refroidissement et ventilation', 'mémoire et stockage',
+  ]);
+  function dsIsGroup(line) { return DS_GROUPS.has(low(dsRowLabel(line))); }
+
+  /* Display labels that are not needed by the compatibility rules. They keep
+     every datasheet line visible in the fiche and in the comparer. */
+  const DS_EXTRA_LABELS = [
+    'processeur', 'processeur graphique', 'type de processeur', 'modele de processeur',
+    'modèle de processeur', 'nom du processeur', 'famille de processeur',
+    'nombre de cœurs de processeur', 'nombre de coeurs de processeur',
+    'nombre de threads de processeur', 'nombre de threads du processeur',
+    'type de disque dur', 'nombre de disques durs installés', 'nombre de disques durs installes',
+    'carte graphique', 'sortie vidéo', 'sortie video', 'sorties vidéo', 'sorties video',
+    'connectiques', 'connecteurs sur façade avant', 'connecteurs sur facade avant',
+    'connecteurs d’alimentation', "connecteurs d'alimentation", 'connecteurs pcie',
+    'connecteurs pci express', 'connecteur pcie', 'connecteur pci express',
+    'communication', 'disque optique', 'boîtier', 'boitier', 'couleur', 'largeur', 'longueur',
+    'cache', 'cache l2', 'cache l3', 'chipset', 'connecteur', 'connecteurs', 'matériau', 'materiau',
+    'poids', 'garantie', 'éclairage', 'eclairage', 'rgb', 'format d’image', "format d'image",
+    'ratio d’aspect', "ratio d'aspect", 'temps de réponse', 'temps de reponse', 'luminosité',
+    'luminosite', 'contraste', 'angle de vision', 'courbure', 'profondeur de couleur',
+    'haut-parleurs', 'webcam', 'microphone', 'réglage en hauteur', 'reglage en hauteur', 'pivot',
+    'inclinaison', 'montage vesa', 'consommation', 'consommation électrique', 'consommation electrique',
+    'puissance', 'modularité', 'modularite', 'modulaire', 'longueur de câble', 'longueur de cable',
+    'connecteur d’alimentation', "connecteur d'alimentation", 'connecteurs pci-e', 'dimensions',
+    'capacité mémoire', 'capacite memoire', 'mémoire vidéo', 'memoire video', 'type de mémoire',
+    'type de memoire', 'protocole', 'contrôleur', 'controleur', 'endurance', 'lecture séquentielle',
+    'lecture sequentielle', 'écriture séquentielle', 'ecriture sequentielle', 'lecture', 'écriture',
+    'ecriture', 'vitesse de rotation', 'niveau sonore', 'débit d’air', "debit d'air",
+    'pression statique', 'vitesse', 'ventilateur', 'ventilateurs', 'nombre de ventilateurs', 'taille du ventilateur',
+    'taille de l’écran', "taille de l'ecran", 'diagonale', 'résolution', 'resolution', 'dalle',
+    'taux de rafraîchissement', 'taux de rafraichissement', 'tension', 'latence', 'quantité',
+    'quantite', 'fabricant', 'architecture', 'nombre de ports', 'nombre de connecteurs',
+    'fréquence', 'frequence', 'fréquence de base', 'fréquence boost', 'fréquence turbo',
+    'niveau de bruit', 'alimentation', 'refroidissement', 'système d’exploitation',
+    "système d'exploitation", 'système', "systeme", 'compatibilité', 'compatibilite',
+  ];
+
+  /* Split "Label Value" using the longest known label prefix. */
+  function dsKnownSplit(line) {
+    const cleanLine = dsRowLabel(line);
+    const l = low(cleanLine);
+    if (!l) return null;
+    for (const lab of DS_SORTED) {
+      if (!lab) continue;
+      if (l === lab) return { label: cleanLine, value: '' };
+      if (!l.startsWith(lab)) continue;
+      const restRaw = cleanLine.slice(lab.length);
+      if (!/^[\s.:'"\-–—_(/]/.test(restRaw)) continue;
+      const value = restRaw.replace(/^[\s.:'"\-–—_/]+/, '').trim();
+      if (!value) return { label: cleanLine, value: '' };
+      return { label: cleanLine.slice(0, lab.length).trim(), value };
+    }
+    return null;
+  }
+
+  /* Fallback for labels absent from the catalogue: the value usually starts
+     with a number or a capitalised brand/colour after the label. */
+  function dsHeuristicSplit(line) {
+    const cleanLine = dsRowLabel(line);
+    const tokens = cleanLine.split(/\s+/).filter(Boolean);
+    if (tokens.length < 2) return null;
+    let idx = -1, acronym = -1;
+    for (let i = 1; i < tokens.length; i++) {
+      const tk = tokens[i];
+      const tl = low(tk).replace(/[.,;:]+$/, '');
+      if (/^(de|du|des|et|en|sur|avec|pour|ou|a|à|the|and|of|with|for|type|types)$/.test(tl)) continue;
+      const digit = /^\d/.test(tk);
+      const cap = /^[A-ZÀ-Ý]/.test(tk) && /[A-Za-zÀ-ÿ]/.test(tk);
+      const model = /^[A-Za-z]{1,5}\d/.test(tk) || /^\d+[A-Za-z]/.test(tk);
+      /* Acronyms (MAC, IP, USB) usually belong to the label, not the value. */
+      const caps = /^[A-Z0-9&+./-]{2,6}$/.test(tk) && /[A-Z]/.test(tk);
+      if (digit) { idx = i; break; }
+      if (cap && !model) {
+        if (caps) { if (acronym < 0) acronym = i; continue; }
+        idx = i; break;
+      }
+    }
+    if (idx < 1) idx = acronym;
+    if (idx < 1) return null;
+    const label = tokens.slice(0, idx).join(' ').replace(/[\s.:]+$/, '').trim();
+    const value = tokens.slice(idx).join(' ').trim();
+    if (label.length < 2 || !value) return null;
+    return { label, value };
+  }
+  function dsFlatSplit(line) {
+    /* Test the whole line before shorter label prefixes: "Processeur & Chipset"
+       must stay a group heading, not become "Processeur: & Chipset". */
+    if (dsIsGroup(line)) return { label: dsRowLabel(line), value: '' };
+    const known = dsKnownSplit(line);
+    if (known) return known;
+    return dsHeuristicSplit(line);
+  }
 
   /* Generic label/value datasheet rows for the fiche editor, compatibility
      display and the configuration comparer. Unlike parseDatasheet(), this
-     keeps unknown labels and their source order. */
+     keeps unknown labels and their source order, and understands both
+     "Label: Value" and Idealo's flat "Label Value" lines. */
   function datasheetRows(dsText) {
-    const raw = String(dsText || '').split(/\r?\n/).map(l => l.trim());
+    const raw = sanitizeDatasheet(dsText).split('\n').map(l => l.trim());
     const rows = [];
     const push = (label, value) => {
       label = dsRowLabel(label); value = dsRowValue(value);
       if (!label || !value || dsIsSep(label) || dsIsSep(value) || /^[—–-]$/.test(value)) return;
+      if (dsLooksLikeImage(label) || dsLooksLikeImage(value)) return;
       if (/^https?:\/\//i.test(label) || /^https?:\/\//i.test(value)) return;
-      rows.push({ label, value });
+      const key = low(label);
+      const existing = rows.find(r => low(r.label) === key);
+      if (existing) {
+        if (!existing.value.split(' · ').includes(value)) existing.value += ' · ' + value;
+      } else {
+        rows.push({ label, value });
+      }
     };
     for (let i = 0; i < raw.length; i++) {
       const line = raw[i];
       if (!line) continue;
-      if (/^#{1,6}\s/.test(line) || /^!\[/.test(line) || /^<\/?[a-z]/i.test(line)) continue;
+      if (/^#{1,6}\s/.test(line) || /^!\[/.test(line) || dsLooksLikeImage(line) || /^<\/?[a-z]/i.test(line)) continue;
       if (/^https?:\/\//i.test(line)) continue;
-      if (/^\|.*\|$/.test(line)) {
-        const next = raw[i + 1] || '';
-        if (/^\|.*\|$/.test(next) && next.replace(/^\||\|$/g, '').split('|').every(dsIsSep)) continue;
+      if (/^\|.*\|$/.test(line) || /\s\|\s/.test(line)) {
         const cells = line.replace(/^\||\|$/g, '').split('|').map(x => x.trim());
-        if (cells.length >= 2 && !cells.every(dsIsSep)) push(cells[0], cells.slice(1).join(' '));
+        if (cells.length < 2 || cells.every(dsIsSep)) continue;
+        const next = raw[i + 1] || '';
+        const nextSep = /^\|.*\|$/.test(next) && next.replace(/^\||\|$/g, '').split('|').every(dsIsSep);
+        /* A markdown header ("Caractéristique | Valeur") is not a datasheet row. */
+        if (/^(caractéristiques?|caracteristiques?|features?|specifications?|spécifications?|libellés?|libelles?|labels?)$/i.test(dsRowLabel(cells[0]))) {
+          if (nextSep) i++;
+          continue;
+        }
+        push(cells[0], cells.slice(1).join(' '));
         continue;
       }
       if (/\t/.test(line)) {
@@ -86,18 +231,16 @@ const Compat = (() => {
         continue;
       }
       const cm = line.match(/^([^:]{1,80}):\s*(.+)$/);
-      if (cm) { push(cm[1], cm[2]); continue; }
-      const l = low(dsRowLabel(line));
-      const isLab = SORTED.some(([lab, field]) => field && l === lab);
-      const partial = !isLab && SORTED.some(([lab, field]) => {
-        if (!field || !l.startsWith(lab)) return false;
-        const rest = l.slice(lab.length).trim();
-        return rest.length > 0 && rest.length <= 8 && !/\d/.test(rest);
-      });
-      const nxtRaw = raw[i + 1] || '';
-      const nxt = low(dsRowLabel(nxtRaw));
-      const nxtIsLab = nxt && SORTED.some(([lab, field]) => field && (nxt === lab || nxt.startsWith(lab + ' ')));
-      if ((isLab || partial) && nxtRaw && !nxtIsLab) { push(line, nxtRaw); i++; }
+      /* "Contraste 1000:1" is a ratio, not a label/value separator. */
+      if (cm && (!/\d/.test(cm[1]) || /:\s/.test(line))) { push(cm[1], cm[2]); continue; }
+
+      const split = dsFlatSplit(line);
+      if (split && split.value) { push(split.label, split.value); continue; }
+      if (split && !split.value) {
+        const nxt = raw[i + 1] || '';
+        const nxtKnown = nxt ? dsKnownSplit(nxt) : null;
+        if (nxt && !dsIsGroup(nxt) && !nxtKnown) { push(split.label, nxt); i++; }
+      }
     }
     return rows;
   }
@@ -227,6 +370,10 @@ const Compat = (() => {
     ['type de produit', 'ddr', 'ddr'], ['product type', 'ddr', 'ddr'],
   ];
   const SORTED = [...LABELS].sort((a, b) => b[0].length - a[0].length);
+  /* Display/parse labels: compatibility labels + labels that only need to be
+     shown and compared (no parseDatasheet field). */
+  const DS_SORTED = [...new Set([...LABELS.map(x => x[0]), ...DS_EXTRA_LABELS].filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
 
   function parseDatasheet(dsText) {
     const P = { sockets: [], caseForms: [], pcieVers: [], usbBack: { c: 0, a: 0 } };
@@ -1655,6 +1802,6 @@ const Compat = (() => {
     return { capW: m ? parseInt(m[1], 10) : 0 };
   }
 
-  return { check, parseDatasheet, datasheetRows, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
+  return { check, parseDatasheet, datasheetRows, sanitizeDatasheet, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
 })();
 try { module.exports = Compat; } catch { /* browser */ }
