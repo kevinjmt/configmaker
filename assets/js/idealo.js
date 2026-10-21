@@ -508,11 +508,115 @@ const Idealo = (() => {
       .split(/\n| {2,}/).map(s => s.replace(/^[\*_\-–:·\s]+/, '').trim())
       .filter(s => s && !/^(variante|neuf\b|d'occasion)/i.test(s));
     out.specs = lines.slice(0, 40).join('\n');
+    const msum = md.match(/\*\*Aperçu du produit\s*:?\*\*\s*([^\n\[]+)/i);
+    if (msum) out.summary = msum[1].replace(/\s+/g, ' ').trim().slice(0, 300);
+    /* Gallery: product images in the hero area, before the variant block. */
+    const hero = md.split(/^##\s*(?:\d+\s*)?Variantes?/mi)[0];
+    const images = [];
+    const ire = /!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_(?:mittelgross|gross)[^)]*)\)/gi;
+    let im;
+    while ((im = ire.exec(hero)) !== null) {
+      const u = im[1].trim();
+      if (u && !images.includes(u)) images.push(u);
+      if (images.length >= 10) break;
+    }
+    if (out.img && !images.includes(out.img)) images.unshift(out.img);
+    out.images = images;
     /* Raw "## Détails du produit" datasheet section (source of truth for Compat). */
     const mds = md.match(/## Détails du produit\s*([\s\S]*?)(?:\n## |\n\*\*Produits similaires|\n\*   \[)/);
     if (mds) out.datasheet = mds[1].replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim().slice(0, 30000);
     out.variants = parseVariants(md);
     return out;
+  }
+
+  /* HTML details: quick summary (Idealo productSummary spans), gallery and the
+     full datasheet table. Kept in memory only (the HTML page is large). */
+  const detailsCache = new Map();
+  function htmlText(v) {
+    return String(v || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ' '; } })
+      .replace(/&#(\d+);/g, (_, n) => { try { return String.fromCodePoint(parseInt(n, 10)); } catch { return ' '; } })
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function parseDetailsHtml(html) {
+    html = String(html || '');
+    const out = { summary: '', summaryParts: [], images: [], sections: [] };
+    /* New offerpage class first, then the older oopStage block. The requested
+       mainDetails wrapper contains the two spans (one may be sr-desktopOnly). */
+    const md = html.match(/<(span|div)[^>]+class="[^"]*(?:sr-productSummary__mainDetails|productSummary__mainDetails)[^"]*"[^>]*>([\s\S]{0,3000}?)<\/\1>/i);
+    if (md) {
+      const spans = [...md[2].matchAll(/<span[^>]*>([\s\S]*?)<\/span>/gi)].map(x => htmlText(x[1])).filter(Boolean);
+      out.summaryParts = [...new Set(spans)];
+      out.summary = out.summaryParts.join(' ');
+    }
+    if (!out.summary) {
+      const at = html.indexOf('Aperçu du produit');
+      if (at >= 0) {
+        const block = html.slice(at, at + 5000);
+        const spans = [...block.matchAll(/<span([^>]*)>([\s\S]*?)<\/span>/gi)]
+          .filter(x => /\b(?:oopStage-productInfoTopItem|productSummary)\b/.test((x[1].match(/class="([^"]*)"/) || [])[1] || ''))
+          .map(x => htmlText(x[2])).filter(Boolean);
+        out.summaryParts = [...new Set(spans)];
+        out.summary = out.summaryParts.join(' ');
+      }
+    }
+    /* Gallery images from the hero collage; fall back to the first product images. */
+    const gs = html.indexOf('oopStage-wrapper-gallery');
+    if (gs >= 0) {
+      const chunk = html.slice(gs, gs + 50000);
+      const imgs = [...chunk.matchAll(/<img[^>]+(?:class="[^"]*oopStage-galleryCollageImage[^"]*"[^>]*src="([^"]+)"|src="([^"]+)"[^>]*class="[^"]*oopStage-galleryCollageImage[^"]*")/gi)]
+        .map(x => x[1] || x[2]).filter(Boolean);
+      for (const raw of imgs) {
+        const u = String(raw).replace(/^\/\//, 'https://');
+        if (!out.images.includes(u)) out.images.push(u);
+      }
+    }
+    if (!out.images.length) {
+      const imgs = [...html.matchAll(/<img[^>]+src="([^"]*produktbild_(?:mittelgross|gross)[^"]*)"/gi)].map(x => x[1].replace(/^\/\//, 'https://'));
+      for (const u of imgs) if (!out.images.includes(u)) out.images.push(u);
+      out.images = out.images.slice(0, 10);
+    }
+    /* Datasheet table: each <tr> is either a <th> category or two <td> values. */
+    const ds = html.search(/<section[^>]*id="datasheet"/i);
+    if (ds >= 0) {
+      let end = html.indexOf('</section>', ds);
+      if (end < 0) end = Math.min(html.length, ds + 120000);
+      const sec = html.slice(ds, end);
+      let title = '';
+      const re = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let m;
+      while ((m = re.exec(sec)) !== null) {
+        const row = m[1];
+        if (/<th\b/i.test(row)) {
+          title = htmlText(row);
+          continue;
+        }
+        const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => htmlText(x[1]));
+        if (tds.length < 2 || !tds[0]) continue;
+        let group = out.sections[out.sections.length - 1];
+        if (!group || group.title !== title) { group = { title, rows: [] }; out.sections.push(group); }
+        group.rows.push([tds[0], tds[1]]);
+      }
+    }
+    return out;
+  }
+  async function details(url) {
+    const c = detailsCache.get(url);
+    if (c && (Date.now() - c.t) < TTL) return { ...c.data, cached: true };
+    try {
+      const html = await queued(() => fetchHtml(url));
+      const data = parseDetailsHtml(html);
+      if (!data.summary && !data.sections.length) throw new Error('empty');
+      detailsCache.set(url, { t: Date.now(), data });
+      while (detailsCache.size > 6) detailsCache.delete(detailsCache.keys().next().value);
+      return { ...data, cached: false };
+    } catch (e) {
+      return { summary: '', summaryParts: [], images: [], sections: [], error: String((e && e.message) || e) };
+    }
   }
 
   async function cachedMd(url, force) {
@@ -679,5 +783,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
+  return { list, product, details, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseDetailsHtml, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
 })();

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ConfigMaker by KJ — v2.53</title>
+<title>ConfigMaker by KJ</title>
 <meta name="description" content="ConfigMaker by KJ — configurateur PC & setup style TopAchat configomatic, prix Idealo, consommation, manuels, historique.">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0a0f1e" media="(prefers-color-scheme: dark)">
@@ -14,11 +14,11 @@
 <meta name="apple-mobile-web-app-title" content="ConfigMaker">
 <link rel="apple-touch-icon" href="./assets/icons/configmakericon.png">
 <link rel="shortcut icon" type="image/png" href="./assets/icons/configmakericon.png">
-<meta property="og:title" content="ConfigMaker by KJ — v2.53">
+<meta property="og:title" content="ConfigMaker by KJ">
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=127">
+<link rel="stylesheet" href="./assets/css/app.css?v=128">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -36,7 +36,7 @@
   <div class="kjbrand">
     <a href="./" id="brandHome" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.53</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.56</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -103,7 +103,7 @@
           <button class="icon-btn" id="pickerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div id="pickerDetail" class="picker-detail hidden" aria-live="polite">
-          <div class="pd-head"><button id="pickerDetailBack" class="icon-btn" aria-label="Retour"><i class="fa-solid fa-arrow-left"></i></button><span data-i18n="picker.detail">Fiche du composant</span></div>
+          <div class="pd-head"><button id="pickerDetailBack" class="icon-btn" aria-label="Retour"><i class="fa-solid fa-arrow-left"></i></button><span data-i18n="picker.detail">Fiche du composant</span><button id="pdFav" class="icon-btn pd-fav" title="Ajouter aux favoris" aria-label="Ajouter aux favoris"><i class="fa-regular fa-heart"></i></button></div>
           <div id="pickerDetailBody" class="pd-body"></div>
         </div>
         <div class="picker-tools">
@@ -266,7 +266,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.53 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.56 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -282,6 +282,13 @@
     <div id="modalBody" class="modal-body"></div>
   </div>
 </div>
+<div id="galleryOverlay" class="overlay gallery-overlay hidden" role="dialog" aria-modal="true" aria-label="Galerie photos">
+  <div class="gallery-box glass">
+    <div class="gallery-top"><span id="galleryCount">1 / 1</span><button class="icon-btn" id="galleryClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="gallery-stage"><button class="gallery-nav prev" id="galleryPrev" aria-label="Photo précédente"><i class="fa-solid fa-chevron-left"></i></button><img id="galleryImg" alt=""><button class="gallery-nav next" id="galleryNext" aria-label="Photo suivante"><i class="fa-solid fa-chevron-right"></i></button></div>
+    <div id="galleryThumbs" class="gallery-thumbs"></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div>
 <div id="pickerTip" class="picker-tip hidden" role="tooltip"></div>
 <div id="aiBubble" role="button" tabindex="0" aria-label="Ask Perplexity" title="Ask Perplexity"><span class="ai-qwrap"><i class="fa-solid fa-circle-question"></i><i class="fa-solid fa-star ai-star s1"></i><i class="fa-solid fa-star ai-star s2"></i><i class="fa-solid fa-star ai-star s3"></i></span></div>
@@ -293,7 +300,7 @@
 <div id="consentBar" class="consent-bar hidden"><span data-i18n="consent.msg">Ce site stocke vos configs localement. Accepter ?</span><span class="consent-btns"><button class="mini-btn" id="consentAccept"><i class="fa-solid fa-check"></i> <span data-i18n="consent.accept">Accepter</span></button><button class="mini-btn" id="consentDeny"><i class="fa-solid fa-xmark"></i> <span data-i18n="consent.deny">Refuser</span></button></span></div>
 
 <script src="./assets/js/store.js?v=1"></script>
-<script src="./assets/js/idealo.js?v=73"></script>
+<script src="./assets/js/idealo.js?v=74"></script>
 <script src="./assets/js/compat.js?v=12"></script>
 <script src="./assets/js/psudb.js?v=3"></script>
 <script src="./assets/js/pcie-catalog.js?v=12"></script>
@@ -303,7 +310,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=10"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=136"></script>
+<script src="./assets/js/app.js?v=137"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

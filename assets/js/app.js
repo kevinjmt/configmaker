@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
-const APP_VERSION = '2.55';
+const APP_VERSION = '2.56';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -1528,40 +1528,311 @@ function pickerItemProduct(it) {
   if (it.variants && it.variants.items && it.variants.items.length) np.variants = it.variants;
   return np;
 }
-function openPickerDetail(it) {
-  if (!activeSlot || !it) return;
-  pickerDetailItem = it;
+function pdTxt(fr, en) { return lang === 'en' ? en : fr; }
+function pdUnique(arr) { return [...new Set((arr || []).filter(Boolean))]; }
+function pdImagesFor(it, detail) {
+  const out = [];
+  if (detail && detail.images) out.push(...detail.images);
+  if (it && it.images) out.push(...it.images);
+  if (it && it.img) out.push(it.img);
+  return pdUnique(out).slice(0, 12);
+}
+function pdQuickParts(it, detail) {
+  if (detail) {
+    if (detail.summaryParts && detail.summaryParts.length) return detail.summaryParts;
+    if (detail.summary) return [detail.summary];
+  }
+  if (it && it.summary) return [it.summary];
+  return String((it && it.specs) || '').split(/\n| {2,}/).map(x => x.trim()).filter(Boolean).slice(0, 4);
+}
+function pdVariantMask(st) {
+  const v = st.item && st.item.variants;
+  if (!v || !v.items || v.items.length < 2) return '';
+  const filters = v.filters || [];
+  const filtered = v.items.filter(it => filters.every((f, fi) => {
+    const vi = st.filters[fi];
+    if (vi == null || vi < 0) return true;
+    const val = f.values && f.values[vi];
+    if (!val) return true;
+    const av = it.attrs && it.attrs[f.label];
+    return !av || variantAttrEq(av, val);
+  }));
+  const chips = filters.map((f, fi) => `<div class="pd-vdim"><span>${esc(f.label)}</span>${(f.values || []).map((val, vi) => {
+    const on = st.filters[fi] === vi;
+    return `<button class="mini-btn vchip${on ? ' sel' : ''}" data-pd-act="vfilter" data-f="${fi}" data-v="${vi}">${esc(val)}</button>`;
+  }).join('')}</div>`).join('');
+  const cards = filtered.map(it => {
+    const cur = normTxt(it.url || '') === normTxt(st.item.url || '');
+    return `<button class="pd-vcard${cur ? ' sel' : ''}" data-pd-act="variant" data-url="${esc(it.url || '')}" data-name="${esc(it.name || '')}" data-img="${esc(it.img || '')}" data-price="${Number(it.price) || 0}" title="${esc(it.name || '')}">
+      ${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="pd-vnoimg"><i class="fa-solid fa-microchip"></i></span>`}
+      <span class="pd-vname">${esc(it.name || '—')}</span><span class="pd-vprice">${it.price ? eur(it.price) : '—'}</span></button>`;
+  }).join('');
+  return `<section class="pd-sec pd-variants" aria-label="${pdTxt('Variantes', 'Variants')}">
+    <div class="pd-sec-head"><span><i class="fa-solid fa-shuffle"></i> ${esc(String(v.count || v.items.length))} ${pdTxt('variantes', 'variants')}</span>${v.fromPrice ? `<span class="pd-from">${pdTxt('dès', 'from')} ${eur(v.fromPrice)}</span>` : ''}</div>
+    ${chips ? `<div class="pd-vfilters">${chips}</div>` : ''}
+    <div class="pd-vlist">${cards || `<p class="hint">${pdTxt('Aucun modèle pour ces filtres.', 'No model matches these filters.')}</p>`}</div>
+  </section>`;
+}
+function pdOffersMask(st) {
+  if (!st.offersOpen) return '';
+  const offers = st.offers || [];
+  const rows = offers.map(o => `<a class="pd-offer" href="${esc(o.url || '')}" data-pd-act="offer" target="_blank" rel="noopener">
+    <span class="pd-offer-main"><strong>${esc(o.merchant || o.title || '—')}</strong>${o.delivery ? `<small>${esc(o.delivery)}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
+    ${o.promo ? `<span class="pd-promo">${pdTxt('Promo', 'Promo')}</span>` : ''}
+    <span class="pd-offer-price">${eur(o.price)}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`).join('');
+  return `<section class="pd-sec pd-offers-sec" aria-label="${pdTxt('Offres marchands', 'Merchant offers')}">
+    <div class="pd-sec-head"><span><i class="fa-solid fa-tags"></i> ${offers.length} ${pdTxt('offres', 'offers')}</span><button class="mini-btn pd-offers-close" data-pd-act="offers">${pdTxt('Masquer', 'Hide')}</button></div>
+    <div class="pd-offers">${rows || `<p class="hint">${st.loading ? pdTxt('Chargement des offres…', 'Loading offers…') : pdTxt('Aucune offre disponible.', 'No offer available.')}</p>`}</div>
+  </section>`;
+}
+function pdDatasheetMask(st) {
+  const it = st.item;
+  if (st.loading) {
+    return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+      <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement de la fiche technique et des offres…', 'Loading datasheet and offers…')}</span></div>
+      <div class="pd-ds-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section>`;
+  }
+  if (!st.loaded) {
+    if (st.error) {
+      return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+        <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error)}</span></div>
+        <button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></section>`;
+    }
+    const parts = pdQuickParts(it, st.details);
+    const rows = (parts.length ? parts : [it.name || '', it.vendor || '', it.price ? eur(it.price) : '']).map((v, i) => `<div class="pd-fake-row"><span>${esc([pdTxt('Type de produit', 'Product type'), pdTxt('Processeur', 'Processor'), pdTxt('Mémoire', 'Memory'), pdTxt('Stockage', 'Storage')][i] || pdTxt('Caractéristique', 'Feature'))}</span><span>${esc(v || '—')}</span></div>`).join('');
+    return `<section class="pd-sec pd-ds pd-ds-locked" aria-label="${pdTxt('Fiche technique à charger', 'Datasheet to load')}">
+      <div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+      <div class="pd-ds-teaser"><div class="pd-ds-fake" aria-hidden="true">${rows || '<div class="pd-fake-row"><span>Type de produit</span><span>—</span></div>'}</div>
+      <button class="btn btn-primary pd-ds-loadbtn" data-pd-act="load"><i class="fa-solid fa-cloud-arrow-down"></i> ${pdTxt('Charger toute la fiche technique', 'Load the full datasheet')}</button></div>
+      <p class="hint pd-ds-hint">${pdTxt('La fiche complète et les offres marchands seront chargées depuis Idealo.', 'The full datasheet and merchant offers will be loaded from Idealo.')}</p></section>`;
+  }
+  const secs = (st.details && st.details.sections) || [];
+  if (st.error || !secs.length) {
+    return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+      <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error || pdTxt('Aucune fiche technique disponible.', 'No datasheet available.'))}</span></div>
+      <button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></section>`;
+  }
+  const groups = secs.map(g => `<div class="pd-ds-group">${g.title ? `<div class="pd-ds-group-title">${esc(g.title)}</div>` : ''}<table class="pd-ds-table"><tbody>${g.rows.map(r => `<tr><th scope="row">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table></div>`).join('');
+  return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span><span class="pd-from">${st.details && st.details.cached ? pdTxt('en cache', 'cached') : ''}</span></div><div class="pd-ds-scroll">${groups}</div></section>`;
+}
+function renderPickerDetail(resetScroll) {
+  const st = pdState;
+  if (!st) return;
+  const body = $('#pickerDetailBody'); if (!body) return;
+  const it = st.item;
   const s = state.slots[activeSlot];
   const fallback = s ? iconHtml(defOf(s).icon) : '<i class="fa-solid fa-microchip"></i>';
-  const desc = pickerItemDescription(it, true);
-  const meta = [it.offers ? `${it.offers} ${t('picker.offers')}` : '', it.vendor || ''].filter(Boolean).join(' · ');
+  const imgs = pdImagesFor(it, st.details);
+  const quick = pdQuickParts(it, st.details);
+  const offersCount = st.offers ? st.offers.length : (Number(it.offers) || 0);
+  const store = it.store || (st.offers && st.offers[0] && st.offers[0].url) || '';
+  const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promo ? pdTxt('Promo', 'Promo') : ''].filter(Boolean).join(' · ');
+  const fav = $('#pdFav');
+  if (fav) {
+    const on = !!it._fav;
+    fav.classList.toggle('active', on);
+    const ico = fav.querySelector('i');
+    if (ico) ico.className = on ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+    fav.setAttribute('aria-label', pdTxt('Ajouter aux favoris', 'Add to favourites'));
+  }
+  const media = `<button class="pd-media${imgs.length > 1 ? ' has-gallery' : ''}" data-pd-act="media" title="${pdTxt('Agrandir la photo', 'Open the photo gallery')}" aria-label="${pdTxt('Agrandir la photo', 'Open the photo gallery')}">
+      ${it.img || imgs[0] ? `<img src="${esc(it.img || imgs[0])}" alt="" onerror="this.remove()">` : fallback}
+      ${imgs.length > 1 ? `<span class="pd-media-count"><i class="fa-regular fa-images"></i> ${imgs.length}</span>` : ''}
+      ${st.loading ? `<span class="pd-media-loading"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''}</button>`;
+  const storeBtn = store
+    ? `<a class="mini-btn pd-store" href="${esc(store)}" target="_blank" rel="noopener" title="${pdTxt('Ouvrir la page dans cette boutique', 'Open the page in this store')}" aria-label="${pdTxt('Ouvrir la page dans cette boutique', 'Open the page in this store')}"><i class="fa-solid fa-store"></i><i class="fa-solid fa-arrow-up-right-from-square pd-store-ext"></i></a>`
+    : `<button class="mini-btn pd-store" disabled title="${pdTxt('Boutique indisponible', 'Store unavailable')}" aria-label="${pdTxt('Boutique indisponible', 'Store unavailable')}"><i class="fa-solid fa-store"></i><i class="fa-solid fa-arrow-up-right-from-square pd-store-ext"></i></button>`;
   const openBtn = it.url
     ? `<a class="btn" id="pdOpen" href="${esc(it.url)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</a>`
-    : `<button class="btn" disabled title="${esc(lang === 'en' ? 'No Idealo page for this item' : 'Aucune page Idealo pour cet élément')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
-  const body = $('#pickerDetailBody');
+    : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
+  const offersLabel = st.loading && !st.offers ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}` : `${offersCount} ${pdTxt('offres', 'offers')}`;
+  const quickHtml = quick.length ? esc(quick.join(' · ')) : (st.loading ? `<span class="pd-inline-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement du résumé…', 'Loading summary…')}</span>` : '—');
   body.innerHTML = `<div class="pd-hero">
-      <div class="pd-media">${it.img ? `<img src="${esc(it.img)}" alt="" onerror="this.remove()">` : fallback}</div>
+      ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
-        <div class="pd-price">${it.price ? eur(it.price) : '—'}</div>
-        ${meta ? `<div class="pd-meta">${esc(meta)}</div>` : ''}
-        <p class="pd-desc">${esc(desc || (lang === 'en' ? 'No description available.' : 'Aucune description disponible.'))}</p>
+        <div class="pd-price-row"><span class="pd-price">${it.price ? eur(it.price) : '—'}</span>${storeBtn}</div>
+        <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers"${st.loading ? ' disabled' : ''}>${offersLabel}</button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
       </div>
     </div>
-    <div class="pd-actions">${openBtn}<button class="btn btn-primary" id="pdChoose"><i class="fa-solid fa-check"></i> ${esc(t('picker.chooseBtn'))}</button></div>`;
-  $('#pdChoose').onclick = () => commitPickerItem(it, { fromDetail: true });
+    ${pdVariantMask(st)}
+    ${pdOffersMask(st)}
+    <section class="pd-sec pd-quick"><div class="pd-sec-head"><span><i class="fa-solid fa-bolt"></i> ${pdTxt('Aperçu du produit', 'Product overview')}</span></div><p>${quickHtml}</p></section>
+    ${pdDatasheetMask(st)}
+    <div class="pd-actions">${openBtn}<button class="btn btn-primary" data-pd-act="choose"><i class="fa-solid fa-check"></i> ${esc(t('picker.chooseBtn'))}</button></div>`;
+  if (resetScroll) body.scrollTop = 0;
+  else body.scrollTop = st.scrollTop || 0;
+  st.scrollTop = body.scrollTop;
+}
+function fitPickerDetail() {
+  const panel = $('#pickerPanel'), detail = $('#pickerDetail');
+  if (!panel || !detail) return;
+  if (detail.classList.contains('hidden') || isMobileView()) { panel.style.height = ''; return; }
+  const top = Math.max(0, panel.getBoundingClientRect().top);
+  panel.style.height = Math.max(460, Math.round(innerHeight - top - 16)) + 'px';
+}
+function openPickerDetail(it, opts = {}) {
+  if (!activeSlot || !it) return;
+  pdSeq++;
+  pickerDetailItem = it;
+  pdState = {
+    item: { ...it }, productLoaded: !!it._productLoaded, loading: false, loaded: false,
+    details: null, offers: null, offersOpen: false, filters: {}, error: '', scrollTop: 0,
+  };
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
   panel.classList.add('picker-detail-open');
   panel.scrollTop = 0;
   detail.classList.remove('hidden');
   detail.scrollTop = 0;
+  renderPickerDetail(true);
+  fitPickerDetail();
+  requestAnimationFrame(fitPickerDetail);
+  setTimeout(fitPickerDetail, 80);
   $('#pickerDetailBack').focus?.();
+  if (!pdState.productLoaded && pdState.item.url && typeof Idealo !== 'undefined') loadPickerProduct(pdState);
+  if (opts.autoLoad) loadPickerDetailData();
 }
 function closePickerDetail() {
+  pdSeq++;
   pickerDetailItem = null;
+  pdState = null;
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
-  if (panel) panel.classList.remove('picker-detail-open');
+  if (panel) { panel.classList.remove('picker-detail-open'); panel.style.height = ''; }
   if (detail) { detail.classList.add('hidden'); detail.scrollTop = 0; }
   const body = $('#pickerDetailBody'); if (body) body.innerHTML = '';
+}
+function applyDetailProduct(st, d) {
+  if (!st || !d || d.error) return;
+  const it = st.item;
+  if (d.name) it.name = d.name;
+  if (d.img) it.img = d.img;
+  if (d.specs) it.specs = d.specs;
+  if (d.summary) it.summary = d.summary;
+  if (d.images && d.images.length) it.images = d.images;
+  if (d.datasheet) it.datasheet = d.datasheet;
+  if (d.variants && d.variants.items && d.variants.items.length) it.variants = d.variants;
+  if (!it.price && d.price) it.price = d.price;
+  if (!it.offers && d.offers) it.offers = d.offers;
+}
+async function loadPickerProduct(st) {
+  if (!st || !st.item.url || typeof Idealo === 'undefined') return;
+  const seq = pdSeq, url = st.item.url;
+  st.productLoaded = true;
+  try {
+    const d = await Idealo.product(url);
+    if (!pdState || pdState !== st || seq !== pdSeq || st.item.url !== url) return;
+    applyDetailProduct(st, d);
+    renderPickerDetail(false);
+  } catch { /* keep the listing data */ }
+}
+async function loadPickerDetailData() {
+  const st = pdState;
+  if (!st || st.loading) return;
+  if (!st.item.url) { st.error = pdTxt('Aucun lien Idealo pour charger la fiche.', 'No Idealo link to load the datasheet.'); renderPickerDetail(false); return; }
+  const seq = pdSeq, url = st.item.url;
+  st.loading = true; st.error = ''; renderPickerDetail(false);
+  try {
+    const jobs = [Idealo.details(url)];
+    jobs.push(st.offers && st.offers.length ? Promise.resolve({ offers: st.offers }) : Idealo.offers(url));
+    if (!st.productLoaded) jobs.push(Idealo.product(url).then(d => ({ product: d })));
+    const res = await Promise.allSettled(jobs);
+    if (!pdState || pdState !== st || seq !== pdSeq || st.item.url !== url) return;
+    const det = res[0] && res[0].status === 'fulfilled' ? res[0].value : null;
+    const off = res[1] && res[1].status === 'fulfilled' ? res[1].value : null;
+    const prod = res[2] && res[2].status === 'fulfilled' ? res[2].value : null;
+    if (prod) applyDetailProduct(st, prod.product);
+    if (off && !off.error && off.offers) {
+      st.offers = off.offers;
+      if (off.offers.length) {
+        const o = off.offers[0];
+        if (o.price) st.item.price = o.price;
+        if (o.merchant) st.item.vendor = o.merchant;
+        if (o.delivered > 0 && o.price) st.item.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+        if (o.url) st.item.store = o.url;
+      }
+    }
+    if (det && !det.error) {
+      st.details = det;
+      st.loaded = true;
+      if (det.images && det.images.length) st.item.images = det.images;
+      if (det.summary) st.item.summary = det.summary;
+    } else {
+      st.error = (det && det.error) ? det.error : pdTxt('Fiche indisponible pour le moment.', 'Datasheet unavailable right now.');
+    }
+  } catch (e) {
+    if (pdState === st && seq === pdSeq) st.error = String((e && e.message) || e);
+  } finally {
+    if (pdState === st && seq === pdSeq) { st.loading = false; renderPickerDetail(false); }
+  }
+}
+function openGallery(images, start = 0) {
+  const imgs = pdUnique(images);
+  if (!imgs.length) return;
+  const ov = $('#galleryOverlay'); if (!ov) return;
+  galleryState = { imgs, idx: Math.max(0, Math.min(start, imgs.length - 1)) };
+  ov.classList.remove('hidden');
+  document.body.classList.add('gallery-open');
+  galleryShow(galleryState.idx);
+  $('#galleryClose').focus?.();
+}
+function galleryShow(idx) {
+  const g = galleryState; if (!g || !g.imgs.length) return;
+  g.idx = (idx + g.imgs.length) % g.imgs.length;
+  const img = $('#galleryImg');
+  if (img) { img.src = g.imgs[g.idx]; img.alt = ''; }
+  const cnt = $('#galleryCount');
+  if (cnt) cnt.textContent = `${g.idx + 1} / ${g.imgs.length}`;
+  const thumbs = $('#galleryThumbs');
+  if (thumbs) {
+    thumbs.innerHTML = g.imgs.map((u, i) => `<button class="gallery-thumb${i === g.idx ? ' active' : ''}" data-gi="${i}" aria-label="${i + 1}"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join('');
+    const active = thumbs.children[g.idx];
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+}
+function galleryMove(delta) { if (galleryState) galleryShow(galleryState.idx + delta); }
+function closeGallery() {
+  const ov = $('#galleryOverlay'); if (!ov) return;
+  ov.classList.add('hidden');
+  document.body.classList.remove('gallery-open');
+  galleryState = null;
+}
+function onPickerDetailClick(e) {
+  const b = e.target.closest && e.target.closest('[data-pd-act]');
+  if (!b || !pdState) return;
+  const st = pdState;
+  switch (b.dataset.pdAct) {
+    case 'choose':
+      commitPickerItem(st.item, { fromDetail: true });
+      break;
+    case 'load':
+      loadPickerDetailData();
+      break;
+    case 'offers':
+      st.offersOpen = !st.offersOpen;
+      if (st.offersOpen && !st.offers && !st.loading) loadPickerDetailData();
+      else renderPickerDetail(false);
+      break;
+    case 'media': {
+      const imgs = pdImagesFor(st.item, st.details);
+      const cur = st.item.img || imgs[0];
+      openGallery(imgs, Math.max(0, imgs.indexOf(cur)));
+      break;
+    }
+    case 'vfilter': {
+      const fi = Number(b.dataset.f), vi = Number(b.dataset.v);
+      st.scrollTop = $('#pickerDetailBody').scrollTop;
+      st.filters[fi] = st.filters[fi] === vi ? -1 : vi;
+      renderPickerDetail(false);
+      break;
+    }
+    case 'variant': {
+      const url = b.dataset.url;
+      if (!url) break;
+      openPickerDetail({ name: b.dataset.name || '', img: b.dataset.img || '', price: Number(b.dataset.price) || 0, url }, { autoLoad: true });
+      break;
+    }
+    case 'offer':
+      break;
+  }
 }
 function enrichPickerItem(it, np, slotId) {
   if (!it || !it.url || !/idealo\.fr\/prix\//i.test(it.url)) return;
@@ -1620,6 +1891,9 @@ function commitPickerItem(it) {
 }
 let pickerMode = 'replace'; // 'replace' (component click) or 'add' (add-alternative button)
 let pickerDetailItem = null;
+let pdState = null;
+let pdSeq = 0;
+let galleryState = null;
 /* Show the loading state while a dynamic default page is resolved. */
 function showPickerPending() {
   idealBase = ''; idealUrl = ''; idealPool = []; idealFetched = {}; idealShown = IDEAL_PAGE; idealNextUrl = null;
@@ -5128,6 +5402,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.56 — Fiche composant complète</h3><p class="hint">La fiche d’un composant occupe désormais tout l’espace du panneau de droite : galerie photos avec flèches et miniatures, favori, variantes et filtres, résumé Idealo, offres marchands cliquables, accès à la boutique et fiche technique complète chargée à la demande avec animations. Le titre de l’onglet reprend le nom de la config, et les cartes de résultats gèrent les noms et prix longs sur deux lignes.</p></div>
     <div class="chlog"><h3>v2.55 — Ouverture d’un lien de partage</h3><p class="hint">Charger une config depuis un lien partagé reconstruit désormais tout le configurateur (toutes les sections et tous les composants restent visibles et éditables) et y place les composants partagés. Les fiches réduites du lien (nom, prix, lien Idealo) sont réenrichies en arrière-plan — image, specs, fiche technique et compatibilité — sans le popup bloquant « Actualisation des prix ». L’adresse est nettoyée après l’import pour qu’un rechargement réutilise la config enrichie.</p></div>
     <div class="chlog"><h3>v2.54 — Partage &amp; export repensés</h3><p class="hint">Popup « Partager / Exporter » unique avec bascule Partager ⇄ Exporter : code QR + lien lisible pour partager, PDF et JSON pour exporter, et un comparatif de ce que chaque option contient. Le lien de partage devient lisible (arguments d’URL : nom, budget, et pour chaque composant nom, prix et identifiant du lien Idealo) — l’ancien lien encodé reste accepté. Le JSON d’une config contient désormais tout son historique (sauvegardes et courbe des prix) et le réimport le restaure ; « Export données » de la barre de navigation exporte l’intégralité du stockage (toutes les configs, tout l’historique, préférences).</p></div>
     <div class="chlog"><h3>v2.53 — Graphiques &amp; historique de conso</h3><p class="hint">Graphiques en camembert : une couleur par composant, choisie pour que les tranches voisines soient très contrastées (violet, jaune, vert, marron, turquoise, rose…), les exemplaires supplémentaires d’un même type prenant une teinte plus foncée. Historique des prix repensé : échelles horizontale (dates) et verticale (valeurs), rendu net (HiDPI), survol de la courbe avec info-bulle par date, ligne de budget limitée à la vue total, et nouvelle catégorie « Consommation » qui conserve la puissance (W) à chaque sauvegarde. En vue « par composant », l’info-bulle n’affiche que le composant survolé, la légende est rangée en trois catégories (PC, setup, options) et chaque composant peut être activé/désactivé en cliquant son entrée ; des boutons « Tout / PC / Setup / Options » au-dessus activent/désactivent toute la catégorie d’un clic ; le survol de la consommation affiche aussi le coût estimé par mois et par an.</p></div>
@@ -5243,8 +5518,13 @@ function openInstall() {
 }
 
 /* ---------- Refresh ---------- */
+function syncDocTitle() {
+  const name = String(state.name || '').trim() || 'Ma Config';
+  document.title = `${name} - Configmaker by KJ`;
+}
 function refresh() {
   compatCache = null;
+  syncDocTitle();
   $('#configName').value = state.name;
   $('#budgetInput').value = state.budget;
   $('#versionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
@@ -5259,7 +5539,7 @@ function refresh() {
 
 /* ---------- Events ---------- */
 function bind() {
-  $('#configName').addEventListener('input', e => { state.name = e.target.value; persist(); });
+  $('#configName').addEventListener('input', e => { state.name = e.target.value; syncDocTitle(); persist(); });
   $('#budgetInput').addEventListener('input', e => { state.budget = parseFloat(e.target.value) || 0; persist(); renderSummary(); if (!$('#page-prices').classList.contains('hidden')) drawPrices(); });
   $('#saveBtn').onclick = doSave;
   $('#sumSaveBtn').onclick = doSave;
@@ -5289,6 +5569,35 @@ function bind() {
   $('#summaryPanel').addEventListener('scroll', updatePowerTotalsReveal, { passive: true });
   $('#pickerClose').onclick = closePicker;
   $('#pickerDetailBack').onclick = closePickerDetail;
+  const pdBody = $('#pickerDetailBody');
+  if (pdBody) {
+    pdBody.addEventListener('click', onPickerDetailClick);
+    pdBody.addEventListener('scroll', () => { if (pdState) pdState.scrollTop = pdBody.scrollTop; }, { passive: true });
+  }
+  const pdFav = $('#pdFav');
+  if (pdFav) pdFav.onclick = () => {
+    if (!pdState) return;
+    pdState.item._fav = !pdState.item._fav;
+    renderPickerDetail(false);
+    toast(pdTxt('Favoris bientôt disponibles', 'Favourites coming soon'));
+  };
+  const gClose = $('#galleryClose'); if (gClose) gClose.onclick = closeGallery;
+  const gPrev = $('#galleryPrev'); if (gPrev) gPrev.onclick = () => galleryMove(-1);
+  const gNext = $('#galleryNext'); if (gNext) gNext.onclick = () => galleryMove(1);
+  const gOv = $('#galleryOverlay');
+  if (gOv) {
+    gOv.addEventListener('click', e => {
+      if (e.target === gOv) { closeGallery(); return; }
+      const th = e.target.closest && e.target.closest('.gallery-thumb');
+      if (th) galleryShow(Number(th.dataset.gi) || 0);
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (!$('#galleryOverlay') || $('#galleryOverlay').classList.contains('hidden')) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeGallery(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); galleryMove(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); galleryMove(1); }
+  });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
@@ -5372,7 +5681,7 @@ function bind() {
         openProductForm(activeSlot, np, pickerMode === 'add' ? { addOnly: true } : {});
         return;
       }
-      const it = { name: (d && d.name) || fallbackName, img: (d && d.img) || '', specs: (d && d.specs) || '', price: (d && d.price) || 0, url, offers: (r && !r.error && r.offers.length) || 0, vendor: '', delivery: 0, store: '', datasheet: (d && d.datasheet) || '', variants: (d && d.variants) || null };
+      const it = { name: (d && d.name) || fallbackName, img: (d && d.img) || '', images: (d && d.images) || [], summary: (d && d.summary) || '', specs: (d && d.specs) || '', price: (d && d.price) || 0, url, offers: (r && !r.error && r.offers.length) || 0, vendor: '', delivery: 0, store: '', datasheet: (d && d.datasheet) || '', variants: (d && d.variants) || null, _productLoaded: true };
       if (r && !r.error && r.offers.length) {
         const o = r.offers[0];
         if (o.merchant) it.vendor = o.merchant;
@@ -5429,6 +5738,7 @@ function bind() {
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if ($('#galleryOverlay') && !$('#galleryOverlay').classList.contains('hidden')) { closeGallery(); return; }
     if (!$('#editorPanel').classList.contains('hidden')) { closeEditorPanel(); return; }
     if (!$('#pickerDetail').classList.contains('hidden')) { closePickerDetail(); return; }
     closeModal();
@@ -5452,9 +5762,10 @@ function bind() {
       openPickerSheet();
     }
     updatePowerTotalsReveal();
+    fitPickerDetail();
     schedulePriceDraw();
   }, { passive: true });
-  window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 10), { passive: true });
+  window.addEventListener('scroll', () => { document.body.classList.toggle('scrolled', scrollY > 10); fitPickerDetail(); }, { passive: true });
   document.body.classList.toggle('scrolled', scrollY > 10);
   // parallax orbs
   const orbs = $$('[data-bg-parallax]');
