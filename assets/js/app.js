@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
-const APP_VERSION = '2.56';
+const APP_VERSION = '2.57';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -1764,6 +1764,7 @@ async function loadPickerDetailData() {
     if (pdState === st && seq === pdSeq) { st.loading = false; renderPickerDetail(false); }
   }
 }
+function galleryFullUrl(url) { return String(url || '').replace(/produktbild_(?:mittelgross|klein|mini)/i, 'produktbild_gross'); }
 function openGallery(images, start = 0) {
   const imgs = pdUnique(images);
   if (!imgs.length) return;
@@ -1778,7 +1779,17 @@ function galleryShow(idx) {
   const g = galleryState; if (!g || !g.imgs.length) return;
   g.idx = (idx + g.imgs.length) % g.imgs.length;
   const img = $('#galleryImg');
-  if (img) { img.src = g.imgs[g.idx]; img.alt = ''; }
+  const fullUrl = galleryFullUrl(g.imgs[g.idx]);
+  if (img) {
+    img.alt = '';
+    img.onerror = () => { img.onerror = null; img.src = g.imgs[g.idx]; };
+    img.src = fullUrl;
+  }
+  const full = $('#galleryFull');
+  if (full) {
+    full.href = fullUrl;
+    full.title = pdTxt('Ouvrir la photo en taille réelle dans un nouvel onglet', 'Open the full-size photo in a new tab');
+  }
   const cnt = $('#galleryCount');
   if (cnt) cnt.textContent = `${g.idx + 1} / ${g.imgs.length}`;
   const thumbs = $('#galleryThumbs');
@@ -5402,6 +5413,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.57 — Fiche technique & galerie</h3><p class="hint">La fiche technique s’affiche désormais entièrement, sans zone de défilement interne. Le bouton de chargement ne saute plus au survol. Les photos de la galerie s’ouvrent en grand et un clic ouvre l’image Idealo en taille réelle dans un nouvel onglet. Les fonds blancs des barres de titre et d’actions de la fiche ont été retirés sur mobile.</p></div>
     <div class="chlog"><h3>v2.56 — Fiche composant complète</h3><p class="hint">La fiche d’un composant occupe désormais tout l’espace du panneau de droite : galerie photos avec flèches et miniatures, favori, variantes et filtres, résumé Idealo, offres marchands cliquables, accès à la boutique et fiche technique complète chargée à la demande avec animations. Le titre de l’onglet reprend le nom de la config, et les cartes de résultats gèrent les noms et prix longs sur deux lignes.</p></div>
     <div class="chlog"><h3>v2.55 — Ouverture d’un lien de partage</h3><p class="hint">Charger une config depuis un lien partagé reconstruit désormais tout le configurateur (toutes les sections et tous les composants restent visibles et éditables) et y place les composants partagés. Les fiches réduites du lien (nom, prix, lien Idealo) sont réenrichies en arrière-plan — image, specs, fiche technique et compatibilité — sans le popup bloquant « Actualisation des prix ». L’adresse est nettoyée après l’import pour qu’un rechargement réutilise la config enrichie.</p></div>
     <div class="chlog"><h3>v2.54 — Partage &amp; export repensés</h3><p class="hint">Popup « Partager / Exporter » unique avec bascule Partager ⇄ Exporter : code QR + lien lisible pour partager, PDF et JSON pour exporter, et un comparatif de ce que chaque option contient. Le lien de partage devient lisible (arguments d’URL : nom, budget, et pour chaque composant nom, prix et identifiant du lien Idealo) — l’ancien lien encodé reste accepté. Le JSON d’une config contient désormais tout son historique (sauvegardes et courbe des prix) et le réimport le restaure ; « Export données » de la barre de navigation exporte l’intégralité du stockage (toutes les configs, tout l’historique, préférences).</p></div>
