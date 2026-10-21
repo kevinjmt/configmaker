@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.58';
+const APP_VERSION = '2.59';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -90,7 +90,30 @@ const I18N = {
     'nav.exportAll': 'Export données', 'nav.install': 'Installer',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prix',
+    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
+    'compare.title': 'Comparer les configurations', 'compare.all': 'Toutes les specs', 'compare.diff': 'Différences',
+    'compare.add': 'Ajouter une config', 'compare.pickTitle': 'Ajouter une configuration à comparer',
+    'compare.pickHint': 'Choisissez jusqu’à 4 versions sauvegardées. La config actuelle reste toujours la première colonne.',
+    'compare.noSaved': 'Aucune version sauvegardée. Sauvegardez une configuration pour pouvoir la comparer.',
+    'compare.max': 'Maximum 4 configurations supplémentaires.', 'compare.current': 'Actuelle',
+    'compare.remove': 'Retirer cette colonne', 'compare.specs': 'Spécifications', 'compare.total': 'Total',
+    'compare.game': 'Jeu', 'compare.resolution': 'Résolution', 'compare.auto': 'Auto (écran)',
+    'compare.brief': "Résumé d'usage", 'compare.gaming': 'Jeu (FPS iobit)', 'compare.geekbench': 'Geekbench',
+    'compare.3dmark': '3DMark Time Spy', 'compare.daily': 'Quotidien', 'compare.heavy': 'Charges lourdes',
+    'compare.single': 'Mono-cœur', 'compare.multi': 'Multi-cœurs', 'compare.combo': 'Combiné',
+    'compare.cpuScore': 'CPU', 'compare.gpuScore': 'GPU', 'compare.bottleneck': 'Limite',
+    'compare.threads': 'Threads CPU', 'compare.ram': 'RAM', 'compare.storage': 'Stockage', 'compare.display': 'Écran',
+    'compare.panel': 'Dalle', 'compare.gpu': 'GPU', 'compare.vram': 'VRAM', 'compare.version': 'Version',
+    'compare.alts': 'Alternatives', 'compare.variants': 'Variantes', 'compare.choose': 'Choisir',
+    'compare.loading': 'Chargement…', 'compare.err': 'Indisponible', 'compare.retry': 'Réessayer',
+    'compare.needCpu': 'CPU requis', 'compare.needBoth': 'CPU + GPU requis', 'compare.noRows': 'Aucune configuration à afficher.',
+    'compare.emptySlot': 'Non sélectionné', 'compare.variantLoad': 'Chargement de la variante…',
+    'compare.variantErr': 'Variante indisponible — réessayez.', 'compare.pickComponent': 'Changer le composant',
+    'compare.savedOn': 'Sauvegardée le', 'compare.diffLegend': 'Surligné : différent de la config actuelle',
+    'compare.fps': 'FPS', 'compare.score': 'Score',
+    'compare.empty': 'Sélectionnez des composants dans la config ou ajoutez une configuration sauvegardée.',
+    'compare.hint': 'La config actuelle est à gauche. Les changements effectués ici sont temporaires et ne modifient ni le brouillon ni les sauvegardes.',
+    'compare.hintDiff': 'Les différences par rapport à la config actuelle sont surlignées ; les lignes identiques sont atténuées.',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
     'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative", 'picker.detail': 'Fiche du composant', 'picker.openIdealo': 'Ouvrir sur Idealo',
@@ -147,7 +170,30 @@ const I18N = {
     'nav.exportAll': 'Export data', 'nav.install': 'Install',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.prices': 'Prices',
+    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
+    'compare.title': 'Compare configurations', 'compare.all': 'All specs', 'compare.diff': 'Differences',
+    'compare.add': 'Add a config', 'compare.pickTitle': 'Add a configuration to compare',
+    'compare.pickHint': 'Choose up to 4 saved versions. The current draft is always the first column.',
+    'compare.noSaved': 'No saved versions yet. Save a configuration before comparing it.',
+    'compare.max': 'Maximum 4 additional configurations.', 'compare.current': 'Current',
+    'compare.remove': 'Remove this column', 'compare.specs': 'Specifications', 'compare.total': 'Total',
+    'compare.game': 'Game', 'compare.resolution': 'Resolution', 'compare.auto': 'Auto (display)',
+    'compare.brief': 'Usage summary', 'compare.gaming': 'Gaming (iobit FPS)', 'compare.geekbench': 'Geekbench',
+    'compare.3dmark': '3DMark Time Spy', 'compare.daily': 'Daily use', 'compare.heavy': 'Heavy workloads',
+    'compare.single': 'Single-core', 'compare.multi': 'Multi-core', 'compare.combo': 'Combined',
+    'compare.cpuScore': 'CPU', 'compare.gpuScore': 'GPU', 'compare.bottleneck': 'Limit',
+    'compare.threads': 'CPU threads', 'compare.ram': 'RAM', 'compare.storage': 'Storage', 'compare.display': 'Display',
+    'compare.panel': 'Panel', 'compare.gpu': 'GPU', 'compare.vram': 'VRAM', 'compare.version': 'Version',
+    'compare.alts': 'Alternatives', 'compare.variants': 'Variants', 'compare.choose': 'Choose',
+    'compare.loading': 'Loading…', 'compare.err': 'Unavailable', 'compare.retry': 'Retry',
+    'compare.needCpu': 'CPU required', 'compare.needBoth': 'CPU + GPU required', 'compare.noRows': 'Nothing to display.',
+    'compare.emptySlot': 'Not selected', 'compare.variantLoad': 'Loading variant…',
+    'compare.variantErr': 'Variant unavailable — retry.', 'compare.pickComponent': 'Change component',
+    'compare.savedOn': 'Saved on', 'compare.diffLegend': 'Highlighted: differs from the current config',
+    'compare.fps': 'FPS', 'compare.score': 'Score',
+    'compare.empty': 'Select components in the config or add a saved configuration.',
+    'compare.hint': 'The current draft is on the left. Changes made here are temporary and never modify the draft or saved versions.',
+    'compare.hintDiff': 'Differences from the current config are highlighted; identical rows are dimmed.',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
     'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative', 'picker.detail': 'Component details', 'picker.openIdealo': 'Open on Idealo',
@@ -305,16 +351,21 @@ function unitTotal(p) { return (Number(p.price) || 0) * (Number(p.qty) || 1) + (
 function slotTotal(slot) { const p = sel(slot); return p ? unitTotal(p) : 0; }
 function hasDiscount(p) { return Number(p.oldPrice) > Number(p.price) && Number(p.price) > 0; }
 function discPct(p) { return Math.round((1 - Number(p.price) / Number(p.oldPrice)) * 100); }
-function totals() {
+function totals() { return totalsForState(state); }
+function totalsForState(st) {
+  const order = (st && st.order) || Object.keys((st && st.slots) || {});
+  const budget = Number(st && st.budget) || 0;
   let pc = 0, setup = 0, others = 0, deliv = 0, watts = 0;
-  state.order.forEach(id => {
-    const s = state.slots[id]; const st = slotTotal(s); const sec = defOf(s).sec;
-    if (sec === 'pc') pc += st; else if (sec === 'setup') setup += st; else others += st;
-    const p = sel(s);
+  order.forEach(id => {
+    const s = st && st.slots && st.slots[id]; if (!s) return;
+    const p = (s.products || []).find(x => x.id === s.selectedId) || null;
+    const item = p ? unitTotal(p) : 0;
+    const sec = defOf(s).sec;
+    if (sec === 'pc') pc += item; else if (sec === 'setup') setup += item; else others += item;
     if (p) { deliv += Number(p.delivery) || 0; if (sec === 'pc') watts += (Number(p.watts) || 0) * (Number(p.qty) || 1); }
   });
   const total = pc + setup + others;
-  return { pc, setup, others, total, deliv, watts, diff: (Number(state.budget) || 0) - total };
+  return { pc, setup, others, total, deliv, watts, diff: budget - total };
 }
 function isMobileView() { return window.matchMedia('(max-width:960px)').matches; }
 function updateMobileTotalBar() {
@@ -4130,28 +4181,35 @@ function seriesForSlot(id, cfgs) { // per-component: slot totals read back from 
 }
 
 /* ---------- Benchmarks ---------- */
-function cpuIgpuName() {
-  const s = state.slots.cpu; const p = s && sel(s);
+function prodIn(st, id) {
+  const s = st && st.slots && st.slots[id];
+  return (s && (s.products || []).find(p => p.id === s.selectedId)) || null;
+}
+function cpuIgpuNameIn(st) {
+  const p = prodIn(st, 'cpu');
   if (!p || !p.datasheet || typeof Compat === 'undefined') return '';
   try { const C = Compat.parseDatasheet(p.datasheet); if (C && C.igpuName) return String(C.igpuName).trim(); } catch { /* ignore */ }
   return '';
 }
-function gpuSeriesName() {
-  const s = state.slots.gpu; const p = s && sel(s);
+function gpuSeriesNameIn(st) {
+  const p = prodIn(st, 'gpu');
   if (!p) return '';
   if (p.datasheet && typeof Compat !== 'undefined') {
     try { const G = Compat.parseDatasheet(p.datasheet); if (G && G.gpuSeries) return String(G.gpuSeries).trim(); } catch { /* ignore */ }
   }
   return '';
 }
-function benchParts() {
-  const g = id => { const s = state.slots[id]; const p = s && sel(s); return p ? p.name : ''; };
+function cpuIgpuName() { return cpuIgpuNameIn(state); }
+function gpuSeriesName() { return gpuSeriesNameIn(state); }
+function benchPartsFor(st) {
+  const g = id => { const p = prodIn(st, id); return p ? p.name : ''; };
   const cpu = g('cpu'), ram = g('ram');
   let gpu = g('gpu'), iGpu = false;
-  if (!gpu) { const ig = cpuIgpuName(); if (ig) { gpu = ig; iGpu = true; } }
-  const gpuSeries = gpu ? (iGpu ? gpu : (gpuSeriesName() || gpu)) : '';
+  if (!gpu) { const ig = cpuIgpuNameIn(st); if (ig) { gpu = ig; iGpu = true; } }
+  const gpuSeries = gpu ? (iGpu ? gpu : (gpuSeriesNameIn(st) || gpu)) : '';
   return { cpu, gpu, gpuSeries, ram, iGpu };
 }
+function benchParts() { return benchPartsFor(state); }
 function benchQuery() { const b = benchParts(); return `${b.cpu} ${b.gpuSeries}`.trim(); }
 let benchCacheQ = '', benchBusy = false;
 /* ---------- Benchmarks : brief + gaming iobit + pro + Geekbench + 3DMark + YT ---------- */
@@ -4162,29 +4220,34 @@ let benchKey = '', benchRun = 0, benchYtKey = '';
 let bench3d = null, bench3dKey = '', benchGb = null, benchGbKey = '';
 const tipReg = {}; let tipSeq = 0;
 
-function benchProd(id) { const s = state.slots[id]; return (s && sel(s)) || null; }
+function benchProdIn(st, id) { return prodIn(st, id); }
+function benchProd(id) { return benchProdIn(state, id); }
 function benchSlotProd(id) { const s = state.slots[id]; const p = s && sel(s); return p ? { p, defId: s.defId } : null; }
-function benchScan(prefix) {
-  for (const sid of state.order) { const sl = state.slots[sid]; if (sl && sl.defId.indexOf(prefix) === 0) { const p = sel(sl); if (p) return p; } }
+function benchScanIn(st, prefix) {
+  for (const sid of ((st && st.order) || Object.keys((st && st.slots) || {}))) {
+    const sl = st.slots[sid];
+    if (sl && sl.defId.indexOf(prefix) === 0) { const p = (sl.products || []).find(x => x.id === sl.selectedId); if (p) return p; }
+  }
   return null;
 }
+function benchScan(prefix) { return benchScanIn(state, prefix); }
 function benchScanSlot(prefix) {
   for (const sid of state.order) { const sl = state.slots[sid]; if (sl && sl.defId.indexOf(prefix) === 0) { const p = sel(sl); if (p) return { p, defId: sl.defId }; } }
   return null;
 }
-function benchFacts() {
-  const cpuP = benchProd('cpu'), ramP = benchProd('ram');
-  let gpuP = benchProd('gpu'), igpu = false;
+function benchFactsFor(st) {
+  const cpuP = benchProdIn(st, 'cpu'), ramP = benchProdIn(st, 'ram');
+  let gpuP = benchProdIn(st, 'gpu'), igpu = false;
   if (!gpuP) { // no dedicated GPU: fall back to the CPU's integrated graphics
-    const ig = cpuIgpuName();
+    const ig = cpuIgpuNameIn(st);
     const e = ig ? Perf.igpuEntry(ig) : null;
     if (e) { gpuP = { name: e[1], qty: 1, syntheticIgpu: true }; igpu = true; }
   }
   // stockage : total de tous les SSD/HDD internes ; le type = disque le plus rapide present
   const storParts = [];
-  for (const sid of state.order) {
-    const sl = state.slots[sid]; if (!sl || !/^(ssd|hdd)/.test(sl.defId)) continue;
-    const p = sel(sl); if (!p) continue;
+  for (const sid of ((st && st.order) || Object.keys((st && st.slots) || {}))) {
+    const sl = st.slots[sid]; if (!sl || !/^(ssd|hdd)/.test(sl.defId)) continue;
+    const p = (sl.products || []).find(x => x.id === sl.selectedId); if (!p) continue;
     storParts.push({ p, gb: Perf.diskGB(p.name), ty: Perf.diskType(p.name, p.datasheet, sl.defId) });
   }
   const storP = storParts.length ? storParts[0].p : null;
@@ -4192,7 +4255,7 @@ function benchFacts() {
   const diskGB = kb.length ? kb.reduce((a, b) => a + b, 0) : null;
   const hasTy = t => storParts.some(x => x.ty === t);
   const diskType = !storParts.length ? null : hasTy('nvme') ? 'nvme' : hasTy('sata') ? 'sata' : hasTy('hdd') ? 'hdd' : null;
-  const scrP = benchProd('screen1') || benchScan('screen');
+  const scrP = benchProdIn(st, 'screen1') || benchScanIn(st, 'screen');
   const threads = (cpuP && (Perf.threadsFromDatasheet(cpuP.datasheet) || Perf.specsThreads(cpuP.specs))) || null;
   const ramGB = ramP ? Perf.ramGB(ramP.name) : null;
   // VRAM : nom d'abord, puis repli sur le datasheet ( Capacite memoire : 12 Go ).
@@ -4216,6 +4279,7 @@ function benchFacts() {
     gRank: gpuP ? (igpu ? { igpu: 1 } : Perf.gpuRank(gpuP.name, gpuEntry ? gpuEntry[3] : null)) : null,
   };
 }
+function benchFacts() { return benchFactsFor(state); }
 /* ----- tooltip flottant (suit le curseur) ----- */
 function regTip(rows) { const id = 'tip' + (++tipSeq); tipReg[id] = rows; return id; }
 function bindPerfTip() {
@@ -4559,6 +4623,538 @@ function playVideo(v) {
     <div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(v.url)}"><i class="fa-brands fa-youtube"></i> ${lang === 'en' ? 'Open on YouTube' : 'Ouvrir sur YouTube'}</a></div>
     <p class="hint">${lang === 'en' ? 'If the player refuses to load, the author disabled embedding — use the YouTube button.' : "Si le lecteur refuse de charger, l'auteur a désactivé l'intégration — utilisez le bouton YouTube."}</p>`);
 }
+/* ---------- Compare configurations ---------- */
+const CMP_MAX_EXTRA = 4;
+const cmpSectionSeq = { n: 0 };
+let cmpState = { cols: [], mode: 'all', game: 'cp2077', res: 'auto', ext: {}, varBusy: false, renderTimer: null };
+
+function cmpCloneState(src) {
+  let out;
+  try { out = JSON.parse(JSON.stringify(src || {})); } catch { out = {}; }
+  out.slots = (out.slots && typeof out.slots === 'object') ? out.slots : {};
+  out.order = (Array.isArray(out.order) && out.order.length) ? out.order : Object.keys(out.slots);
+  if (!out.usage) { try { out.usage = defaultUsage(); } catch { out.usage = {}; } }
+  Object.values(out.slots).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    if (!Array.isArray(s.products)) s.products = [];
+    if (!s.selectedId || !s.products.some(p => p.id === s.selectedId)) s.selectedId = s.products[0]?.id || null;
+  });
+  return out;
+}
+function cmpDate(ts) {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'short', timeStyle: 'short' }); } catch { return ''; }
+}
+function cmpVersionLabel(c) {
+  if (c.version) return 'v' + c.version;
+  return c.source === 'current' ? (lang === 'en' ? 'unsaved' : 'non sauvée') : '—';
+}
+function cmpRefreshCurrent() {
+  const st = cmpCloneState(state);
+  let cur = cmpState.cols.find(c => c.source === 'current');
+  if (cur) {
+    const changed = !cur.base || JSON.stringify(cur.base) !== JSON.stringify(state);
+    if (changed) { cur.st = st; cur.base = cmpCloneState(state); }
+    cur.name = state.name || 'Ma Config'; cur.version = state.version || '';
+  } else {
+    cur = { id: 'current', source: 'current', name: state.name || 'Ma Config', version: state.version || '', st, base: cmpCloneState(state) };
+    cmpState.cols.unshift(cur);
+  }
+  if (cmpState.cols[0] !== cur) {
+    cmpState.cols = [cur, ...cmpState.cols.filter(c => c !== cur)];
+  }
+}
+function cmpEnsureCols() { if (!cmpState.cols.some(c => c.source === 'current')) cmpRefreshCurrent(); }
+function cmpExtFor(col, f) {
+  const cpu = f && f.cpuP ? f.cpuP.name : '';
+  const gpu = f && f.gpuP ? f.gpuP.name : '';
+  const key = cpu + '|' + gpu;
+  let e = cmpState.ext[col.id];
+  if (!e || e.key !== key) {
+    e = { key, gb: null, gbBusy: false, gbErr: false, b3d: null, b3dBusy: false, b3dErr: false };
+    cmpState.ext[col.id] = e;
+  }
+  return e;
+}
+function cmpData() {
+  cmpEnsureCols();
+  const facts = cmpState.cols.map(c => benchFactsFor(c.st));
+  return { cols: cmpState.cols, facts, exts: cmpState.cols.map((c, i) => cmpExtFor(c, facts[i])) };
+}
+function showCompare() {
+  cmpRefreshCurrent();
+  renderCompare();
+}
+function cmpCell(html, val, num, eps) {
+  return { html, val: val == null ? '' : String(val), num: (typeof num === 'number' && isFinite(num)) ? num : null, eps: Number(eps) || 0 };
+}
+function cmpSame(a, b) {
+  if (a && b && a.num != null && b.num != null) return Math.abs(a.num - b.num) <= Math.max(a.eps || 0, b.eps || 0, 0.001);
+  return String((a && a.val) || '') === String((b && b.val) || '');
+}
+function cmpNoneCell(txt) { return cmpCell(`<span class="cmp-none">${esc(txt || '—')}</span>`, 'none|' + (txt || ''), null, 0); }
+function cmpNeedCell(txt) { return cmpCell(`<span class="cmp-none">${esc(txt)}</span>`, 'need|' + txt, null, 0); }
+function cmpLoadingCell() { return cmpCell(`<span class="cmp-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${esc(t('compare.loading'))}</span>`, 'loading', null, 0); }
+function cmpRetryCell(kind, colId) {
+  return cmpCell(`<button class="mini-btn cmp-retry" data-cmp-retry="${esc(kind)}" data-cmp-col="${esc(colId)}"><i class="fa-solid fa-rotate-right"></i> ${esc(t('compare.retry'))}</button>`, 'retry|' + kind, null, 0);
+}
+function cmpStatusCell(st) {
+  const w = briefStatusWord(st);
+  const cls = st === 'unknown' ? 'warn' : st;
+  return cmpCell(`<span class="cmp-status st-${esc(cls)}"><span class="dot-${esc(cls)}">●</span> ${esc(w.txt)}</span>`, String(st || 'unknown'), null, 0);
+}
+function cmpFpsCell(v, resLbl) {
+  if (v == null || !isFinite(v)) return cmpNeedCell('—');
+  return cmpCell(`<strong class="fps-${Perf.fpsColor(v)}">${v} ${esc(t('compare.fps'))}</strong>${resLbl ? `<small>${esc(resLbl)}</small>` : ''}`, String(v), v, 1);
+}
+function cmpGameFps(f, game, res, quality) {
+  if (!f.cpuEntry || !f.gpuEntry) return null;
+  return Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game, res, quality: quality || 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
+}
+function cmpResValue(r) { return r === '4k' ? '4k' : (r === 'auto' ? 'auto' : Number(r)); }
+function cmpResLabel(r) { return r === '4k' ? '4K' : String(r) + 'p'; }
+function cmpCritLabel(k) {
+  const map = { disk: 'storage', screen: 'display' };
+  return t('compare.' + (map[k] || k));
+}
+function cmpCriterionCell(r) {
+  if (!r) return cmpNoneCell('—');
+  const st = r.st === 'unknown' ? 'warn' : r.st;
+  const ic = st === 'ok' ? 'check' : st === 'warn' ? 'triangle-exclamation' : 'xmark';
+  const n = r.bar && typeof r.bar.val === 'number' ? r.bar.val : null;
+  return cmpCell(`<span class="cmp-crit st-${esc(st)}" title="${esc(r.detail || '')}"><i class="fa-solid fa-${ic}"></i><span>${esc(r.label || '—')}</span></span>`, (r.label || '') + '|' + (n == null ? '' : n) + '|' + r.st, n, 0.5);
+}
+function cmpBottleneckCell(bt) {
+  if (!bt || bt.level == null) return cmpCell(`<span class="cmp-status st-ok"><span class="dot-ok">●</span> ${esc(t('bench.btOk'))}</span>`, 'ok', null, 0);
+  const cls = bt.level === 'err' ? 'err' : 'warn';
+  const txt = bt.side === 'cpu' ? t('bench.btCpu') : t('bench.btGpu');
+  return cmpCell(`<span class="cmp-status st-${cls}"><span class="dot-${cls}">●</span> ${esc(txt)}</span>`, bt.side + '|' + bt.level, null, 0);
+}
+function cmpScoreCell(n, sub, eps) {
+  if (n == null || !isFinite(n)) return cmpNoneCell('—');
+  const loc = n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
+  return cmpCell(`<strong>${loc}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}`, String(n), n, eps == null ? Math.max(1, Math.abs(n) * 0.005) : eps);
+}
+function cmpSlotNameFor(id, cols) {
+  for (const c of cols) {
+    const s = c.st && c.st.slots && c.st.slots[id];
+    if (s && s.customLabel) return s.customLabel;
+  }
+  return (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
+}
+function cmpColumnHead(c, full) {
+  const ci = cmpState.cols.findIndex(x => x.id === c.id);
+  const C = PIE_COLORS[(ci < 0 ? 0 : ci) % PIE_COLORS.length];
+  const T = totalsForState(c.st);
+  const ver = cmpVersionLabel(c);
+  const meta = c.source === 'current'
+    ? t('compare.current') + (c.version ? ' · v' + c.version : '')
+    : ver + (c.savedAt ? ' · ' + cmpDate(c.savedAt) : '');
+  const rm = c.source === 'saved' ? `<button class="icon-btn cmp-colrm" data-cmp-remove="${esc(c.id)}" title="${esc(t('compare.remove'))}" aria-label="${esc(t('compare.remove'))}"><i class="fa-solid fa-xmark"></i></button>` : '';
+  return `<th scope="col" class="cmp-colhead${full ? ' full' : ' compact'}" style="--cmp-accent:${C}">
+    ${rm}<span class="cmp-colname" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span>
+    <span class="cmp-colmeta">${esc(meta)}</span>
+    ${full ? `<span class="cmp-coltotal">${eur(T.total)}</span>` : ''}
+  </th>`;
+}
+function cmpSection(title, icon, rows, cols, opts = {}) {
+  const full = !!opts.full;
+  const sid = 'cmpsec' + (++cmpSectionSeq.n);
+  const head = `<tr><th scope="col" class="cmp-rowhead cmp-corner"></th>${cols.map(c => cmpColumnHead(c, full)).join('')}</tr>`;
+  const body = rows.map(row => {
+    if (row.group) return `<tr class="cmp-group"><th colspan="${cols.length + 1}"><span>${esc(row.group)}</span></th></tr>`;
+    const cells = row.cells || [];
+    const first = cells[0] || cmpCell('', '', null, 0);
+    const diff = cells.some(c => !cmpSame(first, c));
+    return `<tr class="cmp-row${diff ? ' cmp-diff-row' : ''}">
+      <th scope="row" class="cmp-rowhead">${row.icon ? `<span class="cmp-rowicon">${row.icon}</span>` : ''}<span>${esc(row.label || '')}</span>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</th>
+      ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}">${c.html}</td>`).join('')}
+    </tr>`;
+  }).join('');
+  return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" aria-labelledby="${sid}">
+    <div class="cmp-sec-head" id="${sid}"><i class="${icon}"></i><span>${esc(title)}</span>${opts.badge ? `<span class="cmp-sec-badge">${opts.badge}</span>` : ''}</div>
+    ${opts.tools || ''}
+    ${rows.length ? `<div class="cmp-scroll" data-cmp-scroll><table class="cmp-table" style="min-width:${180 + cols.length * 190}px"><colgroup><col class="cmp-colrow">${cols.map(() => '<col class="cmp-colbody">').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table></div>` : `<p class="hint cmp-empty">${esc(t('compare.noRows'))}</p>`}
+  </section>`;
+}
+function cmpSpecRows(data) {
+  const ids = [], seen = new Set();
+  data.cols.forEach(c => ((c.st.order) || []).forEach(id => { if (!seen.has(id)) { seen.add(id); ids.push(id); } }));
+  const rows = [];
+  SECTIONS.forEach(sec => {
+    const visible = ids.filter(id => {
+      const sl = data.cols.map(c => c.st.slots && c.st.slots[id]).find(Boolean);
+      return sl && defOf(sl).sec === sec.id && data.cols.some(c => prodIn(c.st, id));
+    });
+    if (!visible.length) return;
+    rows.push({ group: secName(sec.id) });
+    visible.forEach(id => {
+      const sl = data.cols.map(c => c.st.slots && c.st.slots[id]).find(Boolean);
+      const label = cmpSlotNameFor(id, data.cols);
+      const cells = data.cols.map(c => {
+        const s = c.st.slots && c.st.slots[id];
+        const p = s ? (s.products || []).find(x => x.id === s.selectedId) : null;
+        if (!p) return cmpCell(`<span class="cmp-none">${esc(t('compare.emptySlot'))}</span>`, '', null, 0);
+        const price = unitTotal(p);
+        const hasOpts = (s.products || []).length > 1 || !!(p.variants && p.variants.items && p.variants.items.length);
+        const swap = hasOpts ? `<button class="cmp-swap" data-cmp-swap="${esc(id)}" data-cmp-col="${esc(c.id)}" title="${esc(t('compare.pickComponent'))}" aria-label="${esc(t('compare.pickComponent'))}"><span class="cmp-swap-ico"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-right-left"></i></span></button>` : '';
+        return cmpCell(`<div class="cmp-product"><div class="cmp-pname">${esc(p.name || '—')}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>${swap}`, (p.name || '') + '|' + price.toFixed(2), null, 0);
+      });
+      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells });
+    });
+  });
+  if (!rows.length) return [];
+  rows.push({ label: t('compare.total'), cells: data.cols.map(c => {
+    const T = totalsForState(c.st);
+    return cmpCell(`<strong>${eur(T.total)}</strong>`, String(T.total), T.total, 0.005);
+  }) });
+  return rows;
+}
+function cmpBriefRows(data) {
+  Perf.setLang(lang);
+  const daily = data.facts.map(f => Perf.dailyCriteria(f));
+  const blocks = data.facts.map(f => Perf.proCriteria(f, f.gRank));
+  const rows = [];
+  rows.push({ label: t('compare.daily'), cells: daily.map(r => cmpStatusCell(Perf.worstOf(r))) });
+  rows.push({ label: 'Cyberpunk 2077', cells: data.facts.map(f => {
+    if (!f.cpuEntry || !f.gpuEntry) return cmpNeedCell(t('compare.needBoth'));
+    const fps = Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: 'cp2077', res: f.res, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
+    return cmpFpsCell(fps, `${cmpResLabel(f.res)} · High`);
+  }) });
+  [['video', t('bench.video')], ['compile', t('bench.compile')], ['ai', t('bench.ai')]].forEach(([k, label]) => {
+    rows.push({ label, cells: blocks.map(b => cmpStatusCell(Perf.worstOf(b[k] || []))) });
+  });
+  return rows;
+}
+function cmpGameRows(data) {
+  const game = FpsDb.GAMES[cmpState.game] ? cmpState.game : 'cp2077';
+  const rows = [];
+  rows.push({ label: t('compare.fps'), cells: data.facts.map(f => {
+    const res = cmpState.res === 'auto' ? f.res : cmpResValue(cmpState.res);
+    const fps = cmpGameFps(f, game, res);
+    return cmpFpsCell(fps, cmpState.res === 'auto' ? `Auto · ${cmpResLabel(res)}` : cmpResLabel(res));
+  }) });
+  rows.push({ label: t('compare.bottleneck'), cells: data.facts.map(f => {
+    if (!f.cpuEntry || !f.gpuEntry) return cmpNeedCell(t('compare.needBoth'));
+    const res = cmpState.res === 'auto' ? f.res : cmpResValue(cmpState.res);
+    return cmpBottleneckCell(Perf.bottleneck({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game, res }));
+  }) });
+  ['low', 'medium', 'high', 'ultra', 'max'].forEach(q => {
+    rows.push({ label: t('bench.q_' + q), cells: data.facts.map(f => {
+      const res = cmpState.res === 'auto' ? f.res : cmpResValue(cmpState.res);
+      return cmpFpsCell(cmpGameFps(f, game, res, q));
+    }) });
+  });
+  return rows;
+}
+function cmpGameTools() {
+  const game = FpsDb.GAMES[cmpState.game] ? cmpState.game : 'cp2077';
+  const gopts = Object.keys(FpsDb.GAMES).map(k => `<option value="${esc(k)}"${k === game ? ' selected' : ''}>${esc(FpsDb.GAMES[k].name)}</option>`).join('');
+  const ropts = [['auto', t('compare.auto')], ['1080', '1080p'], ['1440', '1440p'], ['4k', '4K']].map(([v, l]) => `<option value="${v}"${cmpState.res === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  return `<div class="cmp-controls"><label class="fld-label" for="cmpGame">${esc(t('compare.game'))}<select id="cmpGame" class="bench-select">${gopts}</select></label><label class="fld-label" for="cmpRes">${esc(t('compare.resolution'))}<select id="cmpRes" class="bench-select">${ropts}</select></label></div>`;
+}
+function cmpGbCell(colId, f, e, kind) {
+  if (!f.cpuP) return cmpNeedCell(t('compare.needCpu'));
+  if (e.gbErr) return cmpRetryCell('gb', colId);
+  if (!e.gb) return cmpLoadingCell();
+  if (e.gb.single == null && e.gb.multi == null) return cmpRetryCell('gb', colId);
+  return cmpScoreCell(e.gb[kind], e.gb.version || '');
+}
+function cmpTsCell(colId, f, e, kind) {
+  if (!f.cpuP || !f.gpuP) return cmpNeedCell(t('compare.needBoth'));
+  if (e.b3dErr) return cmpRetryCell('ts', colId);
+  if (!e.b3d) return cmpLoadingCell();
+  const combo = e.b3d.combo || {};
+  if (combo.median == null) return cmpRetryCell('ts', colId);
+  if (kind === 'combo') return cmpScoreCell(combo.median, `${combo.n || 0} runs`);
+  if (kind === 'bottleneck') {
+    if (!e.b3d.gpuOnly || !e.b3d.cpuOnly || e.b3d.gpuOnly.median == null || e.b3d.cpuOnly.median == null) return e.b3d.singlesErr ? cmpNoneCell('—') : cmpLoadingCell();
+    return cmpBottleneckCell(Perf.tsBottleneck(combo.median, e.b3d.gpuOnly.median, e.b3d.cpuOnly.median));
+  }
+  const v = kind === 'cpu' ? (e.b3d.cpuOnly && e.b3d.cpuOnly.median) : (e.b3d.gpuOnly && e.b3d.gpuOnly.median);
+  if (v == null && !e.b3d.singlesErr) return cmpLoadingCell();
+  return cmpScoreCell(v);
+}
+function cmpBenchHtml(data) {
+  const gbRows = [
+    { label: t('compare.single'), cells: data.facts.map((f, i) => cmpGbCell(data.cols[i].id, f, data.exts[i], 'single')) },
+    { label: t('compare.multi'), cells: data.facts.map((f, i) => cmpGbCell(data.cols[i].id, f, data.exts[i], 'multi')) }
+  ];
+  const tsRows = [
+    { label: t('compare.combo'), cells: data.facts.map((f, i) => cmpTsCell(data.cols[i].id, f, data.exts[i], 'combo')) },
+    { label: t('compare.cpuScore'), cells: data.facts.map((f, i) => cmpTsCell(data.cols[i].id, f, data.exts[i], 'cpu')) },
+    { label: t('compare.gpuScore'), cells: data.facts.map((f, i) => cmpTsCell(data.cols[i].id, f, data.exts[i], 'gpu')) },
+    { label: t('compare.bottleneck'), cells: data.facts.map((f, i) => cmpTsCell(data.cols[i].id, f, data.exts[i], 'bottleneck')) }
+  ];
+  const daily = data.facts.map(f => Perf.dailyCriteria(f));
+  const dailyRows = ['threads', 'ram', 'disk', 'screen'].map(k => ({
+    label: cmpCritLabel(k), cells: daily.map(r => cmpCriterionCell(r.find(x => x.k === k)))
+  }));
+  const blocks = data.facts.map(f => Perf.proCriteria(f, f.gRank));
+  const heavyRows = [];
+  [['video', t('bench.video')], ['compile', t('bench.compile')], ['ai', t('bench.ai')]].forEach(([bk, label]) => {
+    heavyRows.push({ group: label });
+    const keys = [];
+    blocks.forEach(b => (b[bk] || []).forEach(r => { if (!keys.includes(r.k)) keys.push(r.k); }));
+    keys.forEach(k => heavyRows.push({ label: cmpCritLabel(k), cells: blocks.map(b => cmpCriterionCell((b[bk] || []).find(x => x.k === k))) }));
+  });
+  return cmpSection(t('compare.brief'), 'fa-solid fa-clipboard-list', cmpBriefRows(data), data.cols, { badge: `${data.cols.length} ${lang === 'en' ? 'configs' : 'configurations'}` })
+    + cmpSection(t('compare.gaming'), 'fa-solid fa-gamepad', cmpGameRows(data), data.cols, { tools: cmpGameTools() })
+    + cmpSection(t('compare.geekbench'), 'fa-solid fa-server', gbRows, data.cols)
+    + cmpSection(t('compare.3dmark'), 'fa-solid fa-microchip', tsRows, data.cols)
+    + cmpSection(t('compare.daily'), 'fa-solid fa-house-laptop', dailyRows, data.cols)
+    + cmpSection(t('compare.heavy'), 'fa-solid fa-compass-drafting', heavyRows, data.cols);
+}
+function cmpRestoreScroll(scrolls) {
+  if (!scrolls.length) return;
+  requestAnimationFrame(() => {
+    const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
+    els.forEach((el, i) => { if (scrolls[i] != null) el.scrollLeft = scrolls[i]; });
+  });
+}
+function bindCmpScroll() {
+  const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
+  let lock = false;
+  els.forEach(el => {
+    el.addEventListener('scroll', () => {
+      if (lock) return;
+      lock = true;
+      const x = el.scrollLeft;
+      els.forEach(o => { if (o !== el) o.scrollLeft = x; });
+      requestAnimationFrame(() => { lock = false; });
+    }, { passive: true });
+  });
+}
+function renderCompare() {
+  const body = $('#cmpBody');
+  if (!body) return;
+  cmpEnsureCols();
+  const scrolls = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]')).map(el => el.scrollLeft);
+  const data = cmpData();
+  cmpSectionSeq.n = 0;
+  body.classList.toggle('cmp-mode-diff', cmpState.mode === 'diff');
+  const all = $('#cmpAll'), diff = $('#cmpDiff');
+  if (all && diff) {
+    all.classList.toggle('active', cmpState.mode === 'all');
+    diff.classList.toggle('active', cmpState.mode === 'diff');
+    all.setAttribute('aria-pressed', cmpState.mode === 'all' ? 'true' : 'false');
+    diff.setAttribute('aria-pressed', cmpState.mode === 'diff' ? 'true' : 'false');
+  }
+  const add = $('#cmpAdd');
+  if (add) add.disabled = (cmpState.cols.length - 1) >= CMP_MAX_EXTRA;
+  const hint = $('#cmpHint');
+  if (hint) hint.textContent = (cmpState.mode === 'diff' ? t('compare.hintDiff') : t('compare.hint'));
+  const specRows = cmpSpecRows(data);
+  const html = (specRows.length
+    ? cmpSection(t('compare.specs'), 'fa-solid fa-list', specRows, data.cols, { full: true })
+    : `<section class="cmp-sec"><p class="hint cmp-empty">${esc(t('compare.empty'))}</p></section>`)
+    + cmpBenchHtml(data);
+  body.innerHTML = html;
+  refreshIcons(body);
+  bindCmpScroll();
+  cmpRestoreScroll(scrolls);
+  cmpLoadExtras(data);
+}
+function cmpScheduleRender() {
+  if (cmpState.renderTimer) clearTimeout(cmpState.renderTimer);
+  cmpState.renderTimer = setTimeout(() => {
+    cmpState.renderTimer = null;
+    if (!$('#page-compare').classList.contains('hidden')) renderCompare();
+  }, 60);
+}
+function cmpLoadExtras(data) {
+  if ($('#page-compare').classList.contains('hidden')) return;
+  data.cols.forEach((col, i) => {
+    const f = data.facts[i], e = data.exts[i];
+    if (f.cpuP && !e.gb && !e.gbBusy && !e.gbErr) {
+      e.gbBusy = true;
+      Perf.gbScores(f.cpuP.name).then(v => {
+        if (cmpState.ext[col.id] !== e) return;
+        e.gb = v;
+      }).catch(() => {
+        if (cmpState.ext[col.id] === e) e.gbErr = true;
+      }).finally(() => {
+        if (cmpState.ext[col.id] !== e) return;
+        e.gbBusy = false;
+        cmpScheduleRender();
+      });
+    }
+    if (f.cpuP && f.gpuP && !e.b3d && !e.b3dBusy && !e.b3dErr) {
+      e.b3dBusy = true;
+      (async () => {
+        try {
+          const combo = await Perf.tsCombo(f.cpuP.name, f.gpuP.name);
+          if (cmpState.ext[col.id] !== e) return;
+          e.b3d = { combo, gpuOnly: null, cpuOnly: null, singlesErr: false };
+          cmpScheduleRender();
+          try {
+            const [g, c] = await Promise.all([Perf.tsSingle('gpu', f.gpuP.name), Perf.tsSingle('cpu', f.cpuP.name)]);
+            if (cmpState.ext[col.id] !== e) return;
+            e.b3d.gpuOnly = g; e.b3d.cpuOnly = c;
+            if (g.median == null || c.median == null) e.b3d.singlesErr = true;
+          } catch {
+            if (cmpState.ext[col.id] === e) e.b3d.singlesErr = true;
+          }
+        } catch {
+          if (cmpState.ext[col.id] === e) e.b3dErr = true;
+        } finally {
+          if (cmpState.ext[col.id] === e) { e.b3dBusy = false; cmpScheduleRender(); }
+        }
+      })();
+    }
+  });
+}
+function cmpAfterColumnChange(col) {
+  delete cmpState.ext[col.id];
+  renderCompare();
+}
+function cmpRetry(kind, colId) {
+  const e = cmpState.ext[colId];
+  if (!e) return;
+  if (kind === 'gb') { e.gb = null; e.gbErr = false; e.gbBusy = false; }
+  else { e.b3d = null; e.b3dErr = false; e.b3dBusy = false; }
+  renderCompare();
+}
+function cmpNormUrl(u) { return String(u || '').replace(/\/+$/, '').trim(); }
+function cmpOpenOptions(colId, slotId) {
+  const col = cmpState.cols.find(c => c.id === colId);
+  const s = col && col.st.slots && col.st.slots[slotId];
+  if (!s) return;
+  const p = (s.products || []).find(x => x.id === s.selectedId) || null;
+  const sorted = [...(s.products || [])].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+  const altHtml = sorted.map(x => `<button class="cmp-opt-row${x.id === s.selectedId ? ' current' : ''}" data-cmp-pickprod="${esc(x.id)}"><span class="cmp-opt-main"><strong>${esc(x.name || '—')}</strong><small>${x.idealo ? 'Idealo' : (lang === 'en' ? 'Manual entry' : 'Fiche manuelle')}</small></span><span class="cmp-opt-price">${eur(x.price)}</span></button>`).join('') || `<p class="hint">${esc(lang === 'en' ? 'No alternatives.' : 'Aucune alternative.')}</p>`;
+  const variants = p && p.variants && Array.isArray(p.variants.items) ? p.variants.items : [];
+  const curUrl = cmpNormUrl(p && p.idealo);
+  const varHtml = variants.map((it, i) => {
+    const cur = curUrl && cmpNormUrl(it.url) === curUrl;
+    return `<button class="cmp-opt-row${cur ? ' current' : ''}" data-cmp-pickvar="${i}"><span class="cmp-opt-main"><strong>${esc(it.name || '—')}</strong><small>${cur ? (lang === 'en' ? 'Current variant' : 'Variante actuelle') : (lang === 'en' ? 'Variant' : 'Variante')}</small></span><span class="cmp-opt-price">${eur(it.price)}</span></button>`;
+  }).join('');
+  openModal(`${cmpSlotNameFor(slotId, [col])} — ${col.name || 'Ma Config'}`, `
+    <p class="hint">${esc(lang === 'en' ? 'Changes apply only to this comparison column.' : 'Les changements ne concernent que cette colonne de comparaison.')}</p>
+    <div class="cmp-opt-group"><h3>${esc(t('compare.alts'))}</h3><div class="cmp-opt-list">${altHtml}</div></div>
+    ${variants.length ? `<div class="cmp-opt-group"><h3>${esc(t('compare.variants'))}</h3><div class="cmp-opt-list">${varHtml}</div></div>` : ''}
+  `, 'modal-wide');
+  $$('#modalBody [data-cmp-pickprod]').forEach(b => {
+    b.onclick = () => {
+      const id = b.dataset.cmpPickprod;
+      if (!(s.products || []).some(x => x.id === id)) return;
+      s.selectedId = id; closeModal(); cmpAfterColumnChange(col);
+    };
+  });
+  $$('#modalBody [data-cmp-pickvar]').forEach(b => {
+    b.onclick = () => {
+      const it = variants[Number(b.dataset.cmpPickvar)];
+      if (it) cmpSelectVariant(col, slotId, it);
+    };
+  });
+}
+async function cmpSelectVariant(col, slotId, item) {
+  const s = col.st.slots && col.st.slots[slotId];
+  if (!s || !item || !item.url) return;
+  const existing = (s.products || []).find(x => cmpNormUrl(x.idealo) === cmpNormUrl(item.url));
+  if (existing) {
+    s.selectedId = existing.id; closeModal(); cmpAfterColumnChange(col); return;
+  }
+  if (cmpState.varBusy) return;
+  cmpState.varBusy = true; closeModal();
+  showProgress(t('compare.variantLoad'));
+  let d = null, r = null;
+  try {
+    if (typeof Idealo !== 'undefined') {
+      const out = await Promise.all([Idealo.product(item.url), Idealo.offers(item.url)]);
+      d = out[0]; r = out[1];
+    }
+  } catch { /* fall back to card data */ }
+  try {
+    if (!cmpState.cols.includes(col)) return;
+    const np = blankProduct();
+    np.idealo = item.url;
+    np.name = (d && !d.error && d.name) || item.name || '';
+    if (!np.name) { toast(t('compare.variantErr')); return; }
+    np.image = (d && !d.error && d.img) || item.img || '';
+    np.specs = (d && !d.error && d.specs) || '';
+    np.datasheet = (d && !d.error && d.datasheet) || '';
+    np.variants = (d && !d.error && d.variants) || (s.products.find(x => x.id === s.selectedId)?.variants) || null;
+    np.price = Number(item.price) || Number(d && d.price) || 0;
+    if (r && !r.error && r.offers && r.offers.length) {
+      const o = r.offers[0];
+      if (o.merchant) np.vendor = o.merchant;
+      if (o.price) np.price = o.price;
+      if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
+      if (o.url) np.store = o.url;
+      if (o.promo) np.promo = true;
+    }
+    s.products.push(np);
+    s.selectedId = np.id;
+    cmpAfterColumnChange(col);
+  } finally {
+    cmpState.varBusy = false;
+    hideProgress();
+  }
+}
+function cmpCandidateList() {
+  const cfgs = load(LS.configs, {});
+  const out = [];
+  Object.keys(cfgs).forEach(name => {
+    const arr = Array.isArray(cfgs[name]) ? cfgs[name] : [];
+    arr.forEach((v, idx) => {
+      if (!v || !v.snapshot) return;
+      const srcKey = name + '|' + (v.savedAt || 0) + '|' + idx;
+      if (cmpState.cols.some(c => c.source === 'saved' && c.srcKey === srcKey)) return;
+      out.push({ srcKey, name, version: v.version || v.label || '', savedAt: v.savedAt || 0, snapshot: v.snapshot, total: totalsForState(v.snapshot).total });
+    });
+  });
+  out.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  return out;
+}
+function openCompareConfigPicker() {
+  if (cmpState.cols.length - 1 >= CMP_MAX_EXTRA) { toast(t('compare.max')); return; }
+  const cands = cmpCandidateList();
+  const groups = [];
+  cands.forEach(c => { if (!groups.includes(c.name)) groups.push(c.name); });
+  groups.sort((a, b) => (a === state.name ? -1 : b === state.name ? 1 : a.localeCompare(b)));
+  const html = cands.length ? `<p class="hint">${esc(t('compare.pickHint'))}</p>` + groups.map(name => {
+    const rows = cands.filter(c => c.name === name).map(c => {
+      const i = cands.indexOf(c);
+      return `<button class="cmp-pick-row" data-cmp-cand="${i}"><span class="cmp-pick-main"><strong>${esc(c.version || c.name)}</strong><small>${esc(c.savedAt ? cmpDate(c.savedAt) : '')}</small></span><span class="cmp-pick-total">${eur(c.total)}</span></button>`;
+    }).join('');
+    return `<div class="cmp-pick-group"><h3>${esc(name)}</h3>${rows}</div>`;
+  }).join('') : `<p class="hint">${esc(cands.length ? t('compare.max') : t('compare.noSaved'))}</p>`;
+  openModal(t('compare.pickTitle'), html, 'modal-wide');
+  $$('#modalBody [data-cmp-cand]').forEach(b => {
+    b.onclick = () => {
+      if (cmpState.cols.length - 1 >= CMP_MAX_EXTRA) { toast(t('compare.max')); return; }
+      const c = cands[Number(b.dataset.cmpCand)];
+      if (!c) return;
+      cmpState.cols.push({ id: 'saved-' + uid(), source: 'saved', name: c.name, version: c.version, savedAt: c.savedAt, srcKey: c.srcKey, st: cmpCloneState(c.snapshot) });
+      closeModal();
+      renderCompare();
+    };
+  });
+}
+function cmpRemoveColumn(id) {
+  if (id === 'current') return;
+  cmpState.cols = cmpState.cols.filter(c => c.id !== id);
+  delete cmpState.ext[id];
+  renderCompare();
+}
+function bindCompareBody() {
+  const body = $('#cmpBody');
+  if (!body) return;
+  body.addEventListener('click', e => {
+    const rm = e.target.closest('[data-cmp-remove]');
+    if (rm) { cmpRemoveColumn(rm.dataset.cmpRemove); return; }
+    const swap = e.target.closest('[data-cmp-swap]');
+    if (swap) { cmpOpenOptions(swap.dataset.cmpCol, swap.dataset.cmpSwap); return; }
+    const retry = e.target.closest('[data-cmp-retry]');
+    if (retry) cmpRetry(retry.dataset.cmpRetry, retry.dataset.cmpCol);
+  });
+  body.addEventListener('change', e => {
+    if (e.target.id === 'cmpGame') { cmpState.game = e.target.value; renderCompare(); }
+    else if (e.target.id === 'cmpRes') { cmpState.res = e.target.value; renderCompare(); }
+  });
+}
+
 /* ---------- Save / load / history / share / export ---------- */
 function doSave() {
   if (storeConsent() === 'denied') {
@@ -5716,6 +6312,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.59 — Comparateur de configurations</h3><p class="hint">Nouvel onglet « Comparer » entre Benchmarks et Prix : la config actuelle en première colonne, jusqu’à quatre versions sauvegardées, avec toutes les specs, les totaux et les benchmarks (résumé d’usage, FPS par jeu et résolution, Geekbench, 3DMark, critères quotidien et charges lourdes). Le mode « Différences » met en évidence les cellules qui changent sans masquer les lignes. Les variantes et alternatives s’ouvrent dans une colonne de comparaison sans modifier le brouillon ni les sauvegardes. Tableaux lisibles sur mobile avec défilement horizontal synchronisé.</p></div>
     <div class="chlog"><h3>v2.58 — Favoris & sélection KJ</h3><p class="hint">Favoris globaux (cœur sur les cartes et les fiches, filtre rapide par catégorie, export dans « Export données ») et sélection KJ éditable dans un document unique : recommandé, déconseillé, top choix et testé, avec pastilles, teintes, animations à l’ouverture et filtres cumulables. Les sélections KJ absentes de la liste Idealo restent visibles en cartes légères.</p></div>
     <div class="chlog"><h3>v2.57 — Fiche technique & galerie</h3><p class="hint">La fiche technique s’affiche désormais entièrement, sans zone de défilement interne. Le bouton de chargement ne saute plus au survol. Les photos de la galerie s’ouvrent en grand et un clic ouvre l’image Idealo en taille réelle dans un nouvel onglet. Les fonds blancs des barres de titre et d’actions de la fiche ont été retirés sur mobile.</p></div>
     <div class="chlog"><h3>v2.56 — Fiche composant complète</h3><p class="hint">La fiche d’un composant occupe désormais tout l’espace du panneau de droite : galerie photos avec flèches et miniatures, favori, variantes et filtres, résumé Idealo, offres marchands cliquables, accès à la boutique et fiche technique complète chargée à la demande avec animations. Le titre de l’onglet reprend le nom de la config, et les cartes de résultats gèrent les noms et prix longs sur deux lignes.</p></div>
@@ -5776,9 +6373,11 @@ function openChangelog() {
 
 /* ---------- Tabs / pages ---------- */
 function showPage(which) {
-  ['config', 'bench', 'prices'].forEach(x => {
+  ['config', 'bench', 'compare', 'prices'].forEach(x => {
     $('#page-' + x).classList.toggle('hidden', x !== which);
-    $('#tab' + x[0].toUpperCase() + x.slice(1)).classList.toggle('active', x === which);
+    const tab = $('#tab' + x[0].toUpperCase() + x.slice(1));
+    tab.classList.toggle('active', x === which);
+    tab.setAttribute('aria-selected', x === which ? 'true' : 'false');
   });
   const page = $('#page-' + which);
   if (page) {
@@ -5795,6 +6394,7 @@ function showPage(which) {
   }
   updateMobileTotalBar();
   if (which === 'bench') showBench();
+  if (which === 'compare') showCompare();
   if (which === 'prices') drawPrices();
 }
 
@@ -5850,6 +6450,7 @@ function refresh() {
   updateCompatBadge();
   if (sumTab === 'compat') renderCompat();
   if (!$('#page-prices').classList.contains('hidden')) drawPrices();
+  if (!$('#page-compare').classList.contains('hidden')) showCompare();
   updateMobileTotalBar();
 }
 
@@ -5870,7 +6471,12 @@ function bind() {
   $('#footChangelog').onclick = e => { e.preventDefault(); openChangelog(); };
   $('#tabConfig').onclick = () => showPage('config');
   $('#tabBench').onclick = () => showPage('bench');
+  $('#tabCompare').onclick = () => showPage('compare');
   $('#tabPrices').onclick = () => showPage('prices');
+  $('#cmpAll').onclick = () => { cmpState.mode = 'all'; renderCompare(); };
+  $('#cmpDiff').onclick = () => { cmpState.mode = 'diff'; renderCompare(); };
+  $('#cmpAdd').onclick = openCompareConfigPicker;
+  bindCompareBody();
   $('#sumDesc').onclick = () => switchSum('desc');
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');

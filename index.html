@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta property="og:image" content="./assets/icons/configmakericon.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=130">
+<link rel="stylesheet" href="./assets/css/app.css?v=131">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -36,7 +36,7 @@
   <div class="kjbrand">
     <a href="./" id="brandHome" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.58</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.59</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -83,6 +83,7 @@
       <div class="pill tabs" role="tablist" aria-label="Pages">
         <button id="tabConfig" class="active" role="tab" aria-selected="true"><i class="fa-solid fa-computer"></i><span data-i18n="tabs.config">Config</span></button>
         <button id="tabBench" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i><span data-i18n="tabs.bench">Benchmarks</span></button>
+        <button id="tabCompare" role="tab" aria-selected="false"><i class="fa-solid fa-code-compare"></i><span data-i18n="tabs.compare">Comparer</span></button>
         <button id="tabPrices" role="tab" aria-selected="false"><i class="fa-solid fa-chart-line"></i><span data-i18n="tabs.prices">Prix</span></button>
       </div>
     </div>
@@ -226,6 +227,21 @@
     </div></section>
   </main>
 
+  <main id="page-compare" class="glass panel hidden">
+    <div class="cmp-head">
+      <h2><i class="fa-solid fa-code-compare"></i> <span data-i18n="compare.title">Comparer</span></h2>
+      <div class="cmp-toolbar">
+        <div class="seg cmp-modes" role="group" aria-label="Comparison mode">
+          <button id="cmpAll" class="active" data-i18n="compare.all">Toutes les specs</button>
+          <button id="cmpDiff" data-i18n="compare.diff">Différences</button>
+        </div>
+        <button id="cmpAdd" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="compare.add">Ajouter une config</span></button>
+      </div>
+    </div>
+    <p class="hint" id="cmpHint"></p>
+    <div id="cmpBody"></div>
+  </main>
+
   <main id="page-prices" class="glass panel hidden">
     <h2><i class="fa-solid fa-chart-line"></i> <span data-i18n="prices.title">Historique des prix</span></h2>
     <div class="seg">
@@ -266,7 +282,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.58 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.59 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -311,7 +327,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=10"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=140"></script>
+<script src="./assets/js/app.js?v=141"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
