@@ -4,8 +4,8 @@
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
-const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs' };
-const APP_VERSION = '2.57';
+const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
+const APP_VERSION = '2.58';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -935,7 +935,9 @@ function slotCard(id) {
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
   const stale = !!(p && refreshFailed.has(p.id));
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '');
+  const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
+  const kjTint = kjTintClass(stKj);
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '');
   el.dataset.slot = id;
   if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
@@ -976,6 +978,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
+    ${p ? `<div class="slot-badges">${kjPillsHtml(stKj)}${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -996,6 +999,7 @@ function slotCard(id) {
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
+    if (b.dataset.act === 'fav') { if (p) { toggleFavorite(p, slotCatKey(id)); syncFavoriteViews(); } return; }
     if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
     if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); if (openVariants.has(id)) ensureVariantAttrs(id); renderSlots(); return; }
@@ -1288,6 +1292,204 @@ function slotCatKey(slotId) {
   const s = state.slots[slotId];
   return (s && SLOT_CAT[s.defId]) || 'root';
 }
+
+/* ---------- KJ picks + global favorites ----------
+   KJ_PICKS is an exact-listing curation file (assets/js/kj-picks.js).
+   Favorites are global, stored once and included in the navbar data export. */
+const KJ_TAGS = {
+  top: { fr: 'Top choix', en: 'Top choice', icon: 'fa-trophy', tone: 'top' },
+  recommended: { fr: 'Recommandé', en: 'Recommended', icon: 'fa-thumbs-up', tone: 'rec' },
+  tested: { fr: 'Testé', en: 'Tested', icon: 'fa-circle-check', tone: 'tested' },
+  avoid: { fr: 'Non recommandé', en: 'Not recommended', icon: 'fa-circle-xmark', tone: 'avoid' },
+};
+const KJ_TAG_ORDER = ['top', 'recommended', 'tested', 'avoid'];
+const KJ_TINT_ORDER = ['top', 'avoid', 'recommended', 'tested'];
+const KJ_INDEX = new Map();
+const KJ_ISSUES = [];
+function kjLabel(tag) {
+  const m = KJ_TAGS[tag];
+  return m ? (lang === 'en' ? m.en : m.fr) : tag;
+}
+function idealoProductId(value) {
+  const s = String(value || '').trim();
+  if (/^\d+$/.test(s)) return s;
+  const m = s.match(/\/prix\/(\d+)(?:[/?#]|$)/i);
+  return m ? m[1] : '';
+}
+function listingUrlOf(item) {
+  return String((item && (item.url || item.idealo || item.src)) || '');
+}
+function kjRecordFor(item) {
+  const id = idealoProductId(listingUrlOf(item));
+  return id ? (KJ_INDEX.get(id) || null) : null;
+}
+(function buildKjIndex() {
+  const doc = (typeof window !== 'undefined' && window.KJ_PICKS) || null;
+  const cats = (doc && doc.categories) || {};
+  const validCats = new Set(IDEALO_CATS.map(c => c.key));
+  Object.keys(cats).forEach(cat => {
+    if (!validCats.has(cat)) KJ_ISSUES.push(`Unknown KJ category: ${cat}`);
+    (Array.isArray(cats[cat]) ? cats[cat] : []).forEach((raw, i) => {
+      if (!raw || typeof raw !== 'object') { KJ_ISSUES.push(`${cat}[${i}]: invalid entry`); return; }
+      const id = idealoProductId(raw.id || raw.url);
+      if (!id) { KJ_ISSUES.push(`${cat}[${i}]: missing/invalid Idealo ID`); return; }
+      const tags = [...new Set((Array.isArray(raw.tags) ? raw.tags : []).filter(t => !!KJ_TAGS[t]))];
+      if (!tags.length) { KJ_ISSUES.push(`${cat}[${i}] (${id}): no valid tag`); return; }
+      if (tags.includes('avoid') && tags.some(t => t !== 'avoid')) KJ_ISSUES.push(`${cat}[${i}] (${id}): avoid mixed with positive tags`);
+      if (KJ_INDEX.has(id)) { KJ_ISSUES.push(`${cat}[${i}]: duplicate Idealo ID ${id}`); return; }
+      KJ_INDEX.set(id, {
+        id, category: cat, tags,
+        name: String(raw.name || '').trim(),
+        note: String(raw.note || '').trim(),
+        url: String(raw.url || `https://www.idealo.fr/prix/${id}/`).trim(),
+      });
+    });
+  });
+  if (KJ_ISSUES.length && typeof console !== 'undefined' && console.warn) console.warn('[KJ_PICKS]', KJ_ISSUES);
+})();
+let favoritesCache = null;
+function favoritesData() {
+  if (favoritesCache) return favoritesCache;
+  const raw = load(LS.favorites, null);
+  favoritesCache = raw && typeof raw === 'object' && raw.items && typeof raw.items === 'object'
+    ? raw : { version: 1, updatedAt: 0, items: {} };
+  return favoritesCache;
+}
+function favoriteKey(item) {
+  const id = idealoProductId(listingUrlOf(item));
+  if (id) return 'id:' + id;
+  const url = listingUrlOf(item).replace(/\/+$/, '').toLowerCase();
+  if (url) return 'url:' + url;
+  return 'name:' + normName((item && item.name) || '') + '|' + normName((item && item.vendor) || '');
+}
+function favoriteSnapshot(item, cat) {
+  const rec = kjRecordFor(item);
+  return {
+    key: favoriteKey(item),
+    cat: (rec && rec.category) || cat || currentCatKey || '',
+    id: idealoProductId(listingUrlOf(item)),
+    name: String((item && item.name) || '').trim(),
+    image: String((item && (item.img || item.image)) || ''),
+    images: Array.isArray(item && item.images) ? item.images.slice(0, 8) : [],
+    specs: String((item && item.specs) || ''),
+    summary: String((item && item.summary) || ''),
+    price: Number(item && item.price) || 0,
+    vendor: String((item && item.vendor) || ''),
+    delivery: Number(item && item.delivery) || 0,
+    url: String((item && (item.url || item.idealo)) || ''),
+    store: String((item && item.store) || ''),
+    src: String((item && item.src) || ''),
+    savedAt: Date.now(),
+  };
+}
+function isFavorite(item) {
+  if (!item) return false;
+  return !!favoritesData().items[favoriteKey(item)];
+}
+function toggleFavorite(item, cat) {
+  if (!item) return false;
+  const data = favoritesData();
+  const key = favoriteKey(item);
+  const existed = !!data.items[key];
+  if (existed) delete data.items[key];
+  else data.items[key] = favoriteSnapshot(item, cat);
+  data.updatedAt = Date.now();
+  const res = save(LS.favorites, data);
+  if (res !== true) toast(lang === 'en' ? 'Could not save favorite (storage full)' : 'Favori non sauvegardé (stockage plein)');
+  else if (storeConsent() === 'denied') toast(lang === 'en' ? 'Favorite kept for this session only' : 'Favori conservé pour cette session seulement');
+  else toast(existed
+    ? (lang === 'en' ? 'Removed from favorites' : 'Retiré des favoris')
+    : (lang === 'en' ? 'Added to favorites' : 'Ajouté aux favoris'));
+  return !existed;
+}
+function favoritePickerItems(cat) {
+  return Object.values(favoritesData().items)
+    .filter(r => !cat || r.cat === cat)
+    .map(r => ({
+      name: r.name, img: r.image, images: r.images || [], specs: r.specs, summary: r.summary,
+      price: r.price, vendor: r.vendor, delivery: r.delivery, url: r.url, store: r.store,
+      src: r.src, _favorite: true, _savedAt: r.savedAt,
+    }));
+}
+function favoriteCountForCat(cat) {
+  return Object.values(favoritesData().items).filter(r => !cat || r.cat === cat).length;
+}
+
+let kjSeenCache = null, kjSeenTimer = null;
+function kjSeenData() {
+  if (!kjSeenCache) {
+    const raw = load(LS.kjSeen, null);
+    kjSeenCache = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  }
+  return kjSeenCache;
+}
+function rememberKjItem(item) {
+  const id = idealoProductId(listingUrlOf(item));
+  if (!id || !KJ_INDEX.has(id)) return;
+  const next = {
+    name: String((item && item.name) || ''), img: String((item && (item.img || item.image)) || ''),
+    specs: String((item && item.specs) || ''), summary: String((item && item.summary) || ''),
+    price: Number(item && item.price) || 0, vendor: String((item && item.vendor) || ''),
+    delivery: Number(item && item.delivery) || 0, store: String((item && item.store) || ''),
+    url: listingUrlOf(item), savedAt: Date.now(),
+  };
+  const seenStore = kjSeenData();
+  const old = seenStore[id];
+  if (old && ['name', 'img', 'specs', 'summary', 'price', 'vendor', 'delivery', 'store', 'url'].every(k => old[k] === next[k])) return;
+  seenStore[id] = next;
+  clearTimeout(kjSeenTimer);
+  kjSeenTimer = setTimeout(() => { try { save(LS.kjSeen, seenStore); } catch { /* ignore */ } }, 900);
+}
+function kjDocPickerItems(cat) {
+  const out = [];
+  const seenStore = kjSeenData();
+  KJ_INDEX.forEach(rec => {
+    if (rec.category !== cat) return;
+    const seen = seenStore[rec.id] || {};
+    out.push({
+      name: seen.name || rec.name || `KJ ${rec.id}`,
+      img: seen.img || '', specs: seen.specs || '', summary: seen.summary || '',
+      price: Number(seen.price) || 0, vendor: seen.vendor || '', delivery: Number(seen.delivery) || 0,
+      store: seen.store || '', url: seen.url || rec.url, src: '',
+      _fromDoc: true, _kj: rec.tags,
+    });
+  });
+  return out;
+}
+function kjStatusFor(item, cat) {
+  const rec = kjRecordFor(item);
+  const fav = isFavorite(item);
+  const tags = [];
+  if (fav) tags.push('favorite');
+  if (rec) rec.tags.forEach(t => { if (!tags.includes(t)) tags.push(t); });
+  let tint = '';
+  if (fav) tint = 'fav';
+  for (const t of KJ_TINT_ORDER) if (rec && rec.tags.includes(t)) { tint = t === 'recommended' ? 'rec' : t; break; }
+  return { rec, fav, tags, tint, cat: (rec && rec.category) || cat || '' };
+}
+function kjTintClass(st) { return st && st.tint ? `kj-tint-${st.tint}` : ''; }
+function kjPillsHtml(st) {
+  if (!st) return '';
+  const pills = [];
+  if (st.fav) pills.push(`<span class="kj-pill kj-fav"><i class="fa-solid fa-heart"></i>${lang === 'en' ? 'Favorite' : 'Favori'}</span>`);
+  KJ_TAG_ORDER.forEach(tag => {
+    if (!st.rec || !st.rec.tags.includes(tag)) return;
+    const m = KJ_TAGS[tag];
+    pills.push(`<span class="kj-pill kj-${tag}" title="${lang === 'en' ? 'KJ pick' : 'Sélection KJ'}"><i class="fa-solid ${m.icon}"></i>${kjLabel(tag)}</span>`);
+  });
+  return pills.length ? `<span class="kj-pills">${pills.join('')}</span>` : '';
+}
+function kjHeartHtml(on, cls, attrs = '') {
+  return `<button type="button" class="kj-heart ${cls || ''}${on ? ' on' : ''}" aria-pressed="${on}" aria-label="${lang === 'en' ? 'Toggle favorite' : 'Ajouter ou retirer des favoris'}" title="${lang === 'en' ? 'Favorite' : 'Favori'}" ${attrs}><i class="fa-${on ? 'solid' : 'regular'} fa-heart"></i></button>`;
+}
+function syncFavoriteViews() {
+  renderSlots();
+  if (pdState) renderPickerDetail(false);
+  if (!$('#pickerPanel') || !$('#pickerPanel').classList.contains('hidden')) {
+    renderIdealo();
+    renderPickerFilters();
+  }
+}
 /* Default Idealo page per category; mb/ram depend on the rest of the build. */
 const MB_SOCKET_CATS = {
   AM5: 'https://www.idealo.fr/cat/3018F103797439/cartes-meres.html',
@@ -1418,8 +1620,9 @@ function nextVariant() {
   return [];
 }
 function idealMore() {
+  if (pickerExtraActive()) { idealShown += IDEAL_PAGE; renderIdealo(); return; }
   const q = idealQ.trim().toLowerCase();
-  const len = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q)).length;
+  const len = idealPool.filter(it => pickerMatchesSearch(it, q)).length;
   if (idealShown < len) { idealShown += IDEAL_PAGE; renderIdealo(); }
   else if (!idealLoadingMore) loadIdealoList(null, 'more'); // ignore while a fetch is in flight
 }
@@ -1427,7 +1630,16 @@ function renderIdealo() {
   const host = $('#idealoResults'); if (!host) return;
   const st = $('#idealoStatusText');
   const q = idealQ.trim().toLowerCase();
-  let items = idealPool.filter(it => !q || (it.name + ' ' + it.specs).toLowerCase().includes(q));
+  idealPool.forEach(rememberKjItem);
+  let items = idealPool.filter(it => pickerMatchesSearch(it, q));
+  if (pickerExtraActive()) {
+    const extras = [];
+    if (pickerFavOnly) extras.push(...favoritePickerItems(pickerCatKey));
+    if (pickerKjTags.size) extras.push(...kjDocPickerItems(pickerCatKey));
+    items = mergePickerExtras(items, extras);
+  }
+  if (pickerFavOnly) items = items.filter(isFavorite);
+  if (pickerKjTags.size) items = items.filter(pickerMatchesKj);
   if (pickerPriceActive()) items = items.filter(it => !it.price || (it.price >= pickerPrice.from && it.price <= pickerPrice.to));
   if (idealSort === 'asc') items = [...items].sort((a, b) => (a.price || 1e12) - (b.price || 1e12));
   if (idealSort === 'desc') items = [...items].sort((a, b) => (b.price || 0) - (a.price || 0));
@@ -1441,7 +1653,12 @@ function renderIdealo() {
     host.innerHTML = `<p class="hint">${esc(t('picker.err'))}<br><code class="k">${esc(idealErr)}</code></p>`;
     if (st) st.textContent = '';
   } else if (!items.length) {
-    host.innerHTML = `<p class="hint">${lang === 'en' ? 'No results.' : 'Aucun résultat.'}</p>`;
+    const empty = pickerFavOnly && !pickerKjTags.size
+      ? (lang === 'en' ? 'No favorites in this category yet.' : 'Aucun favori dans cette catégorie pour le moment.')
+      : pickerKjTags.size && !pickerFavOnly
+        ? (lang === 'en' ? 'No KJ pick matches these filters.' : 'Aucune sélection KJ ne correspond à ces filtres.')
+        : (lang === 'en' ? 'No results.' : 'Aucun résultat.');
+    host.innerHTML = `<p class="hint">${empty}</p>`;
     if (st) st.textContent = '';
   } else {
     if (st) st.textContent = idealLoadingMore ? t('picker.loading') : `${currentCatLabel} · ${shown.length}/${items.length} ${lang === 'en' ? 'results' : 'résultats'}${idealCached ? ' · ' + t('picker.cached') : ''}`;
@@ -1455,7 +1672,10 @@ function renderIdealo() {
   const rw = $('#idealoRetryWrap'); if (rw) rw.style.display = (idealErr && !items.length) ? 'flex' : 'none';
   shown.forEach(it => {
     const card = document.createElement('div');
-    card.className = 'pick-card pick-result';
+    const stKj = kjStatusFor(it, pickerCatKey);
+    const tint = kjTintClass(stKj);
+    const pills = kjPillsHtml(stKj);
+    card.className = 'pick-card pick-result' + (tint ? ' ' + tint : '') + (pills ? ' has-badges' : '');
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
     const directTip = lang === 'en' ? 'No dedicated Idealo page — links directly to the merchant offer' : "Pas de page Idealo dédiée — redirige directement vers l'offre marchand";
@@ -1463,15 +1683,18 @@ function renderIdealo() {
     const desc = pickerItemDescription(it);
     card.innerHTML = `
       <span class="pick-media">${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}</span>
-      <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span><span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
+      <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span>${kjHeartHtml(stKj.fav, 'pick-fav')}<span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
+      ${pills ? `<span class="pick-badges">${pills}</span>` : ''}
       <span class="pick-desc">${esc(desc)}</span>
       <span class="pick-actions"></span>`;
-    card.onclick = e => { if (e.target.closest('.pick-actions')) return; if (noPage && it.src) { window.open(it.src, '_blank', 'noopener'); return; } openPickerDetail(it); };
+    card.onclick = e => { if (e.target.closest('.pick-actions') || e.target.closest('.pick-fav')) return; if (noPage && it.src) { window.open(it.src, '_blank', 'noopener'); return; } openPickerDetail(it); };
     card.onkeydown = e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (e.target !== card) return;
       e.preventDefault(); if (noPage && it.src) window.open(it.src, '_blank', 'noopener'); else openPickerDetail(it);
     };
+    const heart = card.querySelector('.pick-fav');
+    if (heart) heart.onclick = e => { e.stopPropagation(); toggleFavorite(it, pickerCatKey || (activeSlot ? slotCatKey(activeSlot) : '')); syncFavoriteViews(); };
     const wrap = card.querySelector('.pick-actions');
     const choose = document.createElement('button');
     choose.className = 'mini-btn pick-choose'; choose.innerHTML = `<i class="fa-solid fa-check"></i> ${t('picker.chooseBtn')}`;
@@ -1492,7 +1715,7 @@ function renderIdealo() {
   });
   const more = $('#idealoMore');
   if (more) {
-    const canMore = moreLeft > 0 || (nextVariant().length > 0 && !idealBusy);
+    const canMore = moreLeft > 0 || (!pickerExtraActive() && nextVariant().length > 0 && !idealBusy);
     more.classList.toggle('hidden', !canMore && !idealLoadingMore); // stay visible while loading
     more.disabled = idealLoadingMore; // greyed out + unclickable until new content arrives
     const lbl = more.querySelector('span');
@@ -1627,13 +1850,20 @@ function renderPickerDetail(resetScroll) {
   const offersCount = st.offers ? st.offers.length : (Number(it.offers) || 0);
   const store = it.store || (st.offers && st.offers[0] && st.offers[0].url) || '';
   const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promo ? pdTxt('Promo', 'Promo') : ''].filter(Boolean).join(' · ');
+  const stKj = kjStatusFor(it, activeSlot ? slotCatKey(activeSlot) : '');
+  const kjTint = kjTintClass(stKj);
+  const kjPills = kjPillsHtml(stKj);
+  const isTop = !!(stKj.rec && stKj.rec.tags.includes('top'));
   const fav = $('#pdFav');
   if (fav) {
-    const on = !!it._fav;
+    const on = isFavorite(it);
+    it._fav = on;
     fav.classList.toggle('active', on);
     const ico = fav.querySelector('i');
     if (ico) ico.className = on ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
-    fav.setAttribute('aria-label', pdTxt('Ajouter aux favoris', 'Add to favourites'));
+    fav.setAttribute('aria-label', pdTxt(on ? 'Retirer des favoris' : 'Ajouter aux favoris', on ? 'Remove from favourites' : 'Add to favourites'));
+    fav.setAttribute('aria-pressed', String(on));
+    fav.title = pdTxt(on ? 'Retirer des favoris' : 'Ajouter aux favoris', on ? 'Remove from favourites' : 'Add to favourites');
   }
   const media = `<button class="pd-media${imgs.length > 1 ? ' has-gallery' : ''}" data-pd-act="media" title="${pdTxt('Agrandir la photo', 'Open the photo gallery')}" aria-label="${pdTxt('Agrandir la photo', 'Open the photo gallery')}">
       ${it.img || imgs[0] ? `<img src="${esc(it.img || imgs[0])}" alt="" onerror="this.remove()">` : fallback}
@@ -1647,18 +1877,26 @@ function renderPickerDetail(resetScroll) {
     : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
   const offersLabel = st.loading && !st.offers ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}` : `${offersCount} ${pdTxt('offres', 'offers')}`;
   const quickHtml = quick.length ? esc(quick.join(' · ')) : (st.loading ? `<span class="pd-inline-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement du résumé…', 'Loading summary…')}</span>` : '—');
-  body.innerHTML = `<div class="pd-hero">
+  body.innerHTML = `<div class="pd-hero${kjTint ? ' ' + kjTint : ''}${stKj.tags.length ? ' has-kj' : ''}">
+      ${isTop ? `<span class="kj-stars" aria-hidden="true"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></span>` : ''}
       ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
+        ${kjPills ? `<div class="pd-kj-pills">${kjPills}</div>` : ''}
         <div class="pd-price-row"><span class="pd-price">${it.price ? eur(it.price) : '—'}</span>${storeBtn}</div>
         <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers"${st.loading ? ' disabled' : ''}>${offersLabel}</button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
       </div>
     </div>
+    ${stKj.rec && stKj.rec.note ? `<div class="pd-kj-note"><i class="fa-solid fa-note-sticky"></i><span>${esc(stKj.rec.note)}</span></div>` : ''}
     ${pdVariantMask(st)}
     ${pdOffersMask(st)}
     <section class="pd-sec pd-quick"><div class="pd-sec-head"><span><i class="fa-solid fa-bolt"></i> ${pdTxt('Aperçu du produit', 'Product overview')}</span></div><p>${quickHtml}</p></section>
     ${pdDatasheetMask(st)}
     <div class="pd-actions">${openBtn}<button class="btn btn-primary" data-pd-act="choose"><i class="fa-solid fa-check"></i> ${esc(t('picker.chooseBtn'))}</button></div>`;
+  const hero = body.querySelector('.pd-hero');
+  if (hero && st.animateKj) {
+    if (stKj.tags.some(x => x === 'top' || x === 'recommended' || x === 'tested')) hero.classList.add('kj-anim');
+    st.animateKj = false;
+  }
   if (resetScroll) body.scrollTop = 0;
   else body.scrollTop = st.scrollTop || 0;
   st.scrollTop = body.scrollTop;
@@ -1676,7 +1914,7 @@ function openPickerDetail(it, opts = {}) {
   pickerDetailItem = it;
   pdState = {
     item: { ...it }, productLoaded: !!it._productLoaded, loading: false, loaded: false,
-    details: null, offers: null, offersOpen: false, filters: {}, error: '', scrollTop: 0,
+    details: null, offers: null, offersOpen: false, filters: {}, error: '', scrollTop: 0, animateKj: true,
   };
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
   panel.classList.add('picker-detail-open');
@@ -1944,6 +2182,12 @@ function openPicker(id, mode = 'replace') {
   if (isMobileView()) openPickerSheet();
   else document.body.classList.remove('picker-sheet-open', 'summary-sheet-open');
   renderSlots(); renderPicker();
+  const openCard = document.querySelector(`.slot[data-slot="${id}"]`);
+  const openKj = cur ? kjStatusFor(cur, key) : null;
+  if (openCard && openKj && openKj.tags.some(x => x === 'top' || x === 'recommended' || x === 'tested')) {
+    openCard.classList.add('kj-open');
+    setTimeout(() => openCard.classList.remove('kj-open'), 1100);
+  }
   const chip = $('#pickerModeChip');
   if (chip) {
     chip.classList.toggle('hidden', pickerMode !== 'add');
@@ -1982,6 +2226,7 @@ function renderPicker() {
    applied client-side since Jina's snapshot ignores it. */
 let pickerCatKey = 'root', pickerFilterBase = '', pickerFilterData = null;
 let pickerSel = {}, pickerPrice = { from: null, to: null }, pickerDiscount = false;
+let pickerFavOnly = false, pickerKjTags = new Set();
 let pickerFilterBusy = false, pickerFilterErr = '', pickerMoreOpen = false, filterSeq = 0, pickerRestored = false;
 let pickerSocketToken = null;
 
@@ -2642,12 +2887,35 @@ function priceChanged() {
   if (!p || p.min == null || p.max == null) return false;
   return String(pickerPrice.from) !== String(p.min) || String(pickerPrice.to) !== String(p.max);
 }
-function filterActive() { return Object.keys(pickerSel).some(g => (pickerSel[g] || []).length) || pickerDiscount || priceChanged(); }
+function pickerExtraActive() { return pickerFavOnly || pickerKjTags.size > 0; }
+function filterActive() { return Object.keys(pickerSel).some(g => (pickerSel[g] || []).length) || pickerDiscount || priceChanged() || pickerExtraActive(); }
 function activeCount() {
   let n = Object.keys(pickerSel).filter(g => (pickerSel[g] || []).length).length;
   if (priceChanged()) n++;
   if (pickerDiscount) n++;
+  if (pickerFavOnly) n++;
+  n += pickerKjTags.size;
   return n;
+}
+function pickerItemKey(it) {
+  const id = idealoProductId(listingUrlOf(it));
+  return id ? 'id:' + id : 'k:' + idealKey(it);
+}
+function mergePickerExtras(items, extras) {
+  const seen = new Set(items.map(pickerItemKey));
+  extras.forEach(it => {
+    const k = pickerItemKey(it);
+    if (!seen.has(k)) { seen.add(k); items.push(it); }
+  });
+  return items;
+}
+function pickerMatchesSearch(it, q) {
+  return !q || `${it.name || ''} ${it.specs || ''}`.toLowerCase().includes(q);
+}
+function pickerMatchesKj(it) {
+  if (!pickerKjTags.size) return true;
+  const st = kjStatusFor(it, pickerCatKey);
+  return !!st.rec && st.rec.tags.some(t => pickerKjTags.has(t));
 }
 function toggleFacet(gid, oid, on) {
   const cur = pickerSel[gid] || [];
@@ -2707,8 +2975,16 @@ function renderGroupBlock(g, entry, cls) {
   if (entry.single) return buildListBlock(g, entry, cls);
   return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
 }
+function buildKjFilterHtml() {
+  const opts = KJ_TAG_ORDER.map(tag => {
+    const m = KJ_TAGS[tag];
+    return `<label class="f-opt kj-f-opt kj-${tag}"><input type="checkbox" data-kj-tag="${tag}"${pickerKjTags.has(tag) ? ' checked' : ''}> <i class="fa-solid ${m.icon}"></i> <span>${esc(kjLabel(tag))}</span></label>`;
+  }).join('');
+  return `<div class="f-grp f-kj" data-gid="__kj"><div class="f-head"><span class="f-name">${lang === 'en' ? 'KJ selection' : 'Sélection KJ'}</span></div><div class="f-opts">${opts}</div></div>`;
+}
 function buildMoreHtml(d) {
-  const parts = [`<p class="hint f-hint">${esc(t('picker.filtersHint'))}</p>`];
+  const parts = [`<p class="hint f-hint">${esc(t('picker.filtersHint'))}</p>`, buildKjFilterHtml()];
+  if (!d) return parts.join('');
   const consumed = new Set();
   if (d.price && d.price.min != null && d.price.max != null && d.price.max > d.price.min) {
     const lo = pickerPrice.from == null ? d.price.min : pickerPrice.from;
@@ -2749,6 +3025,19 @@ function renderRootQuick(host) {
 function renderQuickPills(host) {
   const d = pickerFilterData;
   const schema = PICKER_SCHEMA[pickerCatKey];
+  const favCount = favoriteCountForCat(pickerCatKey);
+  const fb = document.createElement('button');
+  fb.type = 'button';
+  fb.className = 'qf-pill qf-fav' + (pickerFavOnly ? ' active' : '');
+  fb.title = lang === 'en' ? 'Show favorites only' : 'Afficher uniquement les favoris';
+  fb.innerHTML = `<i class="fa-solid fa-heart"></i><span>${lang === 'en' ? 'Favorites' : 'Favoris'}</span>${favCount ? `<span class="qf-count">${favCount}</span>` : ''}`;
+  fb.onclick = () => {
+    pickerFavOnly = !pickerFavOnly;
+    idealShown = IDEAL_PAGE;
+    renderIdealo();
+    renderPickerFilters();
+  };
+  host.appendChild(fb);
   const defs = [...((schema && schema.quick) || []), ...dynamicQuick(pickerCatKey, d)];
   const seen = new Set();
   defs.forEach(def => {
@@ -2779,7 +3068,9 @@ function renderPickerFilters() {
   if (pickerCatKey === 'root') renderRootQuick(quickHost);
   else renderQuickPills(quickHost);
   const d = pickerFilterData;
-  const has = !!(d && d.groups && d.groups.length);
+  const hasData = !!(d && d.groups && d.groups.length);
+  const hasKj = pickerCatKey !== 'root';
+  const has = hasData || hasKj;
   if (moreWrap) moreWrap.classList.toggle('hidden', !has && !(pickerFilterBusy && pickerCatKey !== 'root'));
   const badge = $('#pickerMoreCount');
   if (badge) { const n = activeCount(); badge.textContent = n ? String(n) : ''; badge.classList.toggle('hidden', !n); }
@@ -2788,14 +3079,18 @@ function renderPickerFilters() {
   if (clearBtn) clearBtn.classList.toggle('hidden', !filterActive());
   const open = pickerMoreOpen && has;
   const host = pickerToolsHost(); if (host) host.classList.toggle('filters-open', open); // hide component results while filtering
-  if (pickerFilterBusy && !has) {
-    panel.classList.remove('hidden');
-    panel.innerHTML = `<p class="hint">${lang === 'en' ? 'Loading filters…' : 'Chargement des filtres…'}</p>`;
+  if (pickerFilterBusy && !hasData) {
+    if (open) {
+      panel.classList.remove('hidden');
+      panel.innerHTML = buildMoreHtml(null);
+    } else {
+      panel.classList.add('hidden');
+    }
     return;
   }
   panel.classList.toggle('hidden', !open);
   if (!open) return;
-  panel.innerHTML = buildMoreHtml(d);
+  panel.innerHTML = buildMoreHtml(d || null);
 }
 function setIdealoTarget(url, label, key) {
   currentIdealoUrl = url;
@@ -2848,7 +3143,8 @@ function savePickerFilters() {
   try {
     const all = load(LS.prefs, {});
     const store = { ...(all.idealFilters || {}) };
-    if (filterActive()) store[pickerCatKey] = { sel: pickerSel, price: pickerPrice, discount: pickerDiscount };
+    const persistable = Object.keys(pickerSel).some(g => (pickerSel[g] || []).length) || pickerDiscount || priceChanged();
+    if (persistable) store[pickerCatKey] = { sel: pickerSel, price: pickerPrice, discount: pickerDiscount };
     else delete store[pickerCatKey];
     save(LS.prefs, { ...all, idealFilters: store });
   } catch { /* ignore */ }
@@ -2856,12 +3152,13 @@ function savePickerFilters() {
 function pickerResetFilters(url, key) {
   pickerCatKey = key; pickerFilterBase = url;
   pickerFilterData = null; pickerSel = {}; pickerPrice = { from: null, to: null }; pickerDiscount = false;
+  pickerFavOnly = false; pickerKjTags.clear();
   pickerFilterBusy = false; pickerFilterErr = ''; pickerRestored = false; pickerSocketToken = null;
   renderPickerFilters();
 }
 function pickerClearFilters() {
   const p = pickerFilterData && pickerFilterData.price;
-  pickerSel = {}; pickerDiscount = false;
+  pickerSel = {}; pickerDiscount = false; pickerFavOnly = false; pickerKjTags.clear();
   pickerPrice = { from: p ? p.min : null, to: p ? p.max : null };
   savePickerFilters();
   renderPickerFilters();
@@ -2917,6 +3214,11 @@ function applyAutoQuick(key) {
 }
 function onFilterChange(e) {
   const t = e.target;
+  if (t.dataset && t.dataset.kjTag) {
+    if (t.checked) pickerKjTags.add(t.dataset.kjTag); else pickerKjTags.delete(t.dataset.kjTag);
+    idealShown = IDEAL_PAGE;
+    renderIdealo(); renderPickerFilters(); return;
+  }
   if (t.dataset && t.dataset.special === 'deal') { pickerDiscount = t.checked; applyPickerFilters(); renderPickerFilters(); return; }
   if (t.dataset && t.dataset.gid && t.dataset.oid) {
     if (t.dataset.single) {
@@ -5409,10 +5711,12 @@ function exportAll() {
     app: 'ConfigMaker', version: APP_VERSION, kind: 'all',
     exportedAt: new Date().toISOString(),
     state, configs: load(LS.configs, {}), hist: load(LS.hist, {}), prefs: load(LS.prefs, {}),
+    favorites: favoritesData(),
   }, null, 2), 'application/json');
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.58 — Favoris & sélection KJ</h3><p class="hint">Favoris globaux (cœur sur les cartes et les fiches, filtre rapide par catégorie, export dans « Export données ») et sélection KJ éditable dans un document unique : recommandé, déconseillé, top choix et testé, avec pastilles, teintes, animations à l’ouverture et filtres cumulables. Les sélections KJ absentes de la liste Idealo restent visibles en cartes légères.</p></div>
     <div class="chlog"><h3>v2.57 — Fiche technique & galerie</h3><p class="hint">La fiche technique s’affiche désormais entièrement, sans zone de défilement interne. Le bouton de chargement ne saute plus au survol. Les photos de la galerie s’ouvrent en grand et un clic ouvre l’image Idealo en taille réelle dans un nouvel onglet. Les fonds blancs des barres de titre et d’actions de la fiche ont été retirés sur mobile.</p></div>
     <div class="chlog"><h3>v2.56 — Fiche composant complète</h3><p class="hint">La fiche d’un composant occupe désormais tout l’espace du panneau de droite : galerie photos avec flèches et miniatures, favori, variantes et filtres, résumé Idealo, offres marchands cliquables, accès à la boutique et fiche technique complète chargée à la demande avec animations. Le titre de l’onglet reprend le nom de la config, et les cartes de résultats gèrent les noms et prix longs sur deux lignes.</p></div>
     <div class="chlog"><h3>v2.55 — Ouverture d’un lien de partage</h3><p class="hint">Charger une config depuis un lien partagé reconstruit désormais tout le configurateur (toutes les sections et tous les composants restent visibles et éditables) et y place les composants partagés. Les fiches réduites du lien (nom, prix, lien Idealo) sont réenrichies en arrière-plan — image, specs, fiche technique et compatibilité — sans le popup bloquant « Actualisation des prix ». L’adresse est nettoyée après l’import pour qu’un rechargement réutilise la config enrichie.</p></div>
@@ -5589,9 +5893,8 @@ function bind() {
   const pdFav = $('#pdFav');
   if (pdFav) pdFav.onclick = () => {
     if (!pdState) return;
-    pdState.item._fav = !pdState.item._fav;
-    renderPickerDetail(false);
-    toast(pdTxt('Favoris bientôt disponibles', 'Favourites coming soon'));
+    toggleFavorite(pdState.item, activeSlot ? slotCatKey(activeSlot) : '');
+    syncFavoriteViews();
   };
   const gClose = $('#galleryClose'); if (gClose) gClose.onclick = closeGallery;
   const gPrev = $('#galleryPrev'); if (gPrev) gPrev.onclick = () => galleryMove(-1);
