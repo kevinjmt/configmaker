@@ -43,6 +43,65 @@ const Compat = (() => {
     }).filter(Boolean);
   }
 
+  function mdClean(s) {
+    return String(s || '')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/[*_`~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function dsRowLabel(s) { return mdClean(s).replace(/^[\s#\-–—•*]+/, '').replace(/[\s.:]+$/, '').trim(); }
+  function dsRowValue(s) { return mdClean(s).replace(/^[\s\-–—•*]+/, '').trim(); }
+  function dsIsSep(s) { return /^:?-{2,}:?$/.test(String(s || '').replace(/\s/g, '')); }
+
+  /* Generic label/value datasheet rows for the fiche editor, compatibility
+     display and the configuration comparer. Unlike parseDatasheet(), this
+     keeps unknown labels and their source order. */
+  function datasheetRows(dsText) {
+    const raw = String(dsText || '').split(/\r?\n/).map(l => l.trim());
+    const rows = [];
+    const push = (label, value) => {
+      label = dsRowLabel(label); value = dsRowValue(value);
+      if (!label || !value || dsIsSep(label) || dsIsSep(value) || /^[—–-]$/.test(value)) return;
+      if (/^https?:\/\//i.test(label) || /^https?:\/\//i.test(value)) return;
+      rows.push({ label, value });
+    };
+    for (let i = 0; i < raw.length; i++) {
+      const line = raw[i];
+      if (!line) continue;
+      if (/^#{1,6}\s/.test(line) || /^!\[/.test(line) || /^<\/?[a-z]/i.test(line)) continue;
+      if (/^https?:\/\//i.test(line)) continue;
+      if (/^\|.*\|$/.test(line)) {
+        const next = raw[i + 1] || '';
+        if (/^\|.*\|$/.test(next) && next.replace(/^\||\|$/g, '').split('|').every(dsIsSep)) continue;
+        const cells = line.replace(/^\||\|$/g, '').split('|').map(x => x.trim());
+        if (cells.length >= 2 && !cells.every(dsIsSep)) push(cells[0], cells.slice(1).join(' '));
+        continue;
+      }
+      if (/\t/.test(line)) {
+        const j = line.indexOf('\t');
+        push(line.slice(0, j), line.slice(j + 1));
+        continue;
+      }
+      const cm = line.match(/^([^:]{1,80}):\s*(.+)$/);
+      if (cm) { push(cm[1], cm[2]); continue; }
+      const l = low(dsRowLabel(line));
+      const isLab = SORTED.some(([lab, field]) => field && l === lab);
+      const partial = !isLab && SORTED.some(([lab, field]) => {
+        if (!field || !l.startsWith(lab)) return false;
+        const rest = l.slice(lab.length).trim();
+        return rest.length > 0 && rest.length <= 8 && !/\d/.test(rest);
+      });
+      const nxtRaw = raw[i + 1] || '';
+      const nxt = low(dsRowLabel(nxtRaw));
+      const nxtIsLab = nxt && SORTED.some(([lab, field]) => field && (nxt === lab || nxt.startsWith(lab + ' ')));
+      if ((isLab || partial) && nxtRaw && !nxtIsLab) { push(line, nxtRaw); i++; }
+    }
+    return rows;
+  }
+
   /* label (lowercase) -> [field, kind]; longest labels first.
      kinds: raw | num | numlist | sockets | forms | form | ddr | pciegen | usbports | lan | flag */
   const LABELS = [
@@ -1596,6 +1655,6 @@ const Compat = (() => {
     return { capW: m ? parseInt(m[1], 10) : 0 };
   }
 
-  return { check, parseDatasheet, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
+  return { check, parseDatasheet, datasheetRows, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
 })();
 try { module.exports = Compat; } catch { /* browser */ }

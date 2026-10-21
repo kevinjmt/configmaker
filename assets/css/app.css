@@ -741,6 +741,8 @@ body.gallery-open{overflow:hidden}
 .fld{display:flex;flex-direction:column;gap:4px}
 .fld label{font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .fld input,.fld select,.fld textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:10px;padding:9px 11px;color:var(--ink);font:inherit;font-size:.88rem;width:100%}
+.fld textarea.ds-editor{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.76rem;line-height:1.45;min-height:150px;resize:vertical}
+#f_dsHint.is-warn{color:var(--warning)}
 .list-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:var(--surface)}
 .list-row .grow{flex:1;min-width:0}
 .merchant-row{cursor:pointer}
@@ -1021,6 +1023,13 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .cmp-rowicon i,.cmp-rowicon svg{font-size:.82rem;width:.95rem;height:.95rem}
 .cmp-rowhead>span:not(.cmp-rowicon){vertical-align:middle}
 .cmp-rowhead small{display:block;margin-top:2px;color:var(--muted);font-size:.68rem;font-weight:600}
+.cmp-expand{display:inline-flex;align-items:center;justify-content:center;width:22px;height:20px;margin-left:6px;padding:0;border:1px solid var(--line-strong);border-radius:6px;background:var(--bg-soft);color:var(--muted);cursor:pointer;vertical-align:middle}
+.cmp-expand:hover{border-color:var(--brand);color:var(--brand-ink);background:var(--surface)}
+.cmp-expand i{font-size:.62rem;transition:transform .18s ease}
+.cmp-detail-head th{background:color-mix(in srgb,var(--brand) 5%,var(--bg-soft));color:var(--brand-ink);font-size:.66rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase;padding-top:7px;padding-bottom:7px;border-top:1px dashed var(--line-strong)}
+.cmp-detail-head th span{display:inline-block;position:sticky;left:10px}
+.cmp-detail-row .cmp-rowhead{color:var(--muted);font-size:.71rem;font-weight:700;padding-left:20px;background:color-mix(in srgb,var(--bg-soft) 32%,var(--surface))}
+.cmp-detail-row .cmp-cell{font-size:.76rem;background:color-mix(in srgb,var(--bg-soft) 18%,var(--surface))}
 .cmp-colhead{position:relative;padding-top:13px!important;border-top:3px solid var(--cmp-accent)!important;min-width:0}
 .cmp-colhead.full{padding-top:16px!important}
 .cmp-colhead.compact{padding-top:10px!important}
@@ -1052,6 +1061,10 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .cmp-retry{padding:4px 7px!important;font-size:.68rem!important}
 .cmp-diff-row .cmp-rowhead{color:var(--ink);background:color-mix(in srgb,var(--warning) 8%,var(--surface))}
 .cmp-changed{background:color-mix(in srgb,var(--warning) 16%,var(--surface))!important;box-shadow:inset 3px 0 0 rgba(245,159,0,.55)}
+.cmp-best{outline:2px solid rgba(47,158,68,.5);outline-offset:-2px}
+.cmp-worst{outline:2px solid rgba(224,49,49,.42);outline-offset:-2px}
+.cmp-best strong,.cmp-best .cmp-val{color:var(--success)}
+.cmp-worst strong,.cmp-worst .cmp-val{color:var(--danger)}
 .cmp-diff-row .cmp-changed .cmp-pname{color:var(--ink)}
 #cmpBody.cmp-mode-diff .cmp-row:not(.cmp-diff-row){opacity:.46}
 #cmpBody.cmp-mode-diff .cmp-row.cmp-diff-row{opacity:1}
@@ -1081,6 +1094,9 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   .cmp-table th,.cmp-table td{padding:8px 8px;font-size:.78rem}
   .cmp-colname{font-size:.76rem}
   .cmp-controls label{flex:1 1 100%}
+  .cmp-detail-row .cmp-rowhead{padding-left:14px;font-size:.68rem}
+  .cmp-detail-row .cmp-cell{font-size:.72rem}
+  .cmp-expand{width:20px;height:19px;margin-left:5px}
 }
 @media (max-width:700px){
   .pill.tabs:not(.small){gap:2px;padding:3px;width:100%;max-width:100%;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto}
@@ -1094,7 +1110,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   .cmp-sec-head{font-size:.9rem}
 }
 @media (prefers-reduced-motion:reduce){
-  .cmp-sec,.cmp-cell,.cmp-pick-row,.cmp-opt-row{transition:none!important}
+  .cmp-sec,.cmp-cell,.cmp-pick-row,.cmp-opt-row,.cmp-expand i{transition:none!important}
 }
 /* v2.5 — benchmark video cards */
 .video-card{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}

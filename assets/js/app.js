@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.59';
+const APP_VERSION = '2.60';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -97,6 +97,9 @@ const I18N = {
     'compare.noSaved': 'Aucune version sauvegardée. Sauvegardez une configuration pour pouvoir la comparer.',
     'compare.max': 'Maximum 4 configurations supplémentaires.', 'compare.current': 'Actuelle',
     'compare.remove': 'Retirer cette colonne', 'compare.specs': 'Spécifications', 'compare.total': 'Total',
+    'compare.datasheet': 'Fiche technique', 'compare.noDatasheet': 'Aucune fiche technique', 'compare.quickSpecs': 'Specs rapides',
+    'compare.expand': 'Afficher la fiche technique', 'compare.collapse': 'Masquer la fiche technique',
+    'compare.best': 'Meilleur', 'compare.worst': 'Moins bon', 'compare.rankLegend': 'Vert : meilleur · Rouge : moins bon (à partir de 3 configurations)',
     'compare.game': 'Jeu', 'compare.resolution': 'Résolution', 'compare.auto': 'Auto (écran)',
     'compare.brief': "Résumé d'usage", 'compare.gaming': 'Jeu (FPS iobit)', 'compare.geekbench': 'Geekbench',
     'compare.3dmark': '3DMark Time Spy', 'compare.daily': 'Quotidien', 'compare.heavy': 'Charges lourdes',
@@ -177,6 +180,9 @@ const I18N = {
     'compare.noSaved': 'No saved versions yet. Save a configuration before comparing it.',
     'compare.max': 'Maximum 4 additional configurations.', 'compare.current': 'Current',
     'compare.remove': 'Remove this column', 'compare.specs': 'Specifications', 'compare.total': 'Total',
+    'compare.datasheet': 'Datasheet', 'compare.noDatasheet': 'No datasheet', 'compare.quickSpecs': 'Quick specs',
+    'compare.expand': 'Show datasheet', 'compare.collapse': 'Hide datasheet',
+    'compare.best': 'Best', 'compare.worst': 'Worst', 'compare.rankLegend': 'Green: best · Red: worst (from 3 configurations)',
     'compare.game': 'Game', 'compare.resolution': 'Resolution', 'compare.auto': 'Auto (display)',
     'compare.brief': 'Usage summary', 'compare.gaming': 'Gaming (iobit FPS)', 'compare.geekbench': 'Geekbench',
     'compare.3dmark': '3DMark Time Spy', 'compare.daily': 'Daily use', 'compare.heavy': 'Heavy workloads',
@@ -1811,6 +1817,35 @@ function pdImagesFor(it, detail) {
   if (it && it.img) out.push(it.img);
   return pdUnique(out).slice(0, 12);
 }
+function datasheetTextFromDetails(detail) {
+  const lines = [];
+  ((detail && detail.sections) || []).forEach(g => {
+    (g.rows || []).forEach(r => {
+      const label = String((r && r[0]) || '').trim();
+      const value = String((r && r[1]) || '').trim();
+      if (label && value) lines.push(label + ': ' + value);
+    });
+  });
+  return lines.join('\n').slice(0, 30000).trim();
+}
+function pdDatasheetRows(it) {
+  if (!it || !it.datasheet || typeof Compat === 'undefined' || !Compat.datasheetRows) return [];
+  try { return Compat.datasheetRows(it.datasheet); } catch { return []; }
+}
+function pdUrlKey(url) { return normTxt(url || '').replace(/\/+$/, '').trim(); }
+function pdSyncDatasheetToState(url, ds) {
+  const key = pdUrlKey(url);
+  if (!key || !ds) return;
+  let changed = false;
+  for (const sid of state.order) {
+    const s = state.slots[sid];
+    if (!s) continue;
+    (s.products || []).forEach(p => {
+      if (!p.datasheet && pdUrlKey(p.idealo) === key) { p.datasheet = ds; changed = true; }
+    });
+  }
+  if (changed) { persist(); compatCache = null; }
+}
 function pdQuickParts(it, detail) {
   if (detail) {
     if (detail.summaryParts && detail.summaryParts.length) return detail.summaryParts;
@@ -1861,12 +1896,16 @@ function pdOffersMask(st) {
 }
 function pdDatasheetMask(st) {
   const it = st.item;
-  if (st.loading) {
+  const storedRows = pdDatasheetRows(it);
+  const secs = storedRows.length
+    ? [{ title: '', rows: storedRows.map(r => [r.label, r.value]) }]
+    : ((st.details && st.details.sections) || []);
+  if (st.loading && !secs.length) {
     return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement de la fiche technique et des offres…', 'Loading datasheet and offers…')}</span></div>
       <div class="pd-ds-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section>`;
   }
-  if (!st.loaded) {
+  if (!secs.length && !st.loaded) {
     if (st.error) {
       return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
         <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error)}</span></div>
@@ -1880,14 +1919,14 @@ function pdDatasheetMask(st) {
       <button class="btn btn-primary pd-ds-loadbtn" data-pd-act="load"><i class="fa-solid fa-cloud-arrow-down"></i> ${pdTxt('Charger toute la fiche technique', 'Load the full datasheet')}</button></div>
       <p class="hint pd-ds-hint">${pdTxt('La fiche complète et les offres marchands seront chargées depuis Idealo.', 'The full datasheet and merchant offers will be loaded from Idealo.')}</p></section>`;
   }
-  const secs = (st.details && st.details.sections) || [];
-  if (st.error || !secs.length) {
+  if (!secs.length) {
     return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error || pdTxt('Aucune fiche technique disponible.', 'No datasheet available.'))}</span></div>
       <button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></section>`;
   }
   const groups = secs.map(g => `<div class="pd-ds-group">${g.title ? `<div class="pd-ds-group-title">${esc(g.title)}</div>` : ''}<table class="pd-ds-table"><tbody>${g.rows.map(r => `<tr><th scope="row">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table></div>`).join('');
-  return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span><span class="pd-from">${st.details && st.details.cached ? pdTxt('en cache', 'cached') : ''}</span></div><div class="pd-ds-scroll">${groups}</div></section>`;
+  const origin = storedRows.length ? pdTxt('enregistrée', 'stored') : (st.details && st.details.cached ? pdTxt('en cache', 'cached') : '');
+  return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span>${origin ? `<span class="pd-from">${origin}</span>` : ''}</div><div class="pd-ds-scroll">${groups}</div></section>`;
 }
 function renderPickerDetail(resetScroll) {
   const st = pdState;
@@ -1997,7 +2036,7 @@ function applyDetailProduct(st, d) {
   if (d.specs) it.specs = d.specs;
   if (d.summary) it.summary = d.summary;
   if (d.images && d.images.length) it.images = d.images;
-  if (d.datasheet) it.datasheet = d.datasheet;
+  if (d.datasheet && !it.datasheet) it.datasheet = d.datasheet;
   if (d.variants && d.variants.items && d.variants.items.length) it.variants = d.variants;
   if (!it.price && d.price) it.price = d.price;
   if (!it.offers && d.offers) it.offers = d.offers;
@@ -2010,6 +2049,7 @@ async function loadPickerProduct(st) {
     const d = await Idealo.product(url);
     if (!pdState || pdState !== st || seq !== pdSeq || st.item.url !== url) return;
     applyDetailProduct(st, d);
+    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet);
     renderPickerDetail(false);
   } catch { /* keep the listing data */ }
 }
@@ -2044,9 +2084,12 @@ async function loadPickerDetailData() {
       st.loaded = true;
       if (det.images && det.images.length) st.item.images = det.images;
       if (det.summary) st.item.summary = det.summary;
+      const ds = datasheetTextFromDetails(det);
+      if (ds && !st.item.datasheet) st.item.datasheet = ds;
     } else {
       st.error = (det && det.error) ? det.error : pdTxt('Fiche indisponible pour le moment.', 'Datasheet unavailable right now.');
     }
+    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet);
   } catch (e) {
     if (pdState === st && seq === pdSeq) st.error = String((e && e.message) || e);
   } finally {
@@ -3423,12 +3466,33 @@ function openProductForm(slotId, p, opts = {}) {
       <div class="fld"><label>${lang === 'en' ? 'Power (W, PC parts)' : 'Puissance (W, pièces PC)'}</label><input id="f_w" type="number" min="0" step="1" value="${p.watts ?? d.w ?? 0}"></div>
       <div class="fld"><label>${lang === 'en' ? 'PSU/UPS capacity (W, 0=auto)' : 'Puissance alim/onduleur (W, 0=auto)'}</label><input id="f_capW" type="number" min="0" step="1" value="${p.capW || ''}" placeholder="750"><div class="hint" id="f_capHint"></div></div>
       <div class="fld full"><label>${lang === 'en' ? 'Quick specs (one per line — paste from Idealo top)' : 'Specs rapides (une par ligne — copiées du haut de la fiche Idealo)'}</label><textarea id="f_specs" rows="3" placeholder="8 cœurs / 16 threads&#10;5,0 GHz boost, AM5">${esc(p.specs)}</textarea></div>
+      <div class="fld full"><label>${lang === 'en' ? 'Datasheet (one feature per line: Label: Value)' : 'Fiche technique (une caractéristique par ligne : Libellé: Valeur)'}</label><textarea id="f_ds" class="ds-editor" rows="9" maxlength="30000" spellcheck="false" placeholder="Socket: AM5&#10;Nombre de cœurs: 8&#10;Nombre de threads: 16&#10;TDP: 120 W">${esc(String(p.datasheet || '').slice(0, 30000))}</textarea><div class="hint" id="f_dsHint"></div></div>
       <div class="fld full"><label>URL Idealo</label><input id="f_idealo" value="${esc(p.idealo)}" placeholder="https://www.idealo.fr/…"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Manual URL' : 'URL du manuel'} <button type="button" class="mini-btn" id="f_manualOpen" title="${lang === 'en' ? 'Open manual in new tab' : 'Ouvrir le manuel dans un nouvel onglet'}" ${p.manual ? '' : 'disabled'}><i class="fa-solid fa-arrow-up-right-from-square"></i></button></label><input id="f_manual" value="${esc(p.manual)}" placeholder="https://…pdf"></div>
       <div class="fld full"><label>${lang === 'en' ? 'Store URL (offer link)' : 'URL boutique (lien de l’offre)'}</label><input id="f_store" value="${esc(p.store)}" placeholder="https://…"></div>
     </div>
     <div class="btn-row"><button class="btn btn-primary" id="f_save"><i class="fa-solid fa-check"></i> ${lang === 'en' ? 'Save fiche' : 'Enregistrer'}</button>
     ${!isNew ? `<button class="btn" id="f_delP" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`);
+  const dsEl = $('#f_ds'), dsHint = $('#f_dsHint');
+  const dsStats = () => {
+    if (!dsEl || !dsHint) return;
+    const txt = dsEl.value;
+    let rows = [];
+    try { rows = (typeof Compat !== 'undefined' && Compat.datasheetRows) ? Compat.datasheetRows(txt) : []; } catch { rows = []; }
+    const filled = txt.split(/\r?\n/).filter(l => l.trim()).length;
+    if (lang === 'en') {
+      dsHint.textContent = rows.length
+        ? `${rows.length} recognised feature${rows.length === 1 ? '' : 's'} · ${txt.length}/30000 characters`
+        : (filled ? 'No recognised line — use Label: Value (or a | Label | Value | table).' : 'No datasheet stored yet.');
+    } else {
+      dsHint.textContent = rows.length
+        ? `${rows.length} caractéristique${rows.length === 1 ? '' : 's'} reconnue${rows.length === 1 ? '' : 's'} · ${txt.length}/30000 caractères`
+        : (filled ? 'Aucune ligne reconnue — utilisez Libellé: Valeur (ou un tableau | Libellé | Valeur |).' : 'Aucune fiche technique enregistrée.');
+    }
+    dsHint.classList.toggle('is-warn', filled > 0 && !rows.length);
+  };
+  if (dsEl) dsEl.addEventListener('input', dsStats);
+  dsStats();
   if (opts.focus === 'manual') setTimeout(() => $('#f_manual').focus(), 50);
   $('#f_manualOpen').onclick = () => { const u = $('#f_manual').value.trim(); if (u) window.open(u, '_blank', 'noopener'); };
   if (opts.focus === 'store') setTimeout(() => $('#f_store').focus(), 50);
@@ -3447,8 +3511,13 @@ function openProductForm(slotId, p, opts = {}) {
     p.price = parseFloat(v('#f_price')) || 0; p.oldPrice = parseFloat(v('#f_old')) || 0;
     p.delivery = parseFloat(v('#f_del')) || 0; p.qty = parseInt(v('#f_qty')) || 1;
     p.watts = parseFloat(v('#f_w')) || 0; p.specs = $('#f_specs').value.trim();
+    const nextDs = ($('#f_ds') ? $('#f_ds').value : String(p.datasheet || '')).trim().slice(0, 30000);
+    const dsChanged = nextDs !== String(p.datasheet || '').trim();
+    p.datasheet = nextDs;
+    if (dsChanged) p.verified = [];
     p.capW = parseFloat(v('#f_capW')) || 0;
     p.idealo = v('#f_idealo'); p.manual = v('#f_manual'); p.store = v('#f_store');
+    compatCache = null;
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
     if (!opts.addOnly || !s.selectedId) s.selectedId = p.id;
@@ -4626,7 +4695,7 @@ function playVideo(v) {
 /* ---------- Compare configurations ---------- */
 const CMP_MAX_EXTRA = 4;
 const cmpSectionSeq = { n: 0 };
-let cmpState = { cols: [], mode: 'all', game: 'cp2077', res: 'auto', ext: {}, varBusy: false, renderTimer: null };
+let cmpState = { cols: [], mode: 'all', game: 'cp2077', res: 'auto', ext: {}, varBusy: false, renderTimer: null, openSpecs: {} };
 
 function cmpCloneState(src) {
   let out;
@@ -4685,12 +4754,41 @@ function showCompare() {
   cmpRefreshCurrent();
   renderCompare();
 }
-function cmpCell(html, val, num, eps) {
-  return { html, val: val == null ? '' : String(val), num: (typeof num === 'number' && isFinite(num)) ? num : null, eps: Number(eps) || 0 };
+function cmpCell(html, val, num, eps, opts = {}) {
+  const out = { html, val: val == null ? '' : String(val), num: (typeof num === 'number' && isFinite(num)) ? num : null, eps: Number(eps) || 0 };
+  if (opts.rankVal != null && isFinite(opts.rankVal)) out.rankVal = opts.rankVal;
+  if (opts.rankable === false) out.rankable = false;
+  if (opts.dir) out.dir = opts.dir;
+  return out;
 }
 function cmpSame(a, b) {
   if (a && b && a.num != null && b.num != null) return Math.abs(a.num - b.num) <= Math.max(a.eps || 0, b.eps || 0, 0.001);
   return String((a && a.val) || '') === String((b && b.val) || '');
+}
+function cmpStatusRank(st) {
+  return ({ ok: 3, checked: 3, warn: 2, err: 1, unknown: 0, na: 0 })[st] || 0;
+}
+function cmpRank(cells, count, dir) {
+  if (count < 2) return cells.map(() => '');
+  const vals = [];
+  cells.forEach((c, i) => {
+    if (!c || c.rankable === false) return;
+    const v = c.rankVal != null ? c.rankVal : (c.num != null ? c.num : null);
+    if (v != null && isFinite(v)) vals.push({ i, v, eps: Number(c.eps) || 0 });
+  });
+  if (vals.length < 2) return cells.map(() => '');
+  const low = dir === 'low';
+  const best = low ? Math.min(...vals.map(v => v.v)) : Math.max(...vals.map(v => v.v));
+  const worst = low ? Math.max(...vals.map(v => v.v)) : Math.min(...vals.map(v => v.v));
+  const tol = Math.max(0, ...vals.map(v => v.eps));
+  const near = (a, b) => Math.abs(a - b) <= tol;
+  if (vals.every(v => near(v.v, best))) return cells.map(() => '');
+  const out = cells.map(() => '');
+  vals.forEach(v => {
+    if (near(v.v, best)) out[v.i] = 'best';
+    else if (count > 2 && near(v.v, worst)) out[v.i] = 'worst';
+  });
+  return out;
 }
 function cmpNoneCell(txt) { return cmpCell(`<span class="cmp-none">${esc(txt || '—')}</span>`, 'none|' + (txt || ''), null, 0); }
 function cmpNeedCell(txt) { return cmpCell(`<span class="cmp-none">${esc(txt)}</span>`, 'need|' + txt, null, 0); }
@@ -4701,11 +4799,12 @@ function cmpRetryCell(kind, colId) {
 function cmpStatusCell(st) {
   const w = briefStatusWord(st);
   const cls = st === 'unknown' ? 'warn' : st;
-  return cmpCell(`<span class="cmp-status st-${esc(cls)}"><span class="dot-${esc(cls)}">●</span> ${esc(w.txt)}</span>`, String(st || 'unknown'), null, 0);
+  const rankable = st !== 'unknown' && st !== 'na';
+  return cmpCell(`<span class="cmp-status st-${esc(cls)}"><span class="dot-${esc(cls)}">●</span> ${esc(w.txt)}</span>`, String(st || 'unknown'), null, 0, { rankVal: rankable ? cmpStatusRank(st) : null, rankable });
 }
 function cmpFpsCell(v, resLbl) {
   if (v == null || !isFinite(v)) return cmpNeedCell('—');
-  return cmpCell(`<strong class="fps-${Perf.fpsColor(v)}">${v} ${esc(t('compare.fps'))}</strong>${resLbl ? `<small>${esc(resLbl)}</small>` : ''}`, String(v), v, 1);
+  return cmpCell(`<strong class="fps-${Perf.fpsColor(v)}">${v} ${esc(t('compare.fps'))}</strong>${resLbl ? `<small>${esc(resLbl)}</small>` : ''}`, String(v), v, 1, { rankVal: v });
 }
 function cmpGameFps(f, game, res, quality) {
   if (!f.cpuEntry || !f.gpuEntry) return null;
@@ -4722,18 +4821,20 @@ function cmpCriterionCell(r) {
   const st = r.st === 'unknown' ? 'warn' : r.st;
   const ic = st === 'ok' ? 'check' : st === 'warn' ? 'triangle-exclamation' : 'xmark';
   const n = r.bar && typeof r.bar.val === 'number' ? r.bar.val : null;
-  return cmpCell(`<span class="cmp-crit st-${esc(st)}" title="${esc(r.detail || '')}"><i class="fa-solid fa-${ic}"></i><span>${esc(r.label || '—')}</span></span>`, (r.label || '') + '|' + (n == null ? '' : n) + '|' + r.st, n, 0.5);
+  const rankable = !r.neutral && r.st !== 'unknown';
+  const rankVal = rankable ? cmpStatusRank(r.st) * 1000000 + (n == null ? 0 : n) : null;
+  return cmpCell(`<span class="cmp-crit st-${esc(st)}" title="${esc(r.detail || '')}"><i class="fa-solid fa-${ic}"></i><span>${esc(r.label || '—')}</span></span>`, (r.label || '') + '|' + (n == null ? '' : n) + '|' + r.st, n, 0.5, { rankVal, rankable });
 }
 function cmpBottleneckCell(bt) {
-  if (!bt || bt.level == null) return cmpCell(`<span class="cmp-status st-ok"><span class="dot-ok">●</span> ${esc(t('bench.btOk'))}</span>`, 'ok', null, 0);
+  if (!bt || bt.level == null) return cmpCell(`<span class="cmp-status st-ok"><span class="dot-ok">●</span> ${esc(t('bench.btOk'))}</span>`, 'ok', null, 0, { rankVal: cmpStatusRank('ok') });
   const cls = bt.level === 'err' ? 'err' : 'warn';
   const txt = bt.side === 'cpu' ? t('bench.btCpu') : t('bench.btGpu');
-  return cmpCell(`<span class="cmp-status st-${cls}"><span class="dot-${cls}">●</span> ${esc(txt)}</span>`, bt.side + '|' + bt.level, null, 0);
+  return cmpCell(`<span class="cmp-status st-${cls}"><span class="dot-${cls}">●</span> ${esc(txt)}</span>`, bt.side + '|' + bt.level, null, 0, { rankVal: cmpStatusRank(bt.level) });
 }
 function cmpScoreCell(n, sub, eps) {
   if (n == null || !isFinite(n)) return cmpNoneCell('—');
   const loc = n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
-  return cmpCell(`<strong>${loc}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}`, String(n), n, eps == null ? Math.max(1, Math.abs(n) * 0.005) : eps);
+  return cmpCell(`<strong>${loc}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}`, String(n), n, eps == null ? Math.max(1, Math.abs(n) * 0.005) : eps, { rankVal: n });
 }
 function cmpSlotNameFor(id, cols) {
   for (const c of cols) {
@@ -4757,18 +4858,81 @@ function cmpColumnHead(c, full) {
     ${full ? `<span class="cmp-coltotal">${eur(T.total)}</span>` : ''}
   </th>`;
 }
+function cmpDsLabelKey(label) {
+  return normTxt(label || '').replace(/[\s.:]+$/, '').replace(/\s+/g, ' ').trim();
+}
+function cmpMetricValue(value) {
+  const s = String(value == null ? '' : value).replace(/\u00a0/g, ' ').trim();
+  if (!s || /\d+\s*[x×]\s*\d+/i.test(s)) return null;
+  const m = s.replace(/(\d)[\s.](?=\d{3}\b)/g, '$1').match(/-?\d+(?:[.,]\d+)?/);
+  return m ? parseFloat(m[0].replace(',', '.')) : null;
+}
+function cmpMetricUnit(value) {
+  const m = String(value == null ? '' : value).match(/\b(ghz|mhz|gbps|mbps|gb\/s|mb\/s|tb|to|gb|go|mb|mo|kw|w|mm|cm|kg|g|%|rpm|hz|fps|db|v|a)\b/i);
+  return m ? m[1].toLowerCase() : '';
+}
+function cmpDsDirection(label) {
+  const l = normTxt(label || '');
+  return /(consommation|consumption|power draw|puissance (?:absorb|electr|max)|tdp|tbp|bruit|noise|latence|latency|poids|weight|epaisseur|thickness|prix|price|delai|delay|temps de reponse|response time|input lag)/.test(l) ? 'low' : 'high';
+}
+function cmpDsRankable(label) {
+  const l = normTxt(label || '');
+  if (/(prix|price|cout|cost|tarif)/.test(l)) return false;
+  return !/(dimension|longueur|largeur|hauteur|profondeur|length|width|height|depth|size|format|facteur de forme|diametre|diameter)/.test(l);
+}
+function cmpDsCell(value, rankable) {
+  const txt = String(value == null ? '' : value).trim();
+  if (!txt) return cmpNoneCell('—');
+  const n = rankable ? cmpMetricValue(txt) : null;
+  return cmpCell(`<span class="cmp-val">${esc(txt)}</span>`, txt, n, 0, { rankVal: n, rankable });
+}
+function cmpDsRows(label, prods) {
+  const parsed = prods.map(p => {
+    if (!p || !p.datasheet || typeof Compat === 'undefined' || !Compat.datasheetRows) return [];
+    try { return Compat.datasheetRows(p.datasheet); } catch { return []; }
+  });
+  const order = [], seen = new Set();
+  parsed.forEach(rows => rows.forEach(r => {
+    const key = cmpDsLabelKey(r.label);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    order.push({ key, label: r.label });
+  }));
+  const out = [{ detailGroup: `${label} · ${t('compare.datasheet')}` }];
+  order.forEach(item => {
+    const matches = parsed.map(rows => rows.filter(r => cmpDsLabelKey(r.label) === item.key).map(r => r.value));
+    const values = matches.map(v => v.join(' · '));
+    if (!values.some(Boolean)) return;
+    const units = [...new Set(values.map(cmpMetricUnit).filter(Boolean))];
+    const compound = matches.some(v => v.length > 1);
+    const rankable = !compound && cmpDsRankable(item.label) && units.length <= 1;
+    out.push({ label: item.label, cells: values.map(v => cmpDsCell(v, rankable)), detail: true, dir: cmpDsDirection(item.label) });
+  });
+  const fallback = prods.map((p, i) => (!parsed[i].length && p && p.specs)
+    ? String(p.specs).split(/\n| {2,}/).map(x => x.trim()).filter(Boolean).join(' · ')
+    : '');
+  if (fallback.some(Boolean)) {
+    out.push({ label: t('compare.quickSpecs'), cells: fallback.map(v => cmpDsCell(v, false)), detail: true });
+  }
+  if (out.length === 1) {
+    out.push({ label: t('compare.noDatasheet'), cells: prods.map(p => cmpNoneCell(p ? t('compare.noDatasheet') : t('compare.emptySlot'))), detail: true });
+  }
+  return out;
+}
 function cmpSection(title, icon, rows, cols, opts = {}) {
   const full = !!opts.full;
   const sid = 'cmpsec' + (++cmpSectionSeq.n);
   const head = `<tr><th scope="col" class="cmp-rowhead cmp-corner"></th>${cols.map(c => cmpColumnHead(c, full)).join('')}</tr>`;
   const body = rows.map(row => {
     if (row.group) return `<tr class="cmp-group"><th colspan="${cols.length + 1}"><span>${esc(row.group)}</span></th></tr>`;
+    if (row.detailGroup) return `<tr class="cmp-detail-head"><th colspan="${cols.length + 1}"><span>${esc(row.detailGroup)}</span></th></tr>`;
     const cells = row.cells || [];
     const first = cells[0] || cmpCell('', '', null, 0);
     const diff = cells.some(c => !cmpSame(first, c));
-    return `<tr class="cmp-row${diff ? ' cmp-diff-row' : ''}">
-      <th scope="row" class="cmp-rowhead">${row.icon ? `<span class="cmp-rowicon">${row.icon}</span>` : ''}<span>${esc(row.label || '')}</span>${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</th>
-      ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}">${c.html}</td>`).join('')}
+    const ranks = cmpRank(cells, cols.length, row.dir || 'high');
+    return `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}">
+      <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}">${row.icon ? `<span class="cmp-rowicon">${row.icon}</span>` : ''}<span>${esc(row.label || '')}</span>${row.expandKey ? `<button type="button" class="cmp-expand" data-cmp-expand="${esc(row.expandKey)}" aria-expanded="${row.expandOpen ? 'true' : 'false'}" title="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}" aria-label="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}"><i class="fa-solid fa-chevron-${row.expandOpen ? 'down' : 'right'}"></i></button>` : ''}${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</th>
+      ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}${ranks[i] ? ' cmp-' + ranks[i] : ''}"${ranks[i] ? ` title="${esc(t('compare.' + ranks[i]))}"` : ''}>${c.html}</td>`).join('')}
     </tr>`;
   }).join('');
   return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" aria-labelledby="${sid}">
@@ -4789,24 +4953,29 @@ function cmpSpecRows(data) {
     if (!visible.length) return;
     rows.push({ group: secName(sec.id) });
     visible.forEach(id => {
-      const sl = data.cols.map(c => c.st.slots && c.st.slots[id]).find(Boolean);
+      const slots = data.cols.map(c => c.st.slots && c.st.slots[id]);
+      const sl = slots.find(Boolean);
+      const prods = slots.map(s => s ? (s.products || []).find(x => x.id === s.selectedId) || null : null);
       const label = cmpSlotNameFor(id, data.cols);
-      const cells = data.cols.map(c => {
-        const s = c.st.slots && c.st.slots[id];
-        const p = s ? (s.products || []).find(x => x.id === s.selectedId) : null;
+      const cells = data.cols.map((c, i) => {
+        const s = slots[i];
+        const p = prods[i];
         if (!p) return cmpCell(`<span class="cmp-none">${esc(t('compare.emptySlot'))}</span>`, '', null, 0);
         const price = unitTotal(p);
         const hasOpts = (s.products || []).length > 1 || !!(p.variants && p.variants.items && p.variants.items.length);
         const swap = hasOpts ? `<button class="cmp-swap" data-cmp-swap="${esc(id)}" data-cmp-col="${esc(c.id)}" title="${esc(t('compare.pickComponent'))}" aria-label="${esc(t('compare.pickComponent'))}"><span class="cmp-swap-ico"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-right-left"></i></span></button>` : '';
         return cmpCell(`<div class="cmp-product"><div class="cmp-pname">${esc(p.name || '—')}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>${swap}`, (p.name || '') + '|' + price.toFixed(2), null, 0);
       });
-      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells });
+      const hasAny = prods.some(Boolean);
+      const open = !!cmpState.openSpecs[id];
+      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: hasAny ? id : null, expandOpen: open });
+      if (hasAny && open) cmpDsRows(label, prods).forEach(r => rows.push(r));
     });
   });
   if (!rows.length) return [];
   rows.push({ label: t('compare.total'), cells: data.cols.map(c => {
     const T = totalsForState(c.st);
-    return cmpCell(`<strong>${eur(T.total)}</strong>`, String(T.total), T.total, 0.005);
+    return cmpCell(`<strong>${eur(T.total)}</strong>`, String(T.total), T.total, 0.005, { rankable: false });
   }) });
   return rows;
 }
@@ -4943,7 +5112,7 @@ function renderCompare() {
   const add = $('#cmpAdd');
   if (add) add.disabled = (cmpState.cols.length - 1) >= CMP_MAX_EXTRA;
   const hint = $('#cmpHint');
-  if (hint) hint.textContent = (cmpState.mode === 'diff' ? t('compare.hintDiff') : t('compare.hint'));
+  if (hint) hint.textContent = (cmpState.mode === 'diff' ? t('compare.hintDiff') : t('compare.hint')) + (data.cols.length > 1 ? ' ' + t('compare.rankLegend') + '.' : '');
   const specRows = cmpSpecRows(data);
   const html = (specRows.length
     ? cmpSection(t('compare.specs'), 'fa-solid fa-list', specRows, data.cols, { full: true })
@@ -5144,6 +5313,13 @@ function bindCompareBody() {
   body.addEventListener('click', e => {
     const rm = e.target.closest('[data-cmp-remove]');
     if (rm) { cmpRemoveColumn(rm.dataset.cmpRemove); return; }
+    const expand = e.target.closest('[data-cmp-expand]');
+    if (expand) {
+      const key = expand.dataset.cmpExpand;
+      cmpState.openSpecs[key] = !cmpState.openSpecs[key];
+      renderCompare();
+      return;
+    }
     const swap = e.target.closest('[data-cmp-swap]');
     if (swap) { cmpOpenOptions(swap.dataset.cmpCol, swap.dataset.cmpSwap); return; }
     const retry = e.target.closest('[data-cmp-retry]');
@@ -6312,6 +6488,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.60 — Fiches techniques comparées</h3><p class="hint">Chaque composant du comparateur peut être déplié pour afficher sa fiche technique ligne par ligne, avec les meilleures valeurs en vert et les moins bonnes en rouge dès trois configurations. Les données sont enregistrées dans la fiche : aucune nouvelle requête au dépliage. La fiche d’un composant devient aussi éditable dans le formulaire (une ligne « Libellé : valeur »), et une fiche modifiée à la main n’est plus écrasée par l’enrichissement automatique.</p></div>
     <div class="chlog"><h3>v2.59 — Comparateur de configurations</h3><p class="hint">Nouvel onglet « Comparer » entre Benchmarks et Prix : la config actuelle en première colonne, jusqu’à quatre versions sauvegardées, avec toutes les specs, les totaux et les benchmarks (résumé d’usage, FPS par jeu et résolution, Geekbench, 3DMark, critères quotidien et charges lourdes). Le mode « Différences » met en évidence les cellules qui changent sans masquer les lignes. Les variantes et alternatives s’ouvrent dans une colonne de comparaison sans modifier le brouillon ni les sauvegardes. Tableaux lisibles sur mobile avec défilement horizontal synchronisé.</p></div>
     <div class="chlog"><h3>v2.58 — Favoris & sélection KJ</h3><p class="hint">Favoris globaux (cœur sur les cartes et les fiches, filtre rapide par catégorie, export dans « Export données ») et sélection KJ éditable dans un document unique : recommandé, déconseillé, top choix et testé, avec pastilles, teintes, animations à l’ouverture et filtres cumulables. Les sélections KJ absentes de la liste Idealo restent visibles en cartes légères.</p></div>
     <div class="chlog"><h3>v2.57 — Fiche technique & galerie</h3><p class="hint">La fiche technique s’affiche désormais entièrement, sans zone de défilement interne. Le bouton de chargement ne saute plus au survol. Les photos de la galerie s’ouvrent en grand et un clic ouvre l’image Idealo en taille réelle dans un nouvel onglet. Les fonds blancs des barres de titre et d’actions de la fiche ont été retirés sur mobile.</p></div>
