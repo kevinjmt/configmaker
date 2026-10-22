@@ -1,11 +1,11 @@
-/* ConfigMaker v2.61 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.62 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.61';
+const APP_VERSION = '2.62';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -84,13 +84,69 @@ const SLOT_DEFS = [
   { id: 'opt2', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
   { id: 'opt3', sec: 'others', icon: 'fa-solid fa-puzzle-piece', q: '', w: 0 },
 ];
+const TUT_PLAYLISTS = {
+  topachat: { url: 'https://www.youtube.com/playlist?list=PL4gCLcJ-OWrAoRkK36cLcitKubsEyoTDf' },
+  materiel: { url: 'https://www.youtube.com/playlist?list=PLnRZHGSOC2iKh2yifHyzYgyGPPASRs9Rz' },
+};
+const TUTORIALS = [
+  {
+    slot: 'cpu',
+    top: { id: 'UL-Zrtk7ChU', title: '[TUTO] Installer un processeur - TopAchat' },
+    materiel: { id: 'ORF4FUZKhbM', title: 'TUTO : Comment installer son PROCESSEUR en 2025 ! (MONTAGE PC #2)' },
+  },
+  {
+    slot: 'ram',
+    top: { id: 'ZTNgt9vdkBY', title: '[TUTO] Installer de la RAM - TopAchat' },
+    materiel: { id: 'pk1IucIbh1o', title: 'TUTO : Comment installer ses barrettes de RAM en 2025 ? (MONTAGE PC #3)' },
+  },
+  {
+    slot: 'ssd1',
+    top: { id: 'UGXKKVfd5BI', title: '[TUTORIAL] How to Choose and Install an M.2 SSD - TopAchat' },
+    materiel: { id: '9xm8lr1_Eqs', title: 'TUTO : Comment installer son SSD M.2 en 2025 ?' },
+  },
+  {
+    slot: 'cooler',
+    top: { id: '0WwLVZUDdpU', title: '[TUTO] Installer un ventilateur processeur et appliquer de la pâte thermique - TopAchat' },
+    materiel: { id: 'YNKKt-9xVpw', title: 'TUTORIAL: How to install your CPU cooler in 2025? Part 1 of 2' },
+  },
+  {
+    slot: 'mb',
+    top: { id: 'mXER89mNxTw', title: '[TUTO] Monter une carte mère dans un boîtier - TopAchat' },
+    materiel: { id: 'SMPG3HRc358', title: 'TUTO : Comment installer sa CARTE MÈRE en 2025 ?' },
+  },
+  {
+    slot: 'case',
+    top: { id: 'mXER89mNxTw', title: '[TUTO] Monter une carte mère dans un boîtier - TopAchat' },
+    materiel: { id: '2rn1SWYXCEw', title: 'TUTO : Comment installer son IO SHIELD en 2025 ?' },
+    approx: true,
+  },
+  {
+    slot: 'gpu',
+    top: { id: 'RgegBrkL4c0', title: '[TUTO] Installer une carte graphique - TopAchat' },
+    materiel: { id: 'mWEE8y3RWgQ', title: 'TUTO : Comment installer sa CARTE GRAPHIQUE en 2025 ?' },
+  },
+  {
+    slot: 'psu',
+    top: { id: 'MMeRS6Rrmi8', title: '[TUTO] Installer une alimentation PC - TopAchat' },
+    materiel: { id: 'gWlU8a0fnn8', title: 'TUTO : Comment installer son ALIMENTATION en 2025 ?' },
+  },
+  {
+    slot: 'os',
+    top: { id: 'uHOP4UbEGug', title: '[TUTO] Installer Windows 10/11 & Tes Drivers - TopAchat [FR]' },
+    materiel: { id: 'igReWxtBCcg', title: 'TUTO : Comment installer son PC et paramétrer son BIOS en 2025 ?' },
+  },
+];
 /* ---------- i18n ---------- */
 const I18N = {
   fr: {
     'nav.exportAll': 'Export données', 'nav.install': 'Installer',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
+    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
+    'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.',
+    'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Ouvrez une playlist complète sur YouTube ou choisissez un composant pour afficher les tutoriels correspondants.',
+    'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'Montage PC · 18 vidéos', 'tut.materielSub': 'Montage PC · 16 vidéos',
+    'tut.back': 'Retour aux playlists', 'tut.open': 'Ouvrir sur YouTube', 'tut.approx': 'Correspondance approximative', 'tut.sources': 'TopAchat + Materiel.net',
     'compare.title': 'Comparer les configurations', 'compare.all': 'Toutes les specs', 'compare.diff': 'Différences',
     'compare.add': 'Ajouter une config', 'compare.pickTitle': 'Ajouter une configuration à comparer',
     'compare.pickHint': 'Choisissez jusqu’à 4 versions sauvegardées. La config actuelle reste toujours la première colonne.',
@@ -173,7 +229,11 @@ const I18N = {
     'nav.exportAll': 'Export data', 'nav.install': 'Install',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
+    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
+    'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.',
+    'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Open a full playlist on YouTube or select a component to show the matching tutorials.',
+    'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'PC build · 18 videos', 'tut.materielSub': 'PC build · 16 videos',
+    'tut.back': 'Back to playlists', 'tut.open': 'Open on YouTube', 'tut.approx': 'Approximate match', 'tut.sources': 'TopAchat + Materiel.net',
     'compare.title': 'Compare configurations', 'compare.all': 'All specs', 'compare.diff': 'Differences',
     'compare.add': 'Add a config', 'compare.pickTitle': 'Add a configuration to compare',
     'compare.pickHint': 'Choose up to 4 saved versions. The current draft is always the first column.',
@@ -278,6 +338,7 @@ if (!state.usage) {
   state.usage = normUsage(seeded || {});
 }
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
+let tutSelected = null;
 let sheetHideTimer = null;
 const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
@@ -6687,6 +6748,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche côte à côte le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube.</p></div>
     <div class="chlog"><h3>v2.61 — Fiches techniques automatiques</h3><p class="hint">La fiche technique est désormais remplie automatiquement à la sélection d’un composant, puis remplacée en arrière-plan par le tableau exact d’Idealo : les lignes « Libellé : valeur » sont enfin reconnues, sans la première ligne d’image inutile. La fiche reste éditable dans le formulaire avec un aperçu ligne par ligne et une modification manuelle n’est jamais écrasée. Dans le comparateur, chaque composant se déplie pour afficher sa fiche, les différences restent orange et le classement vert/rouge s’applique aux fiches comme aux benchmarks. L’icône de l’onglet reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.60 — Fiches techniques comparées</h3><p class="hint">Chaque composant du comparateur peut être déplié pour afficher sa fiche technique ligne par ligne, avec les meilleures valeurs en vert et les moins bonnes en rouge dès trois configurations. Les données sont enregistrées dans la fiche : aucune nouvelle requête au dépliage. La fiche d’un composant devient aussi éditable dans le formulaire (une ligne « Libellé : valeur »), et une fiche modifiée à la main n’est plus écrasée par l’enrichissement automatique.</p></div>
     <div class="chlog"><h3>v2.59 — Comparateur de configurations</h3><p class="hint">Nouvel onglet « Comparer » entre Benchmarks et Prix : la config actuelle en première colonne, jusqu’à quatre versions sauvegardées, avec toutes les specs, les totaux et les benchmarks (résumé d’usage, FPS par jeu et résolution, Geekbench, 3DMark, critères quotidien et charges lourdes). Le mode « Différences » met en évidence les cellules qui changent sans masquer les lignes. Les variantes et alternatives s’ouvrent dans une colonne de comparaison sans modifier le brouillon ni les sauvegardes. Tableaux lisibles sur mobile avec défilement horizontal synchronisé.</p></div>
@@ -6748,9 +6810,98 @@ function openChangelog() {
     <div class="chlog"><h3>2025.08.09 — Excel FR/EN</h3><p class="hint">Config Maker tableur : PC + setup + options, quantités, livraison, totaux, manuel intégré.</p></div>`);
 }
 
+function tutorialBySlot(id) {
+  return TUTORIALS.find(x => x.slot === id) || null;
+}
+function tutorialPlaylistLinks() {
+  const top = $('#tutPlaylistTop');
+  const materiel = $('#tutPlaylistMateriel');
+  if (top) top.href = TUT_PLAYLISTS.topachat.url;
+  if (materiel) materiel.href = TUT_PLAYLISTS.materiel.url;
+}
+function renderTutorialList() {
+  const host = $('#tutorialList');
+  if (!host) return;
+  host.innerHTML = TUTORIALS.map(item => {
+    const def = SLOT_DEFS.find(x => x.id === item.slot) || { icon: 'fa-solid fa-box' };
+    const active = item.slot === tutSelected;
+    return `<div class="slot tut-slot${active ? ' sel' : ''}" data-tut-slot="${item.slot}">
+      <button class="slot-main tut-slot-main" type="button" aria-pressed="${active ? 'true' : 'false'}">
+        <span class="slot-visual">${iconHtml(def.icon)}</span>
+        <span class="slot-info">
+          <span class="slot-type">${esc(slotName(item.slot))}</span>
+          <span class="slot-name">${esc(item.top.title)}</span>
+          <span class="slot-specs">${esc(t('tut.sources'))}</span>
+        </span>
+        <span class="slot-side tut-play-ico"><i class="fa-solid fa-play"></i></span>
+      </button>
+    </div>`;
+  }).join('');
+  refreshIcons(host);
+}
+function tutorialVideoBlock(source, video, approx) {
+  const label = source === 'topachat' ? t('tut.topachat') : t('tut.materiel');
+  const watch = 'https://www.youtube.com/watch?v=' + encodeURIComponent(video.id);
+  return `<div class="tut-video-block">
+    <div class="tut-video-label">
+      <span class="tut-video-source"><i class="fa-brands fa-youtube"></i> ${esc(label)}</span>
+      ${approx ? `<span class="tut-approx">${esc(t('tut.approx'))}</span>` : ''}
+      <a href="${watch}" target="_blank" rel="noopener"><span>${esc(t('tut.open'))}</span> <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+    </div>
+    <div class="video-embed"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.id)}?rel=0" title="${esc(video.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>
+    <p class="tut-video-caption">${esc(video.title)}</p>
+  </div>`;
+}
+function renderTutorialRight() {
+  const playlists = $('#tutorialPlaylists'), panel = $('#tutorialVideoPanel'), body = $('#tutorialVideos');
+  if (!playlists || !panel || !body) return;
+  const item = tutSelected ? tutorialBySlot(tutSelected) : null;
+  if (!item) {
+    playlists.classList.remove('hidden');
+    panel.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+  playlists.classList.add('hidden');
+  panel.classList.remove('hidden');
+  $('#tutorialSlotType').textContent = slotName(item.slot);
+  $('#tutorialTitle').textContent = item.top.title;
+  body.innerHTML = tutorialVideoBlock('topachat', item.top, !!item.approx) + tutorialVideoBlock('materiel', item.materiel, !!item.approx);
+  refreshIcons(body);
+}
+function showTutorials() {
+  tutorialPlaylistLinks();
+  renderTutorialList();
+  renderTutorialRight();
+}
+function clearTutorialVideos() {
+  const body = $('#tutorialVideos');
+  if (body) body.innerHTML = '';
+  const panel = $('#tutorialVideoPanel');
+  if (panel) panel.classList.add('hidden');
+}
+function selectTutorial(slot) {
+  if (!tutorialBySlot(slot)) return;
+  tutSelected = slot;
+  renderTutorialList();
+  renderTutorialRight();
+  if (window.matchMedia('(max-width: 960px)').matches) {
+    const panel = $('#tutorialVideoPanel');
+    if (panel) requestAnimationFrame(() => {
+      const nav = document.querySelector('nav');
+      const offset = (nav ? nav.offsetHeight : 0) + 12;
+      window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
+    });
+  }
+}
+function closeTutorialVideo() {
+  tutSelected = null;
+  renderTutorialList();
+  renderTutorialRight();
+}
 /* ---------- Tabs / pages ---------- */
 function showPage(which) {
-  ['config', 'bench', 'compare', 'prices'].forEach(x => {
+  ['config', 'bench', 'tutorials', 'compare', 'prices'].forEach(x => {
     $('#page-' + x).classList.toggle('hidden', x !== which);
     const tab = $('#tab' + x[0].toUpperCase() + x.slice(1));
     tab.classList.toggle('active', x === which);
@@ -6770,6 +6921,8 @@ function showPage(which) {
     if (activeSlot) closePicker();
   }
   updateMobileTotalBar();
+  if (which === 'tutorials') showTutorials();
+  else clearTutorialVideos();
   if (which === 'bench') showBench();
   if (which === 'compare') showCompare();
   if (which === 'prices') drawPrices();
@@ -6789,6 +6942,12 @@ function applyLang() {
   $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', el.title); });
   $('#langFlag').src = lang === 'fr' ? './assets/icons/uk.png' : './assets/icons/fr.png';
   $('#langBtn').title = lang === 'fr' ? 'Switch to English' : 'Passer en français';
+  const tutorialList = $('#tutorialList');
+  if (tutorialList && tutorialList.children.length) {
+    renderTutorialList();
+    const tutorialPage = $('#page-tutorials');
+    if (tutorialPage && !tutorialPage.classList.contains('hidden')) renderTutorialRight();
+  }
 }
 
 /* ---------- PWA install ---------- */
@@ -6848,8 +7007,16 @@ function bind() {
   $('#footChangelog').onclick = e => { e.preventDefault(); openChangelog(); };
   $('#tabConfig').onclick = () => showPage('config');
   $('#tabBench').onclick = () => showPage('bench');
+  $('#tabTutorials').onclick = () => showPage('tutorials');
   $('#tabCompare').onclick = () => showPage('compare');
   $('#tabPrices').onclick = () => showPage('prices');
+  const tutorialList = $('#tutorialList');
+  if (tutorialList) tutorialList.onclick = e => {
+    const row = e.target.closest('[data-tut-slot]');
+    if (row) selectTutorial(row.dataset.tutSlot);
+  };
+  const tutorialBack = $('#tutorialBack');
+  if (tutorialBack) tutorialBack.onclick = closeTutorialVideo;
   $('#cmpAll').onclick = () => { cmpState.mode = 'all'; renderCompare(); };
   $('#cmpDiff').onclick = () => { cmpState.mode = 'diff'; renderCompare(); };
   $('#cmpAdd').onclick = openCompareConfigPicker;
