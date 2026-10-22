@@ -197,9 +197,19 @@ window.KJ_PICKS = {
         ],
         gamepad: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204413140/x-8bitdo-ultimate-3-mode.html', name: '8bitdo Ultimate 3-mode', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/209452610/flydigi-vader-5-pro-noir.html', name: 'Flydigi Vader 5 Pro noir', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/207078074/gamesir-g7-pro.html', name: 'GameSir G7 PRO', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/206076079/x-8bitdo-ultimate-2-wireless-controller.html', name: '8bitdo Ultimate 2 Wireless Controller', tags: ['top', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/200584946/sony-manette-sans-fil-dualsense.html', name: 'Sony Manette sans fil DualSense', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/200682391/microsoft-manette-sans-fil-xbox-2020.html', name: 'Microsoft Manette sans fil Xbox (2020)', tags: ['tested', 'recommended'], note: '' },
         ],
         ups: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/4548749/eaton-ellipse-pro-1600-fr.html', name: 'Eaton Ellipse PRO 1600 FR', tags: ['top', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/4941129/eaton-ellipse-pro-650-iec.html', name: 'Eaton Ellipse PRO 650 IEC', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203977109/cyberpower-cp1350epfclcd.html', name: 'CyberPower CP1350EPFCLCD', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204280576/cyberpower-cp1600epfclcd.html', name: 'CyberPower CP1600EPFCLCD', tags: ['recommended'], note: '' },
         ],
         multiprise: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
