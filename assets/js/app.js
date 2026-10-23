@@ -1,11 +1,11 @@
-/* ConfigMaker v2.63 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.64 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.63';
+const APP_VERSION = '2.64';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -142,11 +142,12 @@ const I18N = {
     'nav.exportAll': 'Export données', 'nav.install': 'Installer', 'nav.settings': 'Paramètres',
     'settings.title': 'Paramètres', 'settings.animations': 'Animations', 'settings.animationsHint': "Désactive les animations de l'application et conserve uniquement celles de l'actualisation des prix.",
     'settings.dynamicBg': 'Fond dynamique', 'settings.dynamicBgHint': 'Désactive le parallaxe et les effets du fond animé.',
-    'settings.translucent': 'Design translucide', 'settings.translucentHint': 'Désactive la transparence et le flou du verre dans toute l’application.',
+    'settings.translucent': 'Design translucide', 'settings.translucentHint': 'Désactive la transparence et le flou du verre (popups et boutons verts) dans toute l’application.',
+    'settings.installHint': 'Ajouter ConfigMaker à l’écran d’accueil.',
     'settings.exportAll': 'Exporter toutes les données', 'settings.exportAllHint': 'Toutes les configurations, l’historique, les prix et les préférences.',
     'settings.on': 'Activé', 'settings.off': 'Désactivé',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
-    'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
+    'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauvegarder', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
     'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Ouvrez une playlist complète sur YouTube ou choisissez un composant pour afficher les tutoriels correspondants.',
@@ -211,8 +212,8 @@ const I18N = {
     'bench.copied': 'Noms CPU/GPU/jeu copiés — collez-les dans le calculateur iobit',
     'bench.stOk': 'Bon', 'bench.stWarn': 'Moyen', 'bench.stErr': 'Mauvais',
     'bench.tsCombo': 'Combiné',
-    'welcome.title': 'Bienvenue sur ConfigMaker', 'welcome.new': 'Nouveau', 'welcome.name': 'Nom', 'welcome.budget': 'Budget (€)',
-    'welcome.createAi': 'Créer avec IA', 'welcome.load': 'Charger une config', 'welcome.empty': 'Aucune config enregistrée.',
+    'welcome.title': 'Bienvenue sur ConfigMaker', 'welcome.new': 'Nouveau', 'welcome.name': 'Nom', 'welcome.budget': 'Budget (€)', 'welcome.create': 'Créer',
+    'welcome.createAi': 'Créer avec l’IA', 'welcome.load': 'Charger une config', 'welcome.empty': 'Aucune config enregistrée.',
     'welcome.open': 'Ouvrir', 'welcome.back': 'Retour', 'welcome.usage': 'Utilisation',
     'welcome.usagePh': 'Ex : jeu 1440p, montage vidéo 4K, silencieux…',
     'welcome.sendPplx': 'Envoyer à Perplexity', 'welcome.sentHint': 'Prompt envoyé — copiez la réponse Perplexity ci-dessous.',
@@ -234,7 +235,8 @@ const I18N = {
     'nav.exportAll': 'Export data', 'nav.install': 'Install', 'nav.settings': 'Settings',
     'settings.title': 'Settings', 'settings.animations': 'Animations', 'settings.animationsHint': 'Disables app animations and keeps only the price-refresh animations.',
     'settings.dynamicBg': 'Dynamic background', 'settings.dynamicBgHint': 'Disables parallax and animated background effects.',
-    'settings.translucent': 'Translucent design', 'settings.translucentHint': 'Disables transparency and glass blur throughout the app.',
+    'settings.translucent': 'Translucent design', 'settings.translucentHint': 'Disables transparency and glass blur (popups and green buttons) throughout the app.',
+    'settings.installHint': 'Add ConfigMaker to your home screen.',
     'settings.exportAll': 'Export all data', 'settings.exportAllHint': 'All configurations, history, prices and preferences.',
     'settings.on': 'On', 'settings.off': 'Off',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
@@ -303,7 +305,7 @@ const I18N = {
     'bench.copied': 'CPU/GPU/game names copied — paste them into the iobit calculator',
     'bench.stOk': 'Good', 'bench.stWarn': 'Fair', 'bench.stErr': 'Poor',
     'bench.tsCombo': 'Combined',
-    'welcome.title': 'Welcome to ConfigMaker', 'welcome.new': 'New', 'welcome.name': 'Name', 'welcome.budget': 'Budget (€)',
+    'welcome.title': 'Welcome to ConfigMaker', 'welcome.new': 'New', 'welcome.name': 'Name', 'welcome.budget': 'Budget (€)', 'welcome.create': 'Create',
     'welcome.createAi': 'Create with AI', 'welcome.load': 'Load a config', 'welcome.empty': 'No saved configs yet.',
     'welcome.open': 'Open', 'welcome.back': 'Back', 'welcome.usage': 'Usage',
     'welcome.usagePh': 'E.g. 1440p gaming, 4K video editing, silent…',
@@ -2153,6 +2155,13 @@ function renderPickerDetail(resetScroll) {
   const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promo ? pdTxt('Promo', 'Promo') : ''].filter(Boolean).join(' · ');
   const stKj = kjStatusFor(it, activeSlot ? slotCatKey(activeSlot) : '');
   const kjTint = kjTintClass(stKj);
+  const KJ_TINTS = ['kj-tint-fav', 'kj-tint-top', 'kj-tint-rec', 'kj-tint-tested', 'kj-tint-avoid'];
+  const panel = $('#pickerPanel');
+  if (panel) {
+    KJ_TINTS.forEach(c => panel.classList.remove(c));
+    if (kjTint) panel.classList.add(kjTint);
+    panel.classList.toggle('detail-kj', !!stKj.tags.length);
+  }
   const kjPills = kjPillsHtml(stKj);
   const fav = $('#pdFav');
   if (fav) {
@@ -2177,7 +2186,7 @@ function renderPickerDetail(resetScroll) {
     : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
   const offersLabel = st.loading && !st.offers ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}` : `${offersCount} ${pdTxt('offres', 'offers')}`;
   const quickHtml = quick.length ? esc(quick.join(' · ')) : (st.loading ? `<span class="pd-inline-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement du résumé…', 'Loading summary…')}</span>` : '—');
-  body.className = 'pd-body' + (kjTint ? ' ' + kjTint : '') + (stKj.tags.length ? ' detail-kj' : '');
+  body.className = 'pd-body' + (stKj.tags.length ? ' detail-kj' : '');
   body.innerHTML = `<div class="pd-hero${stKj.tags.length ? ' has-kj' : ''}">
       ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
@@ -2240,7 +2249,10 @@ function closePickerDetail() {
   pickerDetailItem = null;
   pdState = null;
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
-  if (panel) { panel.classList.remove('picker-detail-open'); panel.style.height = ''; }
+  if (panel) {
+    panel.classList.remove('picker-detail-open', 'detail-kj', 'kj-tint-fav', 'kj-tint-top', 'kj-tint-rec', 'kj-tint-tested', 'kj-tint-avoid');
+    panel.style.height = '';
+  }
   if (detail) { detail.classList.add('hidden'); detail.scrollTop = 0; }
   const body = $('#pickerDetailBody'); if (body) body.innerHTML = '';
 }
@@ -5824,7 +5836,7 @@ function guardUnsaved(run, onCancel) {
     <div class="fld"><label>${lang === 'en' ? 'Save as' : 'Enregistrer sous'}</label><input id="g_ver" value="${esc(def)}" autocomplete="off" spellcheck="false"></div>
     <div class="btn-row"><button class="btn" id="g_cancel">${lang === 'en' ? 'Cancel' : 'Annuler'}</button>
     <button class="btn" id="g_discard"><i class="fa-solid fa-trash-can"></i> ${lang === 'en' ? 'Discard' : 'Abandonner'}</button>
-    <button class="btn btn-primary" id="g_save"><i class="fa-solid fa-floppy-disk"></i> ${lang === 'en' ? 'Save & continue' : 'Sauver & continuer'}</button></div>`);
+    <button class="btn btn-primary" id="g_save"><i class="fa-solid fa-floppy-disk"></i> ${lang === 'en' ? 'Save & continue' : 'Sauvegarder & continuer'}</button></div>`);
   const inp = $('#g_ver');
   if (inp) { inp.focus(); inp.select(); inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#g_save').click(); } }; }
   $('#g_cancel').onclick = onCancel;
@@ -5927,7 +5939,7 @@ function aiSlotOptions() {
 }
 function openWelcome() {
   openModal(t('welcome.title'), `
-    <div id="wMain" class="wpage">
+    <div id="wMain" class="wpage welcome-view-home">
       <div class="wcols">
         <section class="wbrand">
           <img class="wlogo" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
@@ -5939,17 +5951,23 @@ function openWelcome() {
             <div class="glass wfeat"><i class="fa-solid fa-gauge-high"></i><span>${esc(t('welcome.feat3'))}</span></div>
             <div class="glass wfeat"><i class="fa-solid fa-code-branch"></i><span>${esc(t('welcome.feat4'))}</span></div>
           </div>
+          <div class="welcome-actions">
+            <button type="button" class="btn btn-primary" id="wGoNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
+            <button type="button" class="btn" id="wGoLoad"><i class="fa-solid fa-folder-open"></i> ${esc(t('hero.load'))}</button>
+          </div>
         </section>
         <section class="wright">
+          <button type="button" class="btn btn-sm welcome-back" id="wLoadBack"><i class="fa-solid fa-arrow-left"></i> ${esc(t('welcome.back'))}</button>
           <h3>${esc(t('welcome.load'))}</h3>
           <div id="wConsentWarn"></div>
           <div id="wRecents" class="wrecents"></div>
         </section>
         <section class="wnew">
+          <button type="button" class="btn btn-sm welcome-back" id="wNewBack"><i class="fa-solid fa-arrow-left"></i> ${esc(t('welcome.back'))}</button>
           <h3>${esc(t('welcome.new'))}</h3>
           <div class="wgrid"><label>${esc(t('welcome.name'))}<input id="wName" maxlength="60" value="${esc(state.name)}"></label>
           <label>${esc(t('welcome.budget'))}<input id="wBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
-          <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
+          <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.create'))}</button>
           <button class="btn bubble-btn" id="wAiGo"><i class="fa-solid fa-wand-magic-sparkles"></i> ${esc(t('welcome.createAi'))}</button></div>
         </section>
       </div>
@@ -5975,6 +5993,19 @@ function openWelcome() {
       </div>
     </div>`);
   $('#modalBox').classList.add('modal-wide');
+  const setWelcomeView = view => {
+    const main = $('#wMain');
+    if (!main) return;
+    const v = ['home', 'new', 'load'].includes(view) ? view : 'home';
+    main.classList.remove('welcome-view-home', 'welcome-view-new', 'welcome-view-load');
+    main.classList.add('welcome-view-' + v);
+    main.dataset.view = v;
+    if (v === 'new') setTimeout(() => $('#wName')?.focus(), 50);
+  };
+  $('#wGoNew').onclick = () => setWelcomeView('new');
+  $('#wGoLoad').onclick = () => setWelcomeView('load');
+  $('#wNewBack').onclick = () => setWelcomeView('home');
+  $('#wLoadBack').onclick = () => setWelcomeView('home');
   $('#wNew').onclick = () => {
     const n = $('#wName') ? $('#wName').value.trim() : '';
     const b = $('#wBudget') ? parseFloat($('#wBudget').value) || 0 : 0;
@@ -5993,7 +6024,7 @@ function openWelcome() {
     if (slide) { slide.classList.add('pre'); requestAnimationFrame(() => requestAnimationFrame(() => slide.classList.remove('pre'))); }
     refreshIcons();
   };
-  $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); };
+  $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); setWelcomeView('new'); };
   $('#wAiBudget').onchange = e => { const v = parseFloat(e.target.value) || 0; if (v > 0) { state.budget = v; persist(); refresh(); } };
   // recents (+ warning consent + suppression inline en 2 temps)
   const renderRecents = () => {
@@ -6481,21 +6512,44 @@ function openShareExport(pill) {
   const snapshots = (load(LS.configs, {})[state.name] || []).length;
   const pricePoints = (load(LS.hist, {})[state.name] || []).length;
   const usageHours = state.usage ? usageWeeklyHours(normUsage(state.usage)) : 0;
-  const yes = `<td class="cmp-inc" title="${esc(T('Included', 'Inclus'))}"><i class="fa-solid fa-check"></i></td>`;
-  const no = `<td class="cmp-out" title="${esc(T('Omitted', 'Omis'))}"><i class="fa-solid fa-xmark"></i></td>`;
-  const row = (label, value, share, json, pdf) => `<tr><th scope="row">${esc(label)}</th><td class="cmp-val">${esc(String(value))}</td>${share ? yes : no}${json ? yes : no}${pdf ? yes : no}</tr>`;
-  const cmp = `<div class="cmp-data"><table class="cmp-matrix"><thead><tr><th>${T('Data', 'Donnée')}</th><th>${T('Current', 'Actuelle')}</th><th><i class="fa-solid fa-share-nodes"></i> ${T('Share', 'Partager')}</th><th>JSON</th><th>PDF</th></tr></thead><tbody>
-    ${row(T('Config name', 'Nom de la config'), state.name || '—', true, true, true)}
-    ${row(T('Budget', 'Budget'), eur(state.budget), true, true, true)}
-    ${row(T('Selected components', 'Composants sélectionnés'), selected.length, selected.length > 0, true, true)}
-    ${row(T('Alternatives', 'Alternatives'), altCount, false, true, false)}
-    ${row(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), selected.length, false, true, true)}
-    ${row(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), selected.length, false, true, true)}
-    ${row(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), selected.length, false, true, true)}
-    ${row(T('PC usage & pricing', 'Utilisation & tarification PC'), usageHours + ' h', false, true, true)}
-    ${row(T('Saved snapshots', 'Sauvegardes'), snapshots, false, true, false)}
-    ${row(T('Price history points', 'Points d’historique des prix'), pricePoints, false, true, true)}
-  </tbody></table><p class="hint cmp-data-note">${T('Share keeps only the name, budget, and each component’s name, price and Idealo link. The current values above are read live from this config.', 'Le partage ne garde que le nom, le budget et, pour chaque composant, son nom, son prix et son lien Idealo. Les valeurs ci-dessus sont lues en direct dans cette config.')}</p></div>`;
+  const infoRow = (label, status, detail = '') => {
+    const icon = status === 'inc' ? 'check' : status === 'out' ? 'xmark' : status === 'pdf' ? 'file-pdf' : 'file-code';
+    return `<li class="se-${status}"><i class="fa-solid fa-${icon}"></i><span><strong>${esc(label)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span></li>`;
+  };
+  const shareInfo = `<div class="cmp-col se-info">
+    <h4><i class="fa-solid fa-share-nodes"></i> ${T('Included in the share link', 'Inclus dans le lien de partage')}</h4>
+    <p class="hint">${T('The link is intentionally lightweight. Everything below is either shared or left out.', 'Le lien est volontairement léger. Tout ce qui suit est partagé ou volontairement omis.')}</p>
+    <ul>
+      ${infoRow(T('Config name', 'Nom de la config'), 'inc')}
+      ${infoRow(T('Budget', 'Budget'), 'inc')}
+      ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', selected.length ? `${selected.length} ${T('component(s)', 'composant(s)')}` : T('None selected', 'Aucun sélectionné'))}
+      ${infoRow(T('Component name, price and Idealo link', 'Nom, prix et lien Idealo des composants'), 'inc')}
+      ${infoRow(T('Alternatives', 'Alternatives'), 'out', altCount ? `${altCount} ${T('alternative(s)', 'alternative(s)')}` : T('Not shared', 'Non partagées'))}
+      ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'out')}
+      ${infoRow(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), 'out')}
+      ${infoRow(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), 'out')}
+      ${infoRow(T('PC usage & pricing', 'Utilisation & tarification PC'), 'out', `${usageHours} h ${T('per week', 'par semaine')}`)}
+      ${infoRow(T('Saved snapshots and price history', 'Sauvegardes et historique des prix'), 'out', `${snapshots} ${T('save(s)', 'sauvegarde(s)')} · ${pricePoints} ${T('price point(s)', 'point(s) de prix')}`)}
+      ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out')}
+    </ul>
+  </div>`;
+  const exportInfo = `<div class="cmp-col se-info">
+    <h4><i class="fa-solid fa-file-export"></i> ${T('What each export contains', 'Ce que contient chaque export')}</h4>
+    <p class="hint">${T('JSON = this config with all its history, re-importable. PDF = a complete printable report. Orange items exist only in the PDF.', 'JSON = cette config avec tout son historique, réimportable. PDF = un rapport complet imprimable. Les éléments orange existent uniquement dans le PDF.')}</p>
+    <ul>
+      ${infoRow(T('Config name and budget', 'Nom de la config et budget'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('PC usage & pricing', 'Utilisation & tarification PC'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Price history', 'Historique des prix'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Alternatives', 'Alternatives'), 'json', T('JSON only — alternatives are not printed in the PDF report.', 'JSON uniquement — les alternatives ne sont pas imprimées dans le rapport PDF.'))}
+      ${infoRow(T('Saved snapshots', 'Sauvegardes'), 'json', T('JSON only — saved versions are not printed in the PDF report.', 'JSON uniquement — les versions sauvegardées ne sont pas imprimées dans le rapport PDF.'))}
+      ${infoRow(T('PDF report layout', 'Mise en page du rapport PDF'), 'pdf', T('PDF only — cover, charts, benchmarks, usage calendars and price curves. The JSON keeps the raw data for re-import.', 'PDF uniquement — couverture, graphiques, benchmarks, calendriers et courbes. Le JSON garde les données brutes pour le réimport.'))}
+      ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out', T('Use “Export data” in Settings or the footer.', 'Utilisez « Exporter données » dans les paramètres ou le pied de page.'))}
+    </ul>
+  </div>`;
   const sharePane = `
     <p class="hint">${T('Scan the QR code or copy the link to share this configuration.', 'Scannez le QR code ou copiez le lien pour partager cette configuration.')}</p>
     <div class="qr-img" id="s_qr"></div>
@@ -6511,7 +6565,7 @@ function openShareExport(pill) {
       <button type="button" class="usage-tab${pill === 'share' ? ' active' : ''}" data-tab="share">${T('Share', 'Partager')}</button>
       <button type="button" class="usage-tab${pill === 'export' ? ' active' : ''}" data-tab="export">${T('Export', 'Exporter')}</button>
     </div>
-    ${cmp}
+    ${pill === 'share' ? shareInfo : exportInfo}
     <div class="usage-pane" data-pane="share"${pill === 'share' ? '' : ' style="display:none"'}>${sharePane}</div>
     <div class="usage-pane" data-pane="export"${pill === 'export' ? '' : ' style="display:none"'}>${exportPane}</div>`, 'modal-wide');
   const host = $('#modalBody');
@@ -6519,6 +6573,11 @@ function openShareExport(pill) {
     const tab = b.dataset.tab;
     host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
     host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
+    host.querySelector('.se-info')?.replaceWith((() => {
+      const tpl = document.createElement('div');
+      tpl.innerHTML = tab === 'share' ? shareInfo : exportInfo;
+      return tpl.firstElementChild;
+    })());
   });
   const qrEl = $('#s_qr');
   if (qrEl && typeof qrcode === 'function') {
@@ -6828,6 +6887,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.64 — Verre unifié, boutons verts allégés et bienvenue mobile</h3><p class="hint">Toutes les popups et barres adoptent le verre de la navigation, avec un fond blanc à 97 %. Les boutons verts deviennent translucides et clairs, et repassent en vert uni quand le design translucide est désactivé. Le menu de bienvenue mobile s’ouvre sur l’accueil (logo, atouts, Nouveau / Charger), puis affiche séparément la création ou le chargement avec un retour. Le partage et l’export remplacent le tableau par une fiche d’information : inclus en vert, exclus en rouge, PDF uniquement en orange. La fiche composant est teintée selon la sélection KJ, les onglets mobiles sont plus grands, l’icône de la fiche réduite, la bordure de l’alternative sélectionnée plus épaisse et l’installation n’apparaît dans les paramètres que sur mobile. « Sauver » devient « Sauvegarder ».</p></div>
     <div class="chlog"><h3>v2.63 — Réglages, verre et résumé repensés</h3><p class="hint">Nouveau panneau Paramètres (animations, fond dynamique, design translucide) et installation mobile sous l’en-tête. Les popups reprennent le verre dépoli de la barre de navigation, les onglets partagent un curseur coulissant et les pastilles sont de taille fixe. Le résumé garde ses totaux épinglés en bas, dans une seule zone de défilement pleine hauteur. Les cartes de composants alignent badges et compatibilité, la fiche choisie est teintée entièrement, les étoiles KJ laissent place à un reflet renforcé et le compteur de photos devient une pastille de verre. Le comparateur accepte les doublons, signale les configs non sauvegardées et le partage compare les données réellement incluses avec la config actuelle. Sur mobile, la fenêtre de bienvenue place le chargement avant la création.</p></div>
     <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube. Sur mobile, la fiche vidéo s’ouvre comme les panneaux de la config, depuis le bas de l’écran.</p></div>
     <div class="chlog"><h3>v2.61 — Fiches techniques automatiques</h3><p class="hint">La fiche technique est désormais remplie automatiquement à la sélection d’un composant, puis remplacée en arrière-plan par le tableau exact d’Idealo : les lignes « Libellé : valeur » sont enfin reconnues, sans la première ligne d’image inutile. La fiche reste éditable dans le formulaire avec un aperçu ligne par ligne et une modification manuelle n’est jamais écrasée. Dans le comparateur, chaque composant se déplie pour afficher sa fiche, les différences restent orange et le classement vert/rouge s’applique aux fiches comme aux benchmarks. L’icône de l’onglet reprend le logo ConfigMaker.</p></div>
@@ -7058,11 +7118,18 @@ function openSettings() {
         <span class="settings-txt"><strong>${esc(t('settings.exportAll'))}</strong><small>${esc(t('settings.exportAllHint'))}</small></span>
         <i class="fa-solid fa-chevron-right"></i>
       </button>
+      <button type="button" class="settings-export install-settings" id="setInstall">
+        <span class="settings-ico"><i class="fa-solid fa-mobile-screen-button"></i></span>
+        <span class="settings-txt"><strong>${esc(t('nav.install'))}</strong><small>${esc(t('settings.installHint'))}</small></span>
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
       ${row('setAnimations', 'settings.animations', 'settings.animationsHint', anim)}
       ${row('setDynamicBg', 'settings.dynamicBg', 'settings.dynamicBgHint', bg)}
       ${row('setTranslucent', 'settings.translucent', 'settings.translucentHint', glass)}
     </div>`);
   $('#setExportAll').onclick = exportAll;
+  const setInstall = $('#setInstall');
+  if (setInstall) setInstall.onclick = () => openInstall();
   $('#setAnimations').onchange = e => setUiPref('animations', e.target.checked);
   $('#setDynamicBg').onchange = e => setUiPref('dynamicBg', e.target.checked);
   $('#setTranslucent').onchange = e => setUiPref('translucent', e.target.checked);
