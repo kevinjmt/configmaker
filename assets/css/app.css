@@ -1163,6 +1163,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 /* responsive */
 @media (max-width:960px){
   .split{grid-template-columns:1fr}
+  #page-tutorials .col-right{order:-1}
   .col-right{position:static;max-height:none;overflow:visible}
   nav{flex-wrap:wrap;height:auto;min-height:var(--nav-h);padding:6px 8px 6px 12px}
   .nav-spacer{display:block;width:44px}
@@ -1192,7 +1193,7 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 }
 .mobile-totalbar,.mobile-scrim{display:none}
 @media (max-width:960px){
-  body.summary-sheet-open,body.picker-sheet-open{overflow:hidden}
+  body.summary-sheet-open,body.picker-sheet-open,body.tutorial-sheet-open{overflow:hidden}
   .container{width:100%;padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   body:has(#mobileTotalBar:not(.hidden)) .pagebody{padding-bottom:calc(var(--mobilebar-h) + env(safe-area-inset-bottom) + 26px)}
   body:has(#mobileTotalBar:not(.hidden)) .footer{padding-bottom:calc(var(--mobilebar-h) + env(safe-area-inset-bottom) + 18px)}
@@ -1238,8 +1239,9 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   body.summary-sheet-open .mt-arrow i{transform:rotate(180deg)}
   .mobile-scrim{display:block;position:fixed;inset:0;z-index:1490;background:rgba(5,10,8,.46);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;transition:opacity .26s ease}
   .mobile-scrim.hidden{display:none!important}
-  body.summary-sheet-open .mobile-scrim,body.picker-sheet-open .mobile-scrim,body.editor-sheet-open .mobile-scrim{opacity:1}
-  #summaryPanel,#pickerPanel,#editorPanel{position:fixed;left:0;right:0;bottom:calc(var(--mobilebar-h) + env(safe-area-inset-bottom));z-index:1600;margin:0;width:auto;max-height:calc(100dvh - var(--mobilebar-h) - env(safe-area-inset-bottom) - 8px);overflow-y:auto;overscroll-behavior:contain;visibility:hidden;opacity:0;transform:translateY(calc(100% + 16px));border-radius:24px 24px 0 0;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(28px) saturate(1.55);-webkit-backdrop-filter:blur(28px) saturate(1.55);box-shadow:0 -20px 60px rgba(11,20,16,.28);transition:transform .36s var(--sheet-ease),opacity .24s ease,visibility .36s;will-change:transform}
+  body.summary-sheet-open .mobile-scrim,body.picker-sheet-open .mobile-scrim,body.editor-sheet-open .mobile-scrim,body.tutorial-sheet-open .mobile-scrim{opacity:1}
+  #summaryPanel,#pickerPanel,#editorPanel,#tutorialVideoPanel{position:fixed;left:0;right:0;bottom:calc(var(--mobilebar-h) + env(safe-area-inset-bottom));z-index:1600;margin:0;width:auto;max-height:calc(100dvh - var(--mobilebar-h) - env(safe-area-inset-bottom) - 8px);overflow-y:auto;overscroll-behavior:contain;visibility:hidden;opacity:0;transform:translateY(calc(100% + 16px));border-radius:24px 24px 0 0;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(28px) saturate(1.55);-webkit-backdrop-filter:blur(28px) saturate(1.55);box-shadow:0 -20px 60px rgba(11,20,16,.28);transition:transform .36s var(--sheet-ease),opacity .24s ease,visibility .36s;will-change:transform}
+  #tutorialVideoPanel{bottom:0;max-height:calc(100dvh - 8px);padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
   #summaryPanel{display:block;padding-top:0}
   #summaryPanel .fold-btn{display:none}
   #pickerPanel,#editorPanel{display:flex;flex-direction:column;overflow:hidden;padding:14px}
@@ -1263,8 +1265,8 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerToolsPanel,
   #pickerPanel:not(.picker-tools-open) .picker-tools>.picker-quickrow{display:none!important}
   .picker-foot{position:static;bottom:auto;flex:0 0 auto;margin:10px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-radius:20px}
-  #summaryPanel.hidden,#pickerPanel.hidden,#editorPanel.hidden{display:none!important}
-  body.summary-sheet-open #summaryPanel,body.picker-sheet-open #pickerPanel,body.editor-sheet-open #editorPanel{visibility:visible;opacity:1;transform:none}
+  #summaryPanel.hidden,#pickerPanel.hidden,#editorPanel.hidden,#tutorialVideoPanel.hidden{display:none!important}
+  body.summary-sheet-open #summaryPanel,body.picker-sheet-open #pickerPanel,body.editor-sheet-open #editorPanel,body.tutorial-sheet-open #tutorialVideoPanel{visibility:visible;opacity:1;transform:none}
   #pickerPanel .picker-head{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
   #summaryPanel .sum-sticky{margin:0 -12px 10px;padding:10px 12px 8px;border-radius:24px 24px 0 0}
   #summaryPanel .sum-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin:0 0 10px;padding:0;border:0;border-radius:0;background:transparent;backdrop-filter:none;flex-wrap:nowrap}

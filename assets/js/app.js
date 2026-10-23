@@ -338,7 +338,7 @@ if (!state.usage) {
   state.usage = normUsage(seeded || {});
 }
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
-let tutSelected = null;
+let tutSelected = null, tutCloseTimer = null;
 let sheetHideTimer = null;
 const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
@@ -459,7 +459,7 @@ function hideMobileScrim() {
   if (!s) return;
   clearTimeout(sheetHideTimer);
   sheetHideTimer = setTimeout(() => {
-    if (!document.body.classList.contains('summary-sheet-open') && !document.body.classList.contains('picker-sheet-open') && !document.body.classList.contains('editor-sheet-open')) s.classList.add('hidden');
+    if (!document.body.classList.contains('summary-sheet-open') && !document.body.classList.contains('picker-sheet-open') && !document.body.classList.contains('editor-sheet-open') && !document.body.classList.contains('tutorial-sheet-open')) s.classList.add('hidden');
   }, 360);
 }
 function openSummarySheet() {
@@ -508,10 +508,30 @@ function closePickerSheet() {
     if (!document.body.classList.contains('picker-sheet-open')) $('#pickerPanel').classList.add('hidden');
   }, 380);
 }
+function openTutorialSheet() {
+  if (!isMobileView()) return;
+  const panel = $('#tutorialVideoPanel');
+  if (!panel) return;
+  clearTimeout(tutCloseTimer);
+  document.body.classList.remove('summary-sheet-open', 'picker-sheet-open');
+  $('#summaryPanel').classList.add('hidden');
+  $('#pickerPanel').classList.add('hidden');
+  $('#mobileTotalBtn')?.setAttribute('aria-expanded', 'false');
+  panel.scrollTop = 0;
+  showMobileScrim();
+  void panel.offsetHeight;
+  document.body.classList.add('tutorial-sheet-open');
+}
+function closeTutorialSheet() {
+  if (!document.body.classList.contains('tutorial-sheet-open')) return;
+  document.body.classList.remove('tutorial-sheet-open');
+  hideMobileScrim();
+}
 function closeMobileSheets() {
   if (!$('#editorPanel').classList.contains('hidden')) closeEditorPanel();
   closeSummarySheet();
   closePickerSheet();
+  closeTutorialSheet();
 }
 function stampVersion(d = new Date()) {
   const p = n => String(n).padStart(2, '0');
@@ -6748,7 +6768,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
-    <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche côte à côte le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube.</p></div>
+    <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube. Sur mobile, la fiche vidéo s’ouvre comme les panneaux de la config, depuis le bas de l’écran.</p></div>
     <div class="chlog"><h3>v2.61 — Fiches techniques automatiques</h3><p class="hint">La fiche technique est désormais remplie automatiquement à la sélection d’un composant, puis remplacée en arrière-plan par le tableau exact d’Idealo : les lignes « Libellé : valeur » sont enfin reconnues, sans la première ligne d’image inutile. La fiche reste éditable dans le formulaire avec un aperçu ligne par ligne et une modification manuelle n’est jamais écrasée. Dans le comparateur, chaque composant se déplie pour afficher sa fiche, les différences restent orange et le classement vert/rouge s’applique aux fiches comme aux benchmarks. L’icône de l’onglet reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.60 — Fiches techniques comparées</h3><p class="hint">Chaque composant du comparateur peut être déplié pour afficher sa fiche technique ligne par ligne, avec les meilleures valeurs en vert et les moins bonnes en rouge dès trois configurations. Les données sont enregistrées dans la fiche : aucune nouvelle requête au dépliage. La fiche d’un composant devient aussi éditable dans le formulaire (une ligne « Libellé : valeur »), et une fiche modifiée à la main n’est plus écrasée par l’enrichissement automatique.</p></div>
     <div class="chlog"><h3>v2.59 — Comparateur de configurations</h3><p class="hint">Nouvel onglet « Comparer » entre Benchmarks et Prix : la config actuelle en première colonne, jusqu’à quatre versions sauvegardées, avec toutes les specs, les totaux et les benchmarks (résumé d’usage, FPS par jeu et résolution, Geekbench, 3DMark, critères quotidien et charges lourdes). Le mode « Différences » met en évidence les cellules qui changent sans masquer les lignes. Les variantes et alternatives s’ouvrent dans une colonne de comparaison sans modifier le brouillon ni les sauvegardes. Tableaux lisibles sur mobile avec défilement horizontal synchronisé.</p></div>
@@ -6875,6 +6895,7 @@ function showTutorials() {
   renderTutorialRight();
 }
 function clearTutorialVideos() {
+  closeTutorialSheet();
   const body = $('#tutorialVideos');
   if (body) body.innerHTML = '';
   const panel = $('#tutorialVideoPanel');
@@ -6882,22 +6903,23 @@ function clearTutorialVideos() {
 }
 function selectTutorial(slot) {
   if (!tutorialBySlot(slot)) return;
+  clearTimeout(tutCloseTimer);
   tutSelected = slot;
   renderTutorialList();
   renderTutorialRight();
-  if (window.matchMedia('(max-width: 960px)').matches) {
-    const panel = $('#tutorialVideoPanel');
-    if (panel) requestAnimationFrame(() => {
-      const nav = document.querySelector('nav');
-      const offset = (nav ? nav.offsetHeight : 0) + 12;
-      window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
-    });
-  }
+  if (isMobileView()) openTutorialSheet();
 }
 function closeTutorialVideo() {
-  tutSelected = null;
-  renderTutorialList();
-  renderTutorialRight();
+  const animate = document.body.classList.contains('tutorial-sheet-open') && isMobileView();
+  closeTutorialSheet();
+  clearTimeout(tutCloseTimer);
+  const finish = () => {
+    tutSelected = null;
+    renderTutorialList();
+    renderTutorialRight();
+  };
+  if (animate) tutCloseTimer = setTimeout(finish, 380);
+  else finish();
 }
 /* ---------- Tabs / pages ---------- */
 function showPage(which) {
@@ -7028,7 +7050,8 @@ function bind() {
   $('#summaryFold').onclick = () => $('#summaryBody').classList.toggle('collapsed');
   $('#mobileTotalBtn').onclick = toggleSummarySheet;
   $('#mobileScrim').onclick = () => {
-    if (document.body.classList.contains('editor-sheet-open')) closeEditorPanel();
+    if (document.body.classList.contains('tutorial-sheet-open')) closeTutorialVideo();
+    else if (document.body.classList.contains('editor-sheet-open')) closeEditorPanel();
     else if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
   };
   $('#sumClose').onclick = closeSummarySheet;
@@ -7205,6 +7228,7 @@ function bind() {
     if (e.key !== 'Escape') return;
     if ($('#galleryOverlay') && !$('#galleryOverlay').classList.contains('hidden')) { closeGallery(); return; }
     if (!$('#editorPanel').classList.contains('hidden')) { closeEditorPanel(); return; }
+    if (document.body.classList.contains('tutorial-sheet-open')) { closeTutorialVideo(); return; }
     if (!$('#pickerDetail').classList.contains('hidden')) { closePickerDetail(); return; }
     closeModal();
     if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
@@ -7218,13 +7242,15 @@ function bind() {
     const editorOpen = !$('#editorPanel').classList.contains('hidden');
     updateMobileTotalBar();
     if (!mobile) {
-      document.body.classList.remove('summary-sheet-open', 'picker-sheet-open', 'editor-sheet-open');
+      document.body.classList.remove('summary-sheet-open', 'picker-sheet-open', 'editor-sheet-open', 'tutorial-sheet-open');
       $('#mobileScrim').classList.add('hidden');
       if (editorOpen) { $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.add('hidden'); }
       else if (activeSlot) { $('#pickerPanel').classList.remove('hidden'); $('#summaryPanel').classList.add('hidden'); }
       else { $('#summaryPanel').classList.remove('hidden'); }
     } else if (!editorOpen && activeSlot && !$('#pickerPanel').classList.contains('hidden') && !document.body.classList.contains('picker-sheet-open')) {
       openPickerSheet();
+    } else if (tutSelected && !$('#page-tutorials').classList.contains('hidden')) {
+      openTutorialSheet();
     }
     updatePowerTotalsReveal();
     fitPickerDetail();
