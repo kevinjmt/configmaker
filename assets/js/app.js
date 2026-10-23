@@ -1,11 +1,11 @@
-/* ConfigMaker v2.64 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.65 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.64';
+const APP_VERSION = '2.65';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -32,6 +32,77 @@ function maybeConsentBar() { try { if (!storeConsent()) showConsentBar(); } catc
 const isQuotaErr = r => !!(r && typeof r === 'object' && r.quota);
 const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/* Animated count-up values. The final text is rendered static first;
+   cntAnimate() replays it from zero when animations are enabled. */
+const CNT_RUNS = new WeakMap();
+function cntFormat(v, fmt, dec) {
+  const n = Number(v) || 0;
+  if (fmt === 'eur') return eur(n);
+  const d = Math.max(0, Number(dec) || 0);
+  return n.toLocaleString(document.documentElement.lang === 'en' ? 'en-US' : 'fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function countNum(value, fmt = 'num', dec = 0, suffix = '') {
+  const v = Number(value) || 0;
+  const d = Math.max(0, Number(dec) || 0);
+  return `<span class="cnt" data-cnt="${v}" data-cnt-fmt="${esc(fmt)}" data-cnt-dec="${d}"${suffix ? ` data-cnt-suffix="${esc(suffix)}"` : ''}>${esc(cntFormat(v, fmt, d) + suffix)}</span>`;
+}
+function cntFinal(el) {
+  const target = parseFloat(el.dataset.cnt) || 0;
+  const fmt = el.dataset.cntFmt || 'num';
+  const dec = Number(el.dataset.cntDec) || 0;
+  el.textContent = cntFormat(target, fmt, dec) + (el.dataset.cntSuffix || '');
+}
+function cntStop(root = document) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-cnt]').forEach(el => {
+    const run = CNT_RUNS.get(el);
+    if (run) cancelAnimationFrame(run);
+    CNT_RUNS.delete(el);
+    cntFinal(el);
+    el.dataset.cntState = 'done';
+    el.dataset.cntLast = el.dataset.cnt;
+  });
+}
+function cntAnimate(root = document) {
+  if (!root || !root.querySelectorAll) return;
+  const enabled = typeof prefs === 'undefined' || prefs.animations !== false;
+  const reduced = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } })();
+  if (!enabled || reduced) { cntStop(root); return; }
+  root.querySelectorAll('[data-cnt]').forEach(el => {
+    const target = parseFloat(el.dataset.cnt) || 0;
+    if (el.dataset.cntState === 'running') return;
+    if (el.dataset.cntState === 'done' && Number(el.dataset.cntLast) === target) return;
+    const fmt = el.dataset.cntFmt || 'num';
+    const dec = Number(el.dataset.cntDec) || 0;
+    const suffix = el.dataset.cntSuffix || '';
+    const dur = 680;
+    const t0 = performance.now();
+    el.dataset.cntState = 'running';
+    el.dataset.cntLast = el.dataset.cnt;
+    const tick = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = cntFormat(target * eased, fmt, dec) + suffix;
+      if (p < 1) { CNT_RUNS.set(el, requestAnimationFrame(tick)); return; }
+      el.textContent = cntFormat(target, fmt, dec) + suffix;
+      el.dataset.cntState = 'done';
+      CNT_RUNS.delete(el);
+    };
+    el.textContent = cntFormat(0, fmt, dec) + suffix;
+    CNT_RUNS.set(el, requestAnimationFrame(tick));
+  });
+}
+function cntReplay(root = document) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-cnt]').forEach(el => {
+    const run = CNT_RUNS.get(el);
+    if (run) cancelAnimationFrame(run);
+    CNT_RUNS.delete(el);
+    delete el.dataset.cntState;
+    delete el.dataset.cntLast;
+  });
+  cntAnimate(root);
+}
 
 /* ---------- Slot catalogue (from Excel) ---------- */
 const SECTIONS = [
@@ -224,6 +295,7 @@ const I18N = {
     'welcome.openConfig': 'Ouvrir la config', 'welcome.needsUsage': 'Décrivez l’utilisation d’abord.', 'welcome.noParse': 'Aucune ligne « type : référence » trouvée.',
     'welcome.feat1': 'Prix Idealo en direct', 'welcome.feat2': 'Compatibilité vérifiée', 'welcome.feat3': 'Benchmarks & conso',
     'welcome.feat4': 'Open source · 100 % local', 'welcome.stop': 'Arrêter', 'welcome.stopped': 'arrêté', 'welcome.results': 'résultats', 'welcome.choose': 'Choisir',
+    'welcome.stepQueued': 'En attente', 'welcome.stepSearch': 'Recherche…', 'welcome.stepImport': 'Import…', 'welcome.stepManual': 'Choix manuel…', 'welcome.stepAsk': 'Composant à choisir', 'welcome.stepDone': 'Ajouté', 'welcome.stepSkipped': 'Ignoré',
     'welcome.noStore': 'Stockage local non accepté — les configs ne seront pas sauvegardées.', 'welcome.askAgain': 'Redemander',
     'welcome.del': 'Supprimer', 'welcome.delConfirm': 'Supprimer cette config ?', 'welcome.yes': 'Oui', 'welcome.no': 'Non',
     'consent.msg': 'Ce site stocke vos configs localement. Accepter ?', 'consent.accept': 'Accepter', 'consent.deny': 'Refuser',
@@ -317,6 +389,7 @@ const I18N = {
     'welcome.openConfig': 'Open config', 'welcome.needsUsage': 'Describe the usage first.', 'welcome.noParse': 'No “type: reference” lines found.',
     'welcome.feat1': 'Live Idealo prices', 'welcome.feat2': 'Checked compatibility', 'welcome.feat3': 'Benchmarks & power',
     'welcome.feat4': 'Open source · 100% local', 'welcome.stop': 'Stop', 'welcome.stopped': 'stopped', 'welcome.results': 'results', 'welcome.choose': 'Choose',
+    'welcome.stepQueued': 'Waiting', 'welcome.stepSearch': 'Searching…', 'welcome.stepImport': 'Importing…', 'welcome.stepManual': 'Manual choice…', 'welcome.stepAsk': 'Component to choose', 'welcome.stepDone': 'Added', 'welcome.stepSkipped': 'Skipped',
     'welcome.noStore': 'Local storage not accepted — configs will not be saved.', 'welcome.askAgain': 'Ask again',
     'welcome.del': 'Delete', 'welcome.delConfirm': 'Delete this config?', 'welcome.yes': 'Yes', 'welcome.no': 'No',
     'consent.msg': 'This site stores your configs locally. Accept?', 'consent.accept': 'Accept', 'consent.deny': 'Decline',
@@ -456,8 +529,9 @@ function updateMobileTotalBar() {
   bar.classList.toggle('hidden', !show);
   const label = $('#mtLabel'), total = $('#mtTotal'), deliv = $('#mtDelivery');
   if (label) label.textContent = 'Total';
-  if (total) total.textContent = eur(T.total - T.deliv);
-  if (deliv) deliv.textContent = lang === 'en' ? `(incl. delivery) ${eur(T.total)}` : `(avec livraison) ${eur(T.total)}`;
+  if (total) total.innerHTML = countNum(T.total - T.deliv, 'eur');
+  if (deliv) deliv.innerHTML = (lang === 'en' ? '(incl. delivery) ' : '(avec livraison) ') + countNum(T.total, 'eur');
+  if (show) cntAnimate(bar);
   if (!show) closeSummarySheet();
 }
 function showMobileScrim() {
@@ -864,6 +938,7 @@ function renderSlots() {
     host.appendChild(wrap);
   });
   refreshIcons();
+  cntAnimate(host);
 }
 /* Merchant homepage guessed from a vendor label ("amazon-marketplace.fr" → https).
    Used for the buy button when the fiche has no offer/Idealo link. */
@@ -1140,9 +1215,9 @@ function slotCard(id) {
     const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
     const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
-    priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${eur(p.price)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
+    priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${countNum(p.price, 'eur')}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
     vendorDiv = `<div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>`;
-    delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${eur(unitTotal(p))}</div>`;
+    delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${countNum(unitTotal(p), 'eur')}</div>`;
   }
   const priceHtml = priceDiv + vendorDiv + delivDiv;
   const hasIdealo = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
@@ -2086,10 +2161,10 @@ function pdVariantMask(st) {
     const cur = normTxt(it.url || '') === normTxt(st.item.url || '');
     return `<button class="pd-vcard${cur ? ' sel' : ''}" data-pd-act="variant" data-url="${esc(it.url || '')}" data-name="${esc(it.name || '')}" data-img="${esc(it.img || '')}" data-price="${Number(it.price) || 0}" title="${esc(it.name || '')}">
       ${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="pd-vnoimg"><i class="fa-solid fa-microchip"></i></span>`}
-      <span class="pd-vname">${esc(it.name || '—')}</span><span class="pd-vprice">${it.price ? eur(it.price) : '—'}</span></button>`;
+      <span class="pd-vname">${esc(it.name || '—')}</span><span class="pd-vprice">${it.price ? countNum(it.price, 'eur') : '—'}</span></button>`;
   }).join('');
   return `<section class="pd-sec pd-variants" aria-label="${pdTxt('Variantes', 'Variants')}">
-    <div class="pd-sec-head"><span><i class="fa-solid fa-shuffle"></i> ${esc(String(v.count || v.items.length))} ${pdTxt('variantes', 'variants')}</span>${v.fromPrice ? `<span class="pd-from">${pdTxt('dès', 'from')} ${eur(v.fromPrice)}</span>` : ''}</div>
+    <div class="pd-sec-head"><span><i class="fa-solid fa-shuffle"></i> ${esc(String(v.count || v.items.length))} ${pdTxt('variantes', 'variants')}</span>${v.fromPrice ? `<span class="pd-from">${pdTxt('dès', 'from')} ${countNum(v.fromPrice, 'eur')}</span>` : ''}</div>
     ${chips ? `<div class="pd-vfilters">${chips}</div>` : ''}
     <div class="pd-vlist">${cards || `<p class="hint">${pdTxt('Aucun modèle pour ces filtres.', 'No model matches these filters.')}</p>`}</div>
   </section>`;
@@ -2097,12 +2172,20 @@ function pdVariantMask(st) {
 function pdOffersMask(st) {
   if (!st.offersOpen) return '';
   const offers = st.offers || [];
-  const rows = offers.map(o => `<a class="pd-offer" href="${esc(o.url || '')}" data-pd-act="offer" target="_blank" rel="noopener">
-    <span class="pd-offer-main"><strong>${esc(o.merchant || o.title || '—')}</strong>${o.delivery ? `<small>${esc(o.delivery)}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
-    ${o.promo ? `<span class="pd-promo">${pdTxt('Promo', 'Promo')}</span>` : ''}
-    <span class="pd-offer-price">${eur(o.price)}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`).join('');
+  const shipOf = o => Math.max(0, ((o.delivered > 0 ? o.delivered : o.price) - o.price));
+  const totalOf = o => o.price + shipOf(o);
+  const sorted = [...offers].sort((a, b) => totalOf(a) - totalOf(b));
+  const bestTotal = sorted.length ? totalOf(sorted[0]) : 0;
+  const rows = sorted.map(o => {
+    const tot = totalOf(o);
+    const isBest = bestTotal > 0 && Math.abs(tot - bestTotal) < 0.005;
+    const details = [o.title && o.title !== o.merchant ? o.title : '', o.delivery || ''].filter(Boolean).join(' · ');
+    return `<a class="pd-offer${isBest ? ' is-best' : ''}" href="${esc(o.url || '')}" data-pd-act="offer" target="_blank" rel="noopener">
+      <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
+      <span class="pd-offer-price"><strong>${countNum(o.price, 'eur')}</strong>${o.delivered > 0 ? `<small>${countNum(o.delivered, 'eur')} ${pdTxt('livr. incl.', 'incl. delivery')}</small>` : ''}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
+  }).join('');
   return `<section class="pd-sec pd-offers-sec" aria-label="${pdTxt('Offres marchands', 'Merchant offers')}">
-    <div class="pd-sec-head"><span><i class="fa-solid fa-tags"></i> ${offers.length} ${pdTxt('offres', 'offers')}</span><button class="mini-btn pd-offers-close" data-pd-act="offers">${pdTxt('Masquer', 'Hide')}</button></div>
+    <div class="pd-sec-head"><span><i class="fa-solid fa-tags"></i> ${offers.length} ${pdTxt('offres', 'offers')}${bestTotal ? ` · ${pdTxt('dès', 'from')} ${countNum(bestTotal, 'eur')}` : ''}</span><button class="mini-btn pd-offers-close" data-pd-act="offers">${pdTxt('Masquer', 'Hide')}</button></div>
     <div class="pd-offers">${rows || `<p class="hint">${st.loading ? pdTxt('Chargement des offres…', 'Loading offers…') : pdTxt('Aucune offre disponible.', 'No offer available.')}</p>`}</div>
   </section>`;
 }
@@ -2191,7 +2274,7 @@ function renderPickerDetail(resetScroll) {
       ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
         ${kjPills ? `<div class="pd-kj-pills">${kjPills}</div>` : ''}
-        <div class="pd-price-row"><span class="pd-price">${it.price ? eur(it.price) : '—'}</span>${storeBtn}</div>
+        <div class="pd-price-row"><span class="pd-price">${it.price ? countNum(it.price, 'eur') : '—'}</span>${storeBtn}</div>
         <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers"${st.loading ? ' disabled' : ''}>${offersLabel}</button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
       </div>
     </div>
@@ -2209,6 +2292,7 @@ function renderPickerDetail(resetScroll) {
   if (resetScroll) body.scrollTop = 0;
   else body.scrollTop = st.scrollTop || 0;
   st.scrollTop = body.scrollTop;
+  cntAnimate(body);
 }
 function fitPickerDetail() {
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
@@ -3963,14 +4047,14 @@ function renderSummary() {
     const icons = { pc: 'fa-solid fa-computer', setup: 'fa-solid fa-display', others: 'fa-solid fa-box-open' };
     const ce = cnt[sec].err, cw = cnt[sec].warn;
     const flags = (ce || cw) ? `<span class="sum-compat-flags">${ce ? `<span class="mini-count err" title="${ce} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${ce}</span>` : ''}${cw ? `<span class="mini-count warn" title="${cw} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${cw}</span>` : ''}</span>` : '';
-    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span>${flags}<span class="dsec-total">${eur(sub)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
+    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span>${flags}<span class="dsec-total">${countNum(sub, 'eur')}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
     if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
       const cst = getCompat().statusOf[id];
       row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
-      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${eur(unitTotal(p))}</strong></span>`;
+      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${countNum(unitTotal(p), 'eur')}</strong></span>`;
       row.style.cursor = 'pointer';
       row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
       row.onclick = () => focusComponent(id);
@@ -3996,9 +4080,10 @@ function renderSummary() {
     return `<span class="diff-mini ${over ? 'ko' : 'ok'}" title="${esc(sent)}">(${sign}${abs})</span>`;
   };
   const d1 = state.budget - (T.total - T.deliv), d2 = T.diff;
-  const totalsHtml = `<div class="sum-totals"><div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${eur(T.total - T.deliv)}</span></span></div>
-    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${eur(T.total)}</span></span></div></div>`;
+  const totalsHtml = `<div class="sum-totals"><div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${countNum(T.total - T.deliv, 'eur')}</span></span></div>
+    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${countNum(T.total, 'eur')}</span></span></div></div>`;
   const dock = $('#sumTotalsDesc'); if (dock) dock.innerHTML = totalsHtml;
+  cntAnimate($('#summaryPanel'));
   if (sumTab !== 'desc') renderSumExtra();
   updateMobileTotalBar();
   updateVersionChips();
@@ -4185,9 +4270,9 @@ function renderSumExtra() {
     const rows = items.map((it, i) => {
       const s = state.slots[it.id], p = sel(s);
       const color = cmap[it.id];
-      return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${lang === 'en' ? 'Show in page' : 'Voir dans la page'}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(p.name)} (${Math.round(it.v / tot * 100)}%)</span></span><span class="di-price"><strong>${eur(it.v)}</strong></span></div>`;
+      return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${lang === 'en' ? 'Show in page' : 'Voir dans la page'}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(p.name)} (${Math.round(it.v / tot * 100)}%)</span></span><span class="di-price"><strong>${countNum(it.v, 'eur')}</strong></span></div>`;
     }).join('');
-    return `<div class="dsec chart-dsec${foldedCharts.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-chead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${eur(tot)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${eur(tot)}</h3>${pieSVG(items.map(it => ({ v: it.v, color: cmap[it.id] })))}</div><div class="chart-list">${rows}</div></div>`;
+    return `<div class="dsec chart-dsec${foldedCharts.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-chead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${countNum(tot, 'eur')}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${countNum(tot, 'eur')}</h3>${pieSVG(items.map(it => ({ v: it.v, color: cmap[it.id] })))}</div><div class="chart-list">${rows}</div></div>`;
   }).join('');
   $('#sumChartsPane').innerHTML = chartSecs || `<p class="hint">${lang === 'en' ? 'Nothing selected yet.' : 'Rien de sélectionné.'}</p>`;
   const budget = Number(state.budget) || 0;
@@ -4199,9 +4284,9 @@ function renderSumExtra() {
     const allocTot = allocItems.reduce((a, b) => a + b.v, 0);
     if (rest >= 0) { allocItems.push({ key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }); }
     const allocAll = rest >= 0 ? allocTot + rest : allocTot;
-    const arows = allocItems.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allocAll * 100)}%)</span></span><span class="di-price"><strong>${eur(a.v)}</strong></span></div>`).join('')
-      + (rest < 0 ? `<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Over budget' : 'Dépassement'} (${eur(-rest)})</span></span><span class="di-price"><strong style="color:var(--danger)">${eur(spent)} / ${eur(budget)}</strong></span></div>` : '');
-    $('#sumChartsPane').insertAdjacentHTML('beforeend', `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-chart-pie"></i><span>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'}</span><span class="dsec-total">${eur(budget)}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'} — ${eur(budget)}</h3>${pieSVG(allocItems.map(a => ({ v: a.v })))}</div><div class="chart-list">${arows}</div></div>`);
+    const arows = allocItems.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allocAll * 100)}%)</span></span><span class="di-price"><strong>${countNum(a.v, 'eur')}</strong></span></div>`).join('')
+      + (rest < 0 ? `<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Over budget' : 'Dépassement'} (${countNum(-rest, 'eur')})</span></span><span class="di-price"><strong style="color:var(--danger)">${countNum(spent, 'eur')} / ${countNum(budget, 'eur')}</strong></span></div>` : '');
+    $('#sumChartsPane').insertAdjacentHTML('beforeend', `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-chart-pie"></i><span>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'}</span><span class="dsec-total">${countNum(budget, 'eur')}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${lang === 'en' ? 'Budget allocation' : 'Allocation budget'} — ${countNum(budget, 'eur')}</h3>${pieSVG(allocItems.map(a => ({ v: a.v })))}</div><div class="chart-list">${arows}</div></div>`);
   }
   function wireChartRows(dsec) {
     const paths = [...dsec.querySelectorAll('svg [data-i]')];
@@ -4257,9 +4342,9 @@ function renderSumExtra() {
         const rows = items.map((it, i) => {
           const s = state.slots[it.id];
           const color = cmap[it.id];
-          return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${(it.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page')}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(it.name)} (${Math.round(it.w / tot * 100)}%)${it.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${it.w} W</strong></span></div>`;
+          return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${(it.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page')}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(it.name)} (${Math.round(it.w / tot * 100)}%)${it.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${countNum(it.w, 'num', Number.isInteger(it.w) ? 0 : 1, ' W')}</strong></span></div>`;
         }).join('');
-        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${tot} W</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${tot} W</h3>${pieSVG(items.map(a => ({ v: a.w, color: cmap[a.id] })))}</div><div class="chart-list">${rows}</div></div>`;
+        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</h3>${pieSVG(items.map(a => ({ v: a.w, color: cmap[a.id] })))}</div><div class="chart-list">${rows}</div></div>`;
       }).join('');
       let allocHtml = '';
       if (pw.psu.usableW > 0 && totP > 0) {
@@ -4270,19 +4355,19 @@ function renderSumExtra() {
         if (rest >= 0) {
           const all = [...used, { key: 'rest', label: lang === 'en' ? 'Remaining' : 'Reste', v: rest }];
           const allTot = usedTot + rest;
-          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(all.map(a => ({ v: a.v })))}</div><div class="chart-list">${all.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allTot * 100)}%)</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}</div></div>`;
+          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</h3>${pieSVG(all.map(a => ({ v: a.v })))}</div><div class="chart-list">${all.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)} (${Math.round(a.v / allTot * 100)}%)</span></span><span class="di-price"><strong>${countNum(a.v, 'num', Number.isInteger(a.v) ? 0 : 1, ' W')}</strong></span></div>`).join('')}</div></div>`;
         } else {
-          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${pw.psu.usableW} W</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${pw.psu.usableW} W</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${a.v} W</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${-rest} W)</span></span><span class="di-price"><strong style="color:var(--danger)">${usedTot} / ${pw.psu.usableW} W</strong></span></div></div></div>`;
+          allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${countNum(a.v, 'num', Number.isInteger(a.v) ? 0 : 1, ' W')}</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${countNum(-rest, 'num', Number.isInteger(-rest) ? 0 : 1, ' W')})</span></span><span class="di-price"><strong style="color:var(--danger)">${countNum(usedTot, 'num', Number.isInteger(usedTot) ? 0 : 1, ' W')} / ${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</strong></span></div></div></div>`;
         }
       }
-      powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${totP} W</strong></h3>
+      powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W')}</strong></h3>
       ${pwSecs}
       ${allocHtml}
       <div class="sum-totals">
-        <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${totP} W</span></span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens+consoles)' : 'Charge onduleur (PC+écrans+consoles)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${totU} W</strong></span></div>
-        <div class="sum-line"><span>kWh / ${usedHours.toFixed(1)}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${kwh.toFixed(0)} kWh/an</span><span class="tot-right">${eur(eurY)}/an</span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${eur(eurM)}/mois</span></span></div>
+        <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W')}</span></span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens+consoles)' : 'Charge onduleur (PC+écrans+consoles)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${countNum(totU, 'num', Number.isInteger(totU) ? 0 : 1, ' W')}</strong></span></div>
+        <div class="sum-line"><span>kWh / ${usedHours.toFixed(1)}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum(kwh, 'num', 0, ' kWh/an')}</span><span class="tot-right">${countNum(eurY, 'eur', 2, '/an')}</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${countNum(eurM, 'eur', 2, '/mois')}</span></span></div>
       </div>
       <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
     }
@@ -4291,9 +4376,9 @@ function renderSumExtra() {
     const UPf = usagePrefs();
     const uh = UPf.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
     const wmap = buildColors(watts.map(x => ({ id: x.id, defId: defOf(state.slots[x.id]).id })));
-    powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${tot} W</strong></h3>
-    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${((tot * uh * 365) / 1000).toFixed(0)} kWh/an</h3>${pieSVG(watts.map(x => ({ v: x.v, color: wmap[x.id] })))}
-    <div class="legend">${watts.map(x => `<span><i class="dot" style="background:${wmap[x.id]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
+    powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</strong></h3>
+    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum((tot * uh * 365) / 1000, 'num', 0, ' kWh/an')}</h3>${pieSVG(watts.map(x => ({ v: x.v, color: wmap[x.id] })))}
+    <div class="legend">${watts.map(x => `<span><i class="dot" style="background:${wmap[x.id]}"></i>${esc(slotName(x.id))} — ${countNum(x.v, 'num', Number.isInteger(x.v) ? 0 : 1, ' W')}</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
   }
   $('#sumPowerPane').innerHTML = powerHtml;
   const pTot = $('#sumPowerPane .sum-totals');
@@ -4317,6 +4402,7 @@ function renderSumExtra() {
   $('#sumPowerPane').appendChild(ub);
   refreshIcons();
   updatePowerTotalsReveal();
+  cntAnimate($('#summaryPanel'));
 }
 
 /* ---------- Price history ---------- */
@@ -4714,11 +4800,12 @@ function renderBriefFacts(f) {
   const stTile = (icon, title, st, rows) => { const w = briefStatusWord(st); return tile(icon, title, `<strong class="bt-status fps-${w.cls}">${esc(w.txt)}</strong>`, rows, st); };
   host.innerHTML =
     stTile('fa-solid fa-house-laptop', t('bench.daily'), dc, daily) +
-    tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : cb + ' FPS'}</strong>`, gRows, cbSt) +
+    tile('fa-solid fa-gamepad', 'Cyberpunk 2077', `<span class="bt-res">${esc(resLbl)} · High</span><strong class="bt-fps fps-${cb == null ? 'y' : Perf.fpsColor(cb)}">${cb == null ? '—' : countNum(cb, 'num', 0, ' FPS')}</strong>`, gRows, cbSt) +
     stTile('fa-solid fa-clapperboard', t('bench.video'), Perf.worstOf(blocks.video), blocks.video) +
     stTile('fa-solid fa-code', t('bench.compile'), Perf.worstOf(blocks.compile), blocks.compile) +
     stTile('fa-solid fa-brain', t('bench.ai'), Perf.worstOf(blocks.ai), blocks.ai)
     + (f.igpu ? `<p class="hint">${lang === 'en' ? 'No dedicated GPU — estimates use the CPU integrated graphics (approximate).' : 'Aucun GPU dédié — estimations basées sur le graphique intégré du CPU (approximatif).'}</p>` : '');
+  cntAnimate(host);
 }
 /* ----- gaming iobit ----- */
 function fillGameSelect() {
@@ -4753,14 +4840,14 @@ function renderGaming(f) {
   const r1080 = Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: benchGame, res: 1080, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
   const r1440 = Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: benchGame, res: 1440, quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
   const r4k = Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: benchGame, res: '4k', quality: 'high', rt: 'off', up: 'none', ramGB: f.ramGB });
-  $('#gameScore').innerHTML = `<strong class="fps-${Perf.fpsColor(cur)}">${cur} FPS</strong>`;
+  $('#gameScore').innerHTML = `<strong class="fps-${Perf.fpsColor(cur)}">${countNum(cur, 'num', 0, ' FPS')}</strong>`;
   const bt = Perf.bottleneck({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: benchGame, res: f.res });
   const btCard = bt.level == null ? `<div class="ditem"><span class="di-txt"><span class="di-name">✓ ${esc(t('bench.btOk'))}</span></span></div>`
     : `<div class="ditem"><span class="di-txt"><span class="di-name"><i class="fa-solid fa-scale-balanced"></i> ${esc(bt.side === 'cpu' ? (f.cpuP ? f.cpuP.name : 'CPU') : (f.gpuP ? f.gpuP.name : 'GPU'))}</span><br><small style="color:var(--muted)">${esc(bt.side === 'cpu' ? t('bench.btCpu') : t('bench.btGpu'))}</small></span><span class="di-price"><strong class="fps-${bt.level === 'err' ? 'r' : 'y'}">●</strong></span></div>`;
   const resLbl = f.res === '4k' ? '4K' : f.res + 'p';
-  const row = (sub, v) => `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(sub)}</span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(v)}">${v} FPS</strong></span></div>`;
+  const row = (sub, v) => `<div class="ditem"><span class="di-txt"><span class="di-name">${esc(sub)}</span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(v)}">${countNum(v, 'num', 0, ' FPS')}</strong></span></div>`;
   host.innerHTML =
-    `<div class="iobit-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(gname)}</span><span class="di-sub">${esc(resLbl)} · High</span><span class="di-specs"><span>${esc(f.cpuEntry[1])}</span><span>${esc(f.gpuEntry[1])}</span></span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(cur)}" style="font-size:1.3rem">${cur} FPS</strong></span></div>`
+    `<div class="iobit-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(gname)}</span><span class="di-sub">${esc(resLbl)} · High</span><span class="di-specs"><span>${esc(f.cpuEntry[1])}</span><span>${esc(f.gpuEntry[1])}</span></span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(cur)}" style="font-size:1.3rem">${countNum(cur, 'num', 0, ' FPS')}</strong></span></div>`
     + btCard + `</div>`
     + `<div class="iobit-grid3">` + row('1080p', r1080) + row('1440p', r1440) + row('4K', r4k) + `</div>`;
   // barres par preset @ resolution courante
@@ -4770,7 +4857,7 @@ function renderGaming(f) {
   $('#gameBars').innerHTML = '<div class="preset-bars">' + quals.map((q, i) => {
     const v = vals[i], c = Perf.fpsColor(v);
     const w = Math.max(3, Math.round(v / max * 100));
-    return `<div class="pbar"><span class="pbar-lbl">${esc(t('bench.q_' + q))}</span><span class="pbar-track"><span class="pbar-fill fpsbg-${c}" style="width:${w}%"></span></span><span class="pbar-val fps-${c}">${v}</span></div>`;
+    return `<div class="pbar"><span class="pbar-lbl">${esc(t('bench.q_' + q))}</span><span class="pbar-track"><span class="pbar-fill fpsbg-${c}" style="width:${w}%"></span></span><span class="pbar-val fps-${c}">${countNum(v, 'num', 0)}</span></div>`;
   }).join('') + '</div>';
   $('#gameCredit').innerHTML = `FPS : <a href="${esc(FpsDb.SOURCE)}" target="_blank" rel="noopener">iobit.com (${esc(FpsDb.SNAPSHOT)})</a> — estimations.`;
   // iobit ne permet pas la preselection par URL : on copie les noms exacts
@@ -4788,6 +4875,7 @@ function renderGaming(f) {
     toast(t('bench.copied'));
     window.open(FpsDb.SOURCE, '_blank', 'noopener');
   };
+  cntAnimate($('#page-bench'));
 }
 /* ----- barres a checkpoints (rouge|jaune|vert + aiguille valeur) ----- */
 function barHtml(r) {
@@ -4803,7 +4891,7 @@ function barHtml(r) {
   const ztip = zi => regTip([{ k: 'z' + zi, st: zi === 0 ? 'err' : zi === 1 ? 'warn' : 'ok', label: r.label,
     detail: zi === 0 ? `≤ ${b.cuts[0]}${u}` : zi === 1 ? `${b.cuts[0]} – ${b.cuts[1]}${u}` : `> ${b.cuts[1]}${u}` }]);
   return `<div class="cbar" data-tip="${id}">
-    <div class="cbar-top"><strong>${esc(r.label)}</strong>${b.noval ? '' : `<span>${esc(String(b.val) + u)}</span>`}</div>
+    <div class="cbar-top"><strong>${esc(r.label)}</strong>${b.noval ? '' : `<span>${countNum(b.val, 'num', Number.isInteger(b.val) ? 0 : 1, u)}</span>`}</div>
     <div class="cbar-track"><div class="cbar-zones"><span class="zone z-r" data-tip="${ztip(0)}" style="width:${wR}%"></span><span class="zone z-y" data-tip="${ztip(1)}" style="width:${wY}%"></span><span class="zone z-g" data-tip="${ztip(2)}" style="width:${wG}%"></span></div><span class="ckpt" style="left:${pct(b.cuts[0])}%"></span><span class="ckpt" style="left:${pct(b.cuts[1])}%"></span>${v == null ? '' : `<span class="needle n-${zcls}" data-tip="${id}" style="left:${vc}%"></span>`}</div>
     <small>${esc(r.detail)}</small></div>`;
 }
@@ -4817,6 +4905,7 @@ function renderDaily(f) {
   const w = Perf.worstOf(rows);
   $('#dailyScore').innerHTML = `<span class="dot-${w === 'unknown' ? 'warn' : w}">●</span>`;
   host.innerHTML = barsHtml(rows);
+  cntAnimate(host);
 }
 function renderPro(f) {
   const host = $('#proBody');
@@ -4829,6 +4918,7 @@ function renderPro(f) {
     const w = Perf.worstOf(blocks[k]);
     return `<div class="pro-block"><div class="pro-head"><i class="${icon}"></i><span>${esc(title)}</span><strong class="dot-${w === 'unknown' ? 'warn' : w}">●</strong></div>${barsHtml(blocks[k])}</div>`;
   }).join('');
+  cntAnimate(host);
 }
 /* ----- Geekbench ----- */
 async function loadBenchGb(f) {
@@ -4851,13 +4941,13 @@ function renderGb() {
     bindGbRetry();
     return;
   }
-  const loc = n => n == null ? '—' : n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
-  $('#gbScore').textContent = (benchGb.version !== '?' ? benchGb.version + ' · ' : '') + loc(benchGb.multi);
+  $('#gbScore').innerHTML = (benchGb.version !== '?' ? esc(benchGb.version) + ' · ' : '') + (benchGb.multi == null ? '—' : countNum(benchGb.multi, 'num', 0));
   $('#gbBody').innerHTML =
-    `<div class="gb-tiles"><div class="brief-tile static"><i class="fa-solid fa-square bt-icon"></i><span class="bt-title">${esc(t('bench.single'))}</span><strong class="bt-fps">${loc(benchGb.single)}</strong></div>`
-    + `<div class="brief-tile static"><i class="fa-solid fa-layer-group bt-icon"></i><span class="bt-title">${esc(t('bench.multi'))}</span><strong class="bt-fps">${loc(benchGb.multi)}</strong></div></div>`
+    `<div class="gb-tiles"><div class="brief-tile static"><i class="fa-solid fa-square bt-icon"></i><span class="bt-title">${esc(t('bench.single'))}</span><strong class="bt-fps">${benchGb.single == null ? '—' : countNum(benchGb.single, 'num', 0)}</strong></div>`
+    + `<div class="brief-tile static"><i class="fa-solid fa-layer-group bt-icon"></i><span class="bt-title">${esc(t('bench.multi'))}</span><strong class="bt-fps">${benchGb.multi == null ? '—' : countNum(benchGb.multi, 'num', 0)}</strong></div></div>`
     + `<p class="hint">${esc(benchGb.version)} · n=${benchGb.n} · browser.geekbench.com</p>`
     + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://browser.geekbench.com/search?q=${encodeURIComponent(benchGb.q || '')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.gbOpen'))}</a></div>`;
+  cntAnimate($('#page-bench'));
 }
 /* ----- 3DMark ----- */
 async function loadBench3d(f) {
@@ -4892,7 +4982,6 @@ function bindTsRetry() {
 function render3d() {
   if (!bench3d) return;
   const { combo } = bench3d;
-  const loc = n => n == null ? '—' : n.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR');
   const retry = `<div class="btn-row"><button class="mini-btn" id="tsRetry"><i class="fa-solid fa-rotate-right"></i> ${esc(t('bench.retry'))}</button></div>`;
   if (bench3d.err) {
     $('#tsScore').textContent = '—';
@@ -4908,15 +4997,15 @@ function render3d() {
     bindTsRetry();
     return;
   }
-  $('#tsScore').textContent = loc(combo.median);
-  const comboTile = `<div class="brief-tile static ts-combo"><i class="fa-solid fa-trophy bt-icon"></i><span class="bt-title">${esc(t('bench.tsCombo'))}</span><strong class="bt-fps">${loc(combo.median)}</strong></div>`;
+  $('#tsScore').innerHTML = countNum(combo.median, 'num', 0);
+  const comboTile = `<div class="brief-tile static ts-combo"><i class="fa-solid fa-trophy bt-icon"></i><span class="bt-title">${esc(t('bench.tsCombo'))}</span><strong class="bt-fps">${countNum(combo.median, 'num', 0)}</strong></div>`;
   let tiles = comboTile, sub = `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i></p>`;
   if (bench3d.gpuOnly && bench3d.cpuOnly && bench3d.gpuOnly.median && bench3d.cpuOnly.median) {
     const v = Perf.tsBottleneck(combo.median, bench3d.gpuOnly.median, bench3d.cpuOnly.median);
     const cls = v.level === 'err' ? 'r' : v.level === 'warn' ? 'y' : 'g';
     const msg = v.side === 'cpu' ? t('bench.btCpu') : v.side === 'gpu' ? t('bench.btGpu') : t('bench.btOk');
-    tiles += `<div class="brief-tile static"><i class="fa-solid fa-microchip bt-icon"></i><span class="bt-title">${esc((combo.cpu && combo.cpu.label) || t('bench.tsCpu'))}</span><strong class="bt-fps">${loc(bench3d.cpuOnly.median)}</strong></div>`
-      + `<div class="brief-tile static"><span class="bt-icon">${iconHtml('bi:bi-gpu-card')}</span><span class="bt-title">${esc((combo.gpu && combo.gpu.label) || t('bench.tsGpu'))}</span><strong class="bt-fps">${loc(bench3d.gpuOnly.median)}</strong></div>`;
+    tiles += `<div class="brief-tile static"><i class="fa-solid fa-microchip bt-icon"></i><span class="bt-title">${esc((combo.cpu && combo.cpu.label) || t('bench.tsCpu'))}</span><strong class="bt-fps">${countNum(bench3d.cpuOnly.median, 'num', 0)}</strong></div>`
+      + `<div class="brief-tile static"><span class="bt-icon">${iconHtml('bi:bi-gpu-card')}</span><span class="bt-title">${esc((combo.gpu && combo.gpu.label) || t('bench.tsGpu'))}</span><strong class="bt-fps">${countNum(bench3d.gpuOnly.median, 'num', 0)}</strong></div>`;
     sub = `<p class="hint"><strong class="fps-${cls}">●</strong> ${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</p>`;
   } else if (bench3d.singlesErr) {
     sub = `<p class="hint">${esc(t('bench.typErr'))}</p>` + retry;
@@ -4926,6 +5015,7 @@ function render3d() {
     + `<p class="hint">${esc((combo.cpu && combo.cpu.label) || '')} + ${esc((combo.gpu && combo.gpu.label) || '')} · ${esc(t('bench.topruns'))} · n=${combo.n}</p>` + sub
     + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="${esc(combo.topUri || 'https://www.3dmark.com/search')}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
   bindTsRetry();
+  cntAnimate($('#page-bench'));
 }
 /* ----- YouTube (existant + champ extra) ----- */
 function paintVideos(items, cached) {
@@ -6081,7 +6171,9 @@ function openWelcome() {
     const start = () => {
       resetDraftForBuild();
       if (bud > 0) state.budget = bud;
-      if (!$('#wProgs')) reopenWelcomeAi(paste, bud); // le modal a ete remplace par la garde
+      // Après la garde "non sauvegardé", le modal a été remplacé : il faut
+      // reconstruire la vue IA avant de retrouver #wProgs et #wBuild.
+      if ($('#modalOverlay').classList.contains('hidden') || !$('#wBuild') || !$('#wProgs')) reopenWelcomeAi(paste, bud);
       aiBuild(items);
     };
     guardUnsaved(start, () => reopenWelcomeAi(paste, bud));
@@ -6184,6 +6276,17 @@ function aiSetComp(comp, st) {
   else if (st === 'import') { comp.classList.add('st-import'); if (ic) ic.className = 'fa-solid fa-download'; }
   else if (st === 'done') { comp.classList.add('st-done'); if (ic) ic.className = 'fa-solid fa-check'; }
 }
+function aiSetStep(step, st, label) {
+  if (!step) return;
+  step.classList.remove('st-queued', 'st-search', 'st-import', 'st-manual', 'st-done', 'st-warn');
+  step.classList.add('st-' + st);
+  step.dataset.state = st;
+  const ic = step.querySelector('.wstep-ic i');
+  const icon = { queued: 'fa-circle', search: 'fa-magnifying-glass', import: 'fa-download', manual: 'fa-hand-pointer', done: 'fa-check', warn: 'fa-forward' }[st] || 'fa-circle';
+  if (ic) ic.className = 'fa-solid ' + icon;
+  const tx = step.querySelector('.wstep-st');
+  if (tx) tx.textContent = label || '';
+}
 function aiPhoto(comp, url) { const ic = comp && comp.querySelector('.wcomp-ic'); if (ic && url) ic.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy">`; }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
 function aiManualPick(slot, query, link) {
@@ -6230,39 +6333,47 @@ async function aiBuild(items) {
   btn.innerHTML = stopLbl;
   // pre-mapping connue + boutons a gauche
   const slots = items.map(it => AiParse.typeToSlot(it.type));
+  host.innerHTML = `<div class="wsteps" aria-live="polite">${items.map((it, i) => {
+    const slot = slots[i];
+    return `<div class="wstep st-queued" data-step="${i}"><span class="wstep-ic"><i class="fa-solid fa-circle"></i></span><span class="wstep-tx"><strong>${esc(slot ? aiSlotLabel(slot) : it.type)}</strong><small>${esc(it.ref)}</small></span><span class="wstep-st">${esc(t('welcome.stepQueued'))}</span></div>`;
+  }).join('')}</div>`;
+  const stepEls = [...host.querySelectorAll('.wstep')];
   const comps = aiRenderComps(items, slots);
   let ok = 0; const skipped = []; let stopped = false;
   for (let i = 0; i < items.length; i++) {
     if (my !== aiRunId) { stopped = true; break; }
     const it = items[i];
     btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 24))} · ${esc(t('welcome.stop'))}`;
-    aiSetComp(comps[i], 'search');
     let slot = slots[i];
     if (!slot) {
+      aiSetStep(stepEls[i], 'manual', t('welcome.stepAsk'));
       slot = await aiAskSlot(host, it);
       if (my !== aiRunId) { stopped = true; break; }
       slots[i] = slot;
       if (slot && comps[i]) {
         comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
         comps[i].querySelector('.wcomp-tx strong').textContent = aiSlotLabel(slot);
+        const st = stepEls[i] && stepEls[i].querySelector('.wstep-tx strong');
+        if (st) st.textContent = aiSlotLabel(slot);
         refreshIcons(comps[i]);
       }
     }
-    if (!slot) { aiSetComp(comps[i], 'warn'); skipped.push(it); continue; }
+    if (!slot) { aiSetComp(comps[i], 'warn'); aiSetStep(stepEls[i], 'warn', t('welcome.stepSkipped')); skipped.push(it); continue; }
+    aiSetComp(comps[i], 'search'); aiSetStep(stepEls[i], 'search', t('welcome.stepSearch'));
     const found = await aiFindRef(it);
     if (my !== aiRunId) { stopped = true; break; }
     if (!found) {
-      aiSetComp(comps[i], 'warn');
+      aiSetStep(stepEls[i], 'manual', t('welcome.stepManual'));
       const picked = await aiManualPick(slot, it.ref, it.link);
+      if (!picked) { aiSetComp(comps[i], 'warn'); aiSetStep(stepEls[i], 'warn', t('welcome.stepSkipped')); skipped.push(it); if (my !== aiRunId) { stopped = true; break; } continue; }
+      aiSetComp(comps[i], 'done'); aiSetStep(stepEls[i], 'done', t('welcome.stepDone')); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
       if (my !== aiRunId) { stopped = true; break; }
-      if (!picked) { skipped.push(it); continue; }
-      aiSetComp(comps[i], 'done'); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
       continue;
     }
-    aiSetComp(comps[i], 'import');
+    aiSetComp(comps[i], 'import'); aiSetStep(stepEls[i], 'import', t('welcome.stepImport'));
     await importAiProduct(slot, found.item, found.link);
+    aiSetComp(comps[i], 'done'); aiSetStep(stepEls[i], 'done', t('welcome.stepDone')); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
     if (my !== aiRunId) { stopped = true; break; }
-    aiSetComp(comps[i], 'done'); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
   }
   aiBuilding = false;
   persist(); refresh();
@@ -6519,6 +6630,7 @@ function openShareExport(pill) {
   const shareInfo = `<div class="cmp-col se-info">
     <h4><i class="fa-solid fa-share-nodes"></i> ${T('Included in the share link', 'Inclus dans le lien de partage')}</h4>
     <p class="hint">${T('The link is intentionally lightweight. Everything below is either shared or left out.', 'Le lien est volontairement léger. Tout ce qui suit est partagé ou volontairement omis.')}</p>
+    <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('Shared', 'Partagé')}</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Omitted', 'Omis')}</span></div>
     <ul>
       ${infoRow(T('Config name', 'Nom de la config'), 'inc')}
       ${infoRow(T('Budget', 'Budget'), 'inc')}
@@ -6536,6 +6648,7 @@ function openShareExport(pill) {
   const exportInfo = `<div class="cmp-col se-info">
     <h4><i class="fa-solid fa-file-export"></i> ${T('What each export contains', 'Ce que contient chaque export')}</h4>
     <p class="hint">${T('JSON = this config with all its history, re-importable. PDF = a complete printable report. Orange items exist only in the PDF.', 'JSON = cette config avec tout son historique, réimportable. PDF = un rapport complet imprimable. Les éléments orange existent uniquement dans le PDF.')}</p>
+    <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('JSON + PDF', 'JSON + PDF')}</span><span class="se-json"><i class="fa-solid fa-circle"></i>JSON</span><span class="se-pdf"><i class="fa-solid fa-circle"></i>PDF</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Not exported', 'Non exporté')}</span></div>
     <ul>
       ${infoRow(T('Config name and budget', 'Nom de la config et budget'), 'inc', 'JSON + PDF')}
       ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', 'JSON + PDF')}
@@ -6887,6 +7000,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.65 — Fiches d’information, compteurs et menu mobile</h3><p class="hint">Le partage et l’export affichent une fiche d’information compacte sur deux colonnes : inclus en vert, exclus en rouge, PDF uniquement en orange, avec une légende. La variante sélectionnée garde une bordure plus épaisse que son survol. La création par IA montre chaque composant et son statut sous « Construire la config », avec l’animation d’actualisation des prix en recherche et un balayage vertical à l’import ; le popup reste utilisable après la garde des modifications non sauvegardées. Les prix, consommations et benchmarks comptent désormais de zéro, et le réglage Animations les coupe ou les relance. Le chargement d’une config rafraîchit immédiatement les benchmarks affichés, les offres de la fiche composant reprennent les bons plans et le meilleur total, et le menu mobile est centré avec le tiroir de la navigation KJ.</p></div>
     <div class="chlog"><h3>v2.64 — Verre unifié, boutons verts allégés et bienvenue mobile</h3><p class="hint">Toutes les popups et barres adoptent le verre de la navigation, avec un fond blanc à 97 %. Les boutons verts deviennent translucides et clairs, et repassent en vert uni quand le design translucide est désactivé. Le menu de bienvenue mobile s’ouvre sur l’accueil (logo, atouts, Nouveau / Charger), puis affiche séparément la création ou le chargement avec un retour. Le partage et l’export remplacent le tableau par une fiche d’information : inclus en vert, exclus en rouge, PDF uniquement en orange. La fiche composant est teintée selon la sélection KJ, les onglets mobiles sont plus grands, l’icône de la fiche réduite, la bordure de l’alternative sélectionnée plus épaisse et l’installation n’apparaît dans les paramètres que sur mobile. « Sauver » devient « Sauvegarder ».</p></div>
     <div class="chlog"><h3>v2.63 — Réglages, verre et résumé repensés</h3><p class="hint">Nouveau panneau Paramètres (animations, fond dynamique, design translucide) et installation mobile sous l’en-tête. Les popups reprennent le verre dépoli de la barre de navigation, les onglets partagent un curseur coulissant et les pastilles sont de taille fixe. Le résumé garde ses totaux épinglés en bas, dans une seule zone de défilement pleine hauteur. Les cartes de composants alignent badges et compatibilité, la fiche choisie est teintée entièrement, les étoiles KJ laissent place à un reflet renforcé et le compteur de photos devient une pastille de verre. Le comparateur accepte les doublons, signale les configs non sauvegardées et le partage compare les données réellement incluses avec la config actuelle. Sur mobile, la fenêtre de bienvenue place le chargement avant la création.</p></div>
     <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube. Sur mobile, la fiche vidéo s’ouvre comme les panneaux de la config, depuis le bas de l’écran.</p></div>
@@ -7105,6 +7219,10 @@ function setUiPref(key, value) {
   prefs[key] = value;
   save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang, [key]: value });
   applyUiPrefs();
+  if (key === 'animations') {
+    if (value === false) cntStop(document);
+    else cntReplay(document);
+  }
 }
 function openSettings() {
   const anim = prefs.animations !== false;
@@ -7186,6 +7304,7 @@ function refresh() {
   if (sumTab === 'compat') renderCompat();
   if (!$('#page-prices').classList.contains('hidden')) drawPrices();
   if (!$('#page-compare').classList.contains('hidden')) showCompare();
+  if (!$('#page-bench').classList.contains('hidden')) showBench();
   updateMobileTotalBar();
 }
 
@@ -7412,14 +7531,24 @@ function bind() {
     if (document.body.classList.contains('picker-sheet-open')) closePicker(); else closeSummarySheet();
   });
   const burger = $('#burger'), menu = $('#menu');
-  const toggle = () => { menu.classList.toggle('show'); $('.q').classList.toggle('a'); $('.w').classList.toggle('b'); $('.e').classList.toggle('c'); };
+  const setMenu = open => {
+    if (!menu) return;
+    menu.classList.toggle('show', open);
+    const on = menu.classList.contains('show');
+    ['.q', '.w', '.e'].forEach(sel => { const el = $(sel); if (el) el.classList.toggle({ '.q': 'a', '.w': 'b', '.e': 'c' }[sel], on); });
+    if (burger) burger.setAttribute('aria-expanded', String(on));
+  };
+  const toggle = () => setMenu(!menu.classList.contains('show'));
   burger.addEventListener('click', toggle);
-  $('#burgerClose').onclick = toggle;
+  if ($('#burgerClose')) $('#burgerClose').onclick = toggle;
+  $$('#menu .icon-btn').forEach(b => b.addEventListener('click', () => { if (isMobileView()) setMenu(false); }));
+  document.addEventListener('click', e => { if (isMobileView() && menu.classList.contains('show') && !e.target.closest('#topnav')) setMenu(false); });
   window.addEventListener('resize', () => {
     const mobile = isMobileView();
     const editorOpen = !$('#editorPanel').classList.contains('hidden');
     updateMobileTotalBar();
     if (!mobile) {
+      setMenu(false);
       document.body.classList.remove('summary-sheet-open', 'picker-sheet-open', 'editor-sheet-open', 'tutorial-sheet-open');
       $('#mobileScrim').classList.add('hidden');
       if (editorOpen) { $('#pickerPanel').classList.add('hidden'); $('#summaryPanel').classList.add('hidden'); }
