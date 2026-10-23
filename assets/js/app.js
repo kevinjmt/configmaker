@@ -1,11 +1,11 @@
-/* ConfigMaker v2.62 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.63 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.62';
+const APP_VERSION = '2.63';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -139,7 +139,12 @@ const TUTORIALS = [
 /* ---------- i18n ---------- */
 const I18N = {
   fr: {
-    'nav.exportAll': 'Export données', 'nav.install': 'Installer',
+    'nav.exportAll': 'Export données', 'nav.install': 'Installer', 'nav.settings': 'Paramètres',
+    'settings.title': 'Paramètres', 'settings.animations': 'Animations', 'settings.animationsHint': "Désactive les animations de l'application et conserve uniquement celles de l'actualisation des prix.",
+    'settings.dynamicBg': 'Fond dynamique', 'settings.dynamicBgHint': 'Désactive le parallaxe et les effets du fond animé.',
+    'settings.translucent': 'Design translucide', 'settings.translucentHint': 'Désactive la transparence et le flou du verre dans toute l’application.',
+    'settings.exportAll': 'Exporter toutes les données', 'settings.exportAllHint': 'Toutes les configurations, l’historique, les prix et les préférences.',
+    'settings.on': 'Activé', 'settings.off': 'Désactivé',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauver', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
@@ -151,7 +156,7 @@ const I18N = {
     'compare.add': 'Ajouter une config', 'compare.pickTitle': 'Ajouter une configuration à comparer',
     'compare.pickHint': 'Choisissez jusqu’à 4 versions sauvegardées. La config actuelle reste toujours la première colonne.',
     'compare.noSaved': 'Aucune version sauvegardée. Sauvegardez une configuration pour pouvoir la comparer.',
-    'compare.max': 'Maximum 4 configurations supplémentaires.', 'compare.current': 'Actuelle',
+    'compare.max': 'Maximum 4 configurations supplémentaires.', 'compare.current': 'Actuelle', 'compare.duplicate': 'Doublon', 'compare.unsaved': 'non sauvegardée',
     'compare.remove': 'Retirer cette colonne', 'compare.specs': 'Spécifications', 'compare.total': 'Total',
     'compare.datasheet': 'Fiche technique', 'compare.noDatasheet': 'Aucune fiche technique', 'compare.quickSpecs': 'Specs rapides',
     'compare.expand': 'Afficher la fiche technique', 'compare.collapse': 'Masquer la fiche technique',
@@ -226,7 +231,12 @@ const I18N = {
     'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
-    'nav.exportAll': 'Export data', 'nav.install': 'Install',
+    'nav.exportAll': 'Export data', 'nav.install': 'Install', 'nav.settings': 'Settings',
+    'settings.title': 'Settings', 'settings.animations': 'Animations', 'settings.animationsHint': 'Disables app animations and keeps only the price-refresh animations.',
+    'settings.dynamicBg': 'Dynamic background', 'settings.dynamicBgHint': 'Disables parallax and animated background effects.',
+    'settings.translucent': 'Translucent design', 'settings.translucentHint': 'Disables transparency and glass blur throughout the app.',
+    'settings.exportAll': 'Export all data', 'settings.exportAllHint': 'All configurations, history, prices and preferences.',
+    'settings.on': 'On', 'settings.off': 'Off',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
@@ -238,7 +248,7 @@ const I18N = {
     'compare.add': 'Add a config', 'compare.pickTitle': 'Add a configuration to compare',
     'compare.pickHint': 'Choose up to 4 saved versions. The current draft is always the first column.',
     'compare.noSaved': 'No saved versions yet. Save a configuration before comparing it.',
-    'compare.max': 'Maximum 4 additional configurations.', 'compare.current': 'Current',
+    'compare.max': 'Maximum 4 additional configurations.', 'compare.current': 'Current', 'compare.duplicate': 'Duplicate', 'compare.unsaved': 'unsaved',
     'compare.remove': 'Remove this column', 'compare.specs': 'Specifications', 'compare.total': 'Total',
     'compare.datasheet': 'Datasheet', 'compare.noDatasheet': 'No datasheet', 'compare.quickSpecs': 'Quick specs',
     'compare.expand': 'Show datasheet', 'compare.collapse': 'Hide datasheet',
@@ -541,9 +551,30 @@ function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList
 
 /* ---------- Modal ---------- */
 const MODAL_SIZES = ['modal-xl', 'modal-wide'];
-function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); }
+function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
 function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) box.classList.remove(...MODAL_SIZES); editingPid = null; }
 let editingPid = null;
+
+let pillSlideRaf = 0;
+function syncPillSliders(root = document) {
+  root.querySelectorAll('.pill, .seg, .usage-tabs, .cmp-modes').forEach(group => {
+    const buttons = Array.from(group.children).filter(el => el.tagName === 'BUTTON');
+    if (!buttons.length) return;
+    group.classList.add('has-pill-ind');
+    let ind = Array.from(group.children).find(el => el.classList.contains('pill-ind'));
+    if (!ind) { ind = document.createElement('span'); ind.className = 'pill-ind'; ind.setAttribute('aria-hidden', 'true'); group.appendChild(ind); }
+    const active = buttons.find(b => b.classList.contains('active'));
+    if (!active || !active.offsetWidth || group.offsetParent === null) { ind.style.opacity = '0'; return; }
+    ind.style.opacity = '1';
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.height = active.offsetHeight + 'px';
+    ind.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+  });
+}
+function schedulePillSliders() {
+  cancelAnimationFrame(pillSlideRaf);
+  pillSlideRaf = requestAnimationFrame(() => { try { syncPillSliders(); } catch { /* ignore */ } });
+}
 
 /* ---------- Compatibility (Compat module) ---------- */
 let compatCache = null, compatLastGood = null, compatFold = {};
@@ -2123,7 +2154,6 @@ function renderPickerDetail(resetScroll) {
   const stKj = kjStatusFor(it, activeSlot ? slotCatKey(activeSlot) : '');
   const kjTint = kjTintClass(stKj);
   const kjPills = kjPillsHtml(stKj);
-  const isTop = !!(stKj.rec && stKj.rec.tags.includes('top'));
   const fav = $('#pdFav');
   if (fav) {
     const on = isFavorite(it);
@@ -2147,8 +2177,8 @@ function renderPickerDetail(resetScroll) {
     : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
   const offersLabel = st.loading && !st.offers ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}` : `${offersCount} ${pdTxt('offres', 'offers')}`;
   const quickHtml = quick.length ? esc(quick.join(' · ')) : (st.loading ? `<span class="pd-inline-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement du résumé…', 'Loading summary…')}</span>` : '—');
-  body.innerHTML = `<div class="pd-hero${kjTint ? ' ' + kjTint : ''}${stKj.tags.length ? ' has-kj' : ''}">
-      ${isTop ? `<span class="kj-stars" aria-hidden="true"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></span>` : ''}
+  body.className = 'pd-body' + (kjTint ? ' ' + kjTint : '') + (stKj.tags.length ? ' detail-kj' : '');
+  body.innerHTML = `<div class="pd-hero${stKj.tags.length ? ' has-kj' : ''}">
       ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
         ${kjPills ? `<div class="pd-kj-pills">${kjPills}</div>` : ''}
@@ -3872,14 +3902,23 @@ function openDelivery(slotId) {
 
 /* ---------- Summary ---------- */
 function updatePowerTotalsReveal() {
-  const panel = $('#summaryPanel'), pane = $('#sumPowerPane');
+  const panel = $('#summaryPanel'), body = $('#summaryBody'), pane = $('#sumPowerPane');
   if (!panel) return;
   if (!pane || pane.classList.contains('hidden') || !isMobileView()) {
     panel.classList.remove('power-revealed');
     return;
   }
-  const nearBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 180;
+  const nearBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 180;
   panel.classList.toggle('power-revealed', nearBottom);
+}
+function fitSummaryPanel() {
+  const panel = $('#summaryPanel');
+  if (!panel) return;
+  if (isMobileView()) { panel.style.height = ''; return; }
+  if (panel.classList.contains('hidden') || panel.offsetParent === null) return;
+  const top = Math.max(0, panel.getBoundingClientRect().top);
+  const h = Math.max(420, Math.round(innerHeight - top - 16));
+  if (Math.abs(panel.offsetHeight - h) > 2) panel.style.height = h + 'px';
 }
 function switchSum(which) {
   sumTab = which;
@@ -3888,9 +3927,14 @@ function switchSum(which) {
   $('#sumChartsPane').classList.toggle('hidden', which !== 'charts');
   $('#sumPowerPane').classList.toggle('hidden', which !== 'power');
   $('#sumCompatPane').classList.toggle('hidden', which !== 'compat');
+  const dock = $('#sumTotalsDock');
+  if (dock) dock.classList.toggle('hidden', which !== 'desc' && which !== 'power');
+  const descDock = $('#sumTotalsDesc'); if (descDock) descDock.classList.toggle('hidden', which !== 'desc');
+  const powerDock = $('#sumTotalsPower'); if (powerDock) powerDock.classList.toggle('hidden', which !== 'power' || !powerDock.innerHTML);
   if (which !== 'desc') renderSumExtra();
   if (which === 'compat') renderCompat();
   updatePowerTotalsReveal();
+  schedulePillSliders();
 }
 function renderSummary() {
   const T = totals();
@@ -3931,8 +3975,6 @@ function renderSummary() {
     host.appendChild(sep);
   });
   if (!any) host.innerHTML = `<p class="hint">${lang === 'en' ? 'Nothing selected yet — click a component on the left.' : 'Rien de sélectionné — cliquez sur un composant à gauche.'}</p>`;
-  const div = document.createElement('div');
-  div.className = 'sum-totals';
   const mkDiff = (d, excl) => {
     const over = d < 0, abs = eur(Math.abs(d));
     const sign = over ? '-' : '+';
@@ -3942,11 +3984,12 @@ function renderSummary() {
     return `<span class="diff-mini ${over ? 'ko' : 'ok'}" title="${esc(sent)}">(${sign}${abs})</span>`;
   };
   const d1 = state.budget - (T.total - T.deliv), d2 = T.diff;
-  div.innerHTML = `<div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${eur(T.total - T.deliv)}</span></span></div>
-    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${eur(T.total)}</span></span></div>`;
-  host.appendChild(div);
+  const totalsHtml = `<div class="sum-totals"><div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${eur(T.total - T.deliv)}</span></span></div>
+    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${eur(T.total)}</span></span></div></div>`;
+  const dock = $('#sumTotalsDesc'); if (dock) dock.innerHTML = totalsHtml;
   if (sumTab !== 'desc') renderSumExtra();
   updateMobileTotalBar();
+  updateVersionChips();
   refreshIcons();
 }
 function focusComponent(id) {
@@ -4241,6 +4284,10 @@ function renderSumExtra() {
     <div class="legend">${watts.map(x => `<span><i class="dot" style="background:${wmap[x.id]}"></i>${esc(slotName(x.id))} — ${x.v} W</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
   }
   $('#sumPowerPane').innerHTML = powerHtml;
+  const pTot = $('#sumPowerPane .sum-totals');
+  const pDock = $('#sumTotalsPower');
+  if (pDock) { pDock.innerHTML = pTot ? pTot.outerHTML : ''; pDock.classList.toggle('hidden', !pTot || sumTab !== 'power'); }
+  if (pTot) pTot.remove();
   $('#sumPowerPane').querySelectorAll('.chart-dsec').forEach(dsec => {
     const sec = dsec.dataset.sec;
     const head = dsec.querySelector('[data-phead]');
@@ -5101,13 +5148,15 @@ function cmpColumnHead(c, full) {
   const C = PIE_COLORS[(ci < 0 ? 0 : ci) % PIE_COLORS.length];
   const T = totalsForState(c.st);
   const ver = cmpVersionLabel(c);
+  const unsaved = c.source === 'current' && (!c.version || isDirty());
   const meta = c.source === 'current'
-    ? t('compare.current') + (c.version ? ' · v' + c.version : '')
+    ? t('compare.current') + (c.version ? ' · v' + c.version : '') + (unsaved ? ' · ' + t('compare.unsaved') : '')
     : ver + (c.savedAt ? ' · ' + cmpDate(c.savedAt) : '');
+  const dup = c.source === 'saved' && c.srcKey && cmpState.cols.filter(x => x.source === 'saved' && x.srcKey === c.srcKey).length > 1;
   const rm = c.source === 'saved' ? `<button class="icon-btn cmp-colrm" data-cmp-remove="${esc(c.id)}" title="${esc(t('compare.remove'))}" aria-label="${esc(t('compare.remove'))}"><i class="fa-solid fa-xmark"></i></button>` : '';
-  return `<th scope="col" class="cmp-colhead${full ? ' full' : ' compact'}" style="--cmp-accent:${C}">
-    ${rm}<span class="cmp-colname" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span>
-    <span class="cmp-colmeta">${esc(meta)}</span>
+  return `<th scope="col" class="cmp-colhead${full ? ' full' : ' compact'}${unsaved ? ' is-unsaved' : ''}${dup ? ' is-dup' : ''}" style="--cmp-accent:${C}">
+    ${rm}<span class="cmp-colname" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}${dup ? ` <span class="cmp-dupe">${esc(t('compare.duplicate'))}</span>` : ''}</span>
+    <span class="cmp-colmeta${unsaved ? ' is-unsaved' : ''}">${esc(meta)}</span>
     ${full ? `<span class="cmp-coltotal">${eur(T.total)}</span>` : ''}
   </th>`;
 }
@@ -5403,6 +5452,7 @@ function renderCompare() {
   bindCmpScroll();
   cmpRestoreScroll(scrolls);
   cmpLoadExtras(data);
+  schedulePillSliders();
 }
 function cmpScheduleRender() {
   if (cmpState.renderTimer) clearTimeout(cmpState.renderTimer);
@@ -5549,8 +5599,8 @@ function cmpCandidateList() {
     arr.forEach((v, idx) => {
       if (!v || !v.snapshot) return;
       const srcKey = name + '|' + (v.savedAt || 0) + '|' + idx;
-      if (cmpState.cols.some(c => c.source === 'saved' && c.srcKey === srcKey)) return;
-      out.push({ srcKey, name, version: v.version || v.label || '', savedAt: v.savedAt || 0, snapshot: v.snapshot, total: totalsForState(v.snapshot).total });
+      const dup = cmpState.cols.some(c => c.source === 'saved' && c.srcKey === srcKey);
+      out.push({ srcKey, name, version: v.version || v.label || '', savedAt: v.savedAt || 0, snapshot: v.snapshot, total: totalsForState(v.snapshot).total, dup });
     });
   });
   out.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
@@ -5565,7 +5615,7 @@ function openCompareConfigPicker() {
   const html = cands.length ? `<p class="hint">${esc(t('compare.pickHint'))}</p>` + groups.map(name => {
     const rows = cands.filter(c => c.name === name).map(c => {
       const i = cands.indexOf(c);
-      return `<button class="cmp-pick-row" data-cmp-cand="${i}"><span class="cmp-pick-main"><strong>${esc(c.version || c.name)}</strong><small>${esc(c.savedAt ? cmpDate(c.savedAt) : '')}</small></span><span class="cmp-pick-total">${eur(c.total)}</span></button>`;
+      return `<button class="cmp-pick-row" data-cmp-cand="${i}"><span class="cmp-pick-main"><strong>${esc(c.version || c.name)}${c.dup ? ` <span class="cmp-dupe">${esc(t('compare.duplicate'))}</span>` : ''}</strong><small>${esc(c.savedAt ? cmpDate(c.savedAt) : '')}</small></span><span class="cmp-pick-total">${eur(c.total)}</span></button>`;
     }).join('');
     return `<div class="cmp-pick-group"><h3>${esc(name)}</h3>${rows}</div>`;
   }).join('') : `<p class="hint">${esc(cands.length ? t('compare.max') : t('compare.noSaved'))}</p>`;
@@ -5879,7 +5929,7 @@ function openWelcome() {
   openModal(t('welcome.title'), `
     <div id="wMain" class="wpage">
       <div class="wcols">
-        <div class="wleft">
+        <section class="wbrand">
           <img class="wlogo" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
           <div class="wtitle">ConfigMaker by <a href="https://kevinjmt.github.io/" target="_blank" rel="noopener">KJ</a></div>
           <p class="hint wslogan">${esc(t('footer.tag'))}</p>
@@ -5889,17 +5939,19 @@ function openWelcome() {
             <div class="glass wfeat"><i class="fa-solid fa-gauge-high"></i><span>${esc(t('welcome.feat3'))}</span></div>
             <div class="glass wfeat"><i class="fa-solid fa-code-branch"></i><span>${esc(t('welcome.feat4'))}</span></div>
           </div>
+        </section>
+        <section class="wright">
+          <h3>${esc(t('welcome.load'))}</h3>
+          <div id="wConsentWarn"></div>
+          <div id="wRecents" class="wrecents"></div>
+        </section>
+        <section class="wnew">
           <h3>${esc(t('welcome.new'))}</h3>
           <div class="wgrid"><label>${esc(t('welcome.name'))}<input id="wName" maxlength="60" value="${esc(state.name)}"></label>
           <label>${esc(t('welcome.budget'))}<input id="wBudget" type="number" min="0" step="1" value="${esc(String(state.budget))}"></label></div>
           <div class="btn-row"><button class="btn btn-primary" id="wNew"><i class="fa-solid fa-file-circle-plus"></i> ${esc(t('welcome.new'))}</button>
           <button class="btn bubble-btn" id="wAiGo"><i class="fa-solid fa-wand-magic-sparkles"></i> ${esc(t('welcome.createAi'))}</button></div>
-        </div>
-        <div class="wright">
-          <h3>${esc(t('welcome.load'))}</h3>
-          <div id="wConsentWarn"></div>
-          <div id="wRecents" class="wrecents"></div>
-        </div>
+        </section>
       </div>
     </div>
     <div id="wAi" class="wpage hidden">
@@ -6421,25 +6473,29 @@ function openShareExport(pill) {
   pill = pill === 'export' ? 'export' : 'share';
   const T = (en, fr) => (lang === 'en' ? en : fr);
   const link = buildShareLink();
-  const both = [
-    T('Config name', 'Nom de la config'),
-    T('Budget', 'Budget'),
-    T('Each component: name, price, Idealo link', 'Chaque composant : nom, prix, lien Idealo'),
-  ];
-  const onlyExport = [
-    T('Manual & merchant links, vendor, delivery', 'Liens manuel & marchand, vendeur, livraison'),
-    T('Quantities, power (W), PSU/UPS capacity', 'Quantités, puissance (W), capacité alim/onduleur'),
-    T('Specs, datasheets, verification, notes', 'Specs, fiches techniques, vérification, notes'),
-    T('Variants, carrier & tracking, custom labels', 'Variantes, transporteur & suivi, libellés perso'),
-    T('PC usage & pricing schedule', 'Utilisation & tarification du PC'),
-    T('Price history & saved snapshots', 'Historique des prix & sauvegardes'),
-    T('Full PDF report (description, charts, benchmarks)', 'Rapport PDF complet (description, graphiques, benchmarks)'),
-  ];
-  const li = a => a.map(x => `<li>${esc(x)}</li>`).join('');
-  const cmp = `<div class="cmp">
-    <div class="cmp-col"><h4><i class="fa-solid fa-share-nodes"></i> ${T('Share &amp; Export', 'Partage &amp; export')}</h4><ul>${li(both)}</ul></div>
-    <div class="cmp-col"><h4><i class="fa-solid fa-file-arrow-down"></i> ${T('Export only', 'Export uniquement')}</h4><ul>${li(onlyExport)}</ul></div>
-  </div>`;
+  const selected = state.order.filter(id => state.slots[id] && sel(state.slots[id]));
+  const altCount = state.order.reduce((n, id) => {
+    const sl = state.slots[id];
+    return n + (sl ? (sl.products || []).filter(p => p.id !== sl.selectedId).length : 0);
+  }, 0);
+  const snapshots = (load(LS.configs, {})[state.name] || []).length;
+  const pricePoints = (load(LS.hist, {})[state.name] || []).length;
+  const usageHours = state.usage ? usageWeeklyHours(normUsage(state.usage)) : 0;
+  const yes = `<td class="cmp-inc" title="${esc(T('Included', 'Inclus'))}"><i class="fa-solid fa-check"></i></td>`;
+  const no = `<td class="cmp-out" title="${esc(T('Omitted', 'Omis'))}"><i class="fa-solid fa-xmark"></i></td>`;
+  const row = (label, value, share, json, pdf) => `<tr><th scope="row">${esc(label)}</th><td class="cmp-val">${esc(String(value))}</td>${share ? yes : no}${json ? yes : no}${pdf ? yes : no}</tr>`;
+  const cmp = `<div class="cmp-data"><table class="cmp-matrix"><thead><tr><th>${T('Data', 'Donnée')}</th><th>${T('Current', 'Actuelle')}</th><th><i class="fa-solid fa-share-nodes"></i> ${T('Share', 'Partager')}</th><th>JSON</th><th>PDF</th></tr></thead><tbody>
+    ${row(T('Config name', 'Nom de la config'), state.name || '—', true, true, true)}
+    ${row(T('Budget', 'Budget'), eur(state.budget), true, true, true)}
+    ${row(T('Selected components', 'Composants sélectionnés'), selected.length, selected.length > 0, true, true)}
+    ${row(T('Alternatives', 'Alternatives'), altCount, false, true, false)}
+    ${row(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), selected.length, false, true, true)}
+    ${row(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), selected.length, false, true, true)}
+    ${row(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), selected.length, false, true, true)}
+    ${row(T('PC usage & pricing', 'Utilisation & tarification PC'), usageHours + ' h', false, true, true)}
+    ${row(T('Saved snapshots', 'Sauvegardes'), snapshots, false, true, false)}
+    ${row(T('Price history points', 'Points d’historique des prix'), pricePoints, false, true, true)}
+  </tbody></table><p class="hint cmp-data-note">${T('Share keeps only the name, budget, and each component’s name, price and Idealo link. The current values above are read live from this config.', 'Le partage ne garde que le nom, le budget et, pour chaque composant, son nom, son prix et son lien Idealo. Les valeurs ci-dessus sont lues en direct dans cette config.')}</p></div>`;
   const sharePane = `
     <p class="hint">${T('Scan the QR code or copy the link to share this configuration.', 'Scannez le QR code ou copiez le lien pour partager cette configuration.')}</p>
     <div class="qr-img" id="s_qr"></div>
@@ -6650,6 +6706,8 @@ function buildPrintReport() {
   const descSrc = document.getElementById('sumDescPane');
   if (descSrc && descSrc.children.length) desc.appendChild(prCleanPane(descSrc.cloneNode(true)));
   else desc.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+  const descDock = document.getElementById('sumTotalsDesc');
+  if (descDock && descDock.children.length) desc.appendChild(prCleanPane(descDock.cloneNode(true)));
 
   /* 3 — graphs (budget allocation + per-section pies) */
   const graphs = prSection(root, L('Graphs', 'Graphiques'), 'fa-solid fa-chart-pie');
@@ -6684,6 +6742,8 @@ function buildPrintReport() {
     const ub = c.querySelector('#openUsageBtn'); if (ub) ub.remove();
     power.appendChild(prCleanPane(c));
   }
+  const powerDock = document.getElementById('sumTotalsPower');
+  if (powerDock && powerDock.children.length) power.appendChild(prCleanPane(powerDock.cloneNode(true)));
 
   /* 6 — compatibility */
   const compat = prSection(root, L('Compatibility', 'Compatibilité'), 'fa-solid fa-shield-halved');
@@ -6768,6 +6828,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.63 — Réglages, verre et résumé repensés</h3><p class="hint">Nouveau panneau Paramètres (animations, fond dynamique, design translucide) et installation mobile sous l’en-tête. Les popups reprennent le verre dépoli de la barre de navigation, les onglets partagent un curseur coulissant et les pastilles sont de taille fixe. Le résumé garde ses totaux épinglés en bas, dans une seule zone de défilement pleine hauteur. Les cartes de composants alignent badges et compatibilité, la fiche choisie est teintée entièrement, les étoiles KJ laissent place à un reflet renforcé et le compteur de photos devient une pastille de verre. Le comparateur accepte les doublons, signale les configs non sauvegardées et le partage compare les données réellement incluses avec la config actuelle. Sur mobile, la fenêtre de bienvenue place le chargement avant la création.</p></div>
     <div class="chlog"><h3>v2.62 — Tutoriels de montage</h3><p class="hint">Nouvel onglet Tutoriels entre Benchmarks et Comparer : les composants PC sont triés selon la playlist TopAchat, avec les titres exacts des vidéos. Un clic affiche le tutoriel TopAchat et la vidéo Materiel.net correspondante, tandis que les deux playlists complètes restent accessibles sur YouTube. Sur mobile, la fiche vidéo s’ouvre comme les panneaux de la config, depuis le bas de l’écran.</p></div>
     <div class="chlog"><h3>v2.61 — Fiches techniques automatiques</h3><p class="hint">La fiche technique est désormais remplie automatiquement à la sélection d’un composant, puis remplacée en arrière-plan par le tableau exact d’Idealo : les lignes « Libellé : valeur » sont enfin reconnues, sans la première ligne d’image inutile. La fiche reste éditable dans le formulaire avec un aperçu ligne par ligne et une modification manuelle n’est jamais écrasée. Dans le comparateur, chaque composant se déplie pour afficher sa fiche, les différences restent orange et le classement vert/rouge s’applique aux fiches comme aux benchmarks. L’icône de l’onglet reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.60 — Fiches techniques comparées</h3><p class="hint">Chaque composant du comparateur peut être déplié pour afficher sa fiche technique ligne par ligne, avec les meilleures valeurs en vert et les moins bonnes en rouge dès trois configurations. Les données sont enregistrées dans la fiche : aucune nouvelle requête au dépliage. La fiche d’un composant devient aussi éditable dans le formulaire (une ligne « Libellé : valeur »), et une fiche modifiée à la main n’est plus écrasée par l’enrichissement automatique.</p></div>
@@ -6930,6 +6991,7 @@ function showPage(which) {
     tab.setAttribute('aria-selected', x === which ? 'true' : 'false');
   });
   const page = $('#page-' + which);
+  schedulePillSliders();
   if (page) {
     page.classList.remove('page-enter'); void page.offsetWidth; page.classList.add('page-enter');
     page.addEventListener('animationend', function clearEnter(e) {
@@ -6964,12 +7026,46 @@ function applyLang() {
   $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', el.title); });
   $('#langFlag').src = lang === 'fr' ? './assets/icons/uk.png' : './assets/icons/fr.png';
   $('#langBtn').title = lang === 'fr' ? 'Switch to English' : 'Passer en français';
+  updateVersionChips();
   const tutorialList = $('#tutorialList');
   if (tutorialList && tutorialList.children.length) {
     renderTutorialList();
     const tutorialPage = $('#page-tutorials');
     if (tutorialPage && !tutorialPage.classList.contains('hidden')) renderTutorialRight();
   }
+}
+function applyUiPrefs() {
+  const root = document.documentElement;
+  root.dataset.anim = prefs.animations === false ? 'off' : 'on';
+  root.dataset.bg = prefs.dynamicBg === false ? 'off' : 'on';
+  root.dataset.glass = prefs.translucent === false ? 'off' : 'on';
+  if (prefs.dynamicBg === false) $$('[data-bg-parallax]').forEach(o => { o.style.transform = ''; });
+}
+function setUiPref(key, value) {
+  prefs[key] = value;
+  save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang, [key]: value });
+  applyUiPrefs();
+}
+function openSettings() {
+  const anim = prefs.animations !== false;
+  const bg = prefs.dynamicBg !== false;
+  const glass = prefs.translucent !== false;
+  const row = (id, label, hint, checked) => `<label class="set-row" for="${id}"><span class="settings-txt"><strong>${esc(t(label))}</strong><small>${esc(t(hint))}</small></span><span class="set-switch"><input type="checkbox" id="${id}"${checked ? ' checked' : ''}><span class="set-slider" aria-hidden="true"></span></span></label>`;
+  openModal(t('settings.title'), `
+    <div class="settings-list">
+      <button type="button" class="settings-export" id="setExportAll">
+        <span class="settings-ico"><i class="fa-solid fa-file-export"></i></span>
+        <span class="settings-txt"><strong>${esc(t('settings.exportAll'))}</strong><small>${esc(t('settings.exportAllHint'))}</small></span>
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+      ${row('setAnimations', 'settings.animations', 'settings.animationsHint', anim)}
+      ${row('setDynamicBg', 'settings.dynamicBg', 'settings.dynamicBgHint', bg)}
+      ${row('setTranslucent', 'settings.translucent', 'settings.translucentHint', glass)}
+    </div>`);
+  $('#setExportAll').onclick = exportAll;
+  $('#setAnimations').onchange = e => setUiPref('animations', e.target.checked);
+  $('#setDynamicBg').onchange = e => setUiPref('dynamicBg', e.target.checked);
+  $('#setTranslucent').onchange = e => setUiPref('translucent', e.target.checked);
 }
 
 /* ---------- PWA install ---------- */
@@ -6992,6 +7088,21 @@ function openInstall() {
 }
 
 /* ---------- Refresh ---------- */
+function updateVersionChips() {
+  const dirty = isDirty();
+  const isUnsaved = !state.version || dirty;
+  const word = lang === 'en' ? 'unsaved' : 'non sauvegardée';
+  const txt = !state.version ? word : (dirty ? `v${state.version} · ${word}` : `v${state.version}`);
+  const title = isUnsaved
+    ? (lang === 'en' ? 'Unsaved changes' : 'Modifications non sauvegardées')
+    : (lang === 'en' ? 'Current saved version' : 'Version sauvegardée actuelle');
+  ['#versionChip', '#sumVersionChip'].forEach(sel => {
+    const el = $(sel); if (!el) return;
+    el.textContent = txt;
+    el.title = title;
+    el.classList.toggle('is-unsaved', isUnsaved);
+  });
+}
 function syncDocTitle() {
   const name = String(state.name || '').trim() || 'Ma Config';
   document.title = `${name} - Configmaker by KJ`;
@@ -7001,9 +7112,8 @@ function refresh() {
   syncDocTitle();
   $('#configName').value = state.name;
   $('#budgetInput').value = state.budget;
-  $('#versionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
   $('#sumConfigName').textContent = state.name || '';
-  $('#sumVersionChip').textContent = state.version ? 'v' + state.version : (lang === 'en' ? 'unsaved' : 'non sauvée');
+  updateVersionChips();
   renderSlots(); renderSummary();
   updateCompatBadge();
   if (sumTab === 'compat') renderCompat();
@@ -7023,7 +7133,7 @@ function bind() {
   $('#historyBtn').onclick = openHistory;
   $('#shareBtn').onclick = () => openShareExport('share');
   $('#exportBtn').onclick = () => openShareExport('export');
-  $('#exportAllBtn').onclick = exportAll;
+  $('#settingsBtn').onclick = openSettings;
   $('#footExport').onclick = e => { e.preventDefault(); exportAll(); };
   $('#versionBtn').onclick = openChangelog;
   $('#footChangelog').onclick = e => { e.preventDefault(); openChangelog(); };
@@ -7032,6 +7142,7 @@ function bind() {
   $('#tabTutorials').onclick = () => showPage('tutorials');
   $('#tabCompare').onclick = () => showPage('compare');
   $('#tabPrices').onclick = () => showPage('prices');
+  updateVersionChips();
   const tutorialList = $('#tutorialList');
   if (tutorialList) tutorialList.onclick = e => {
     const row = e.target.closest('[data-tut-slot]');
@@ -7253,14 +7364,20 @@ function bind() {
       openTutorialSheet();
     }
     updatePowerTotalsReveal();
+    fitSummaryPanel();
     fitPickerDetail();
     schedulePriceDraw();
+    schedulePillSliders();
   }, { passive: true });
-  window.addEventListener('scroll', () => { document.body.classList.toggle('scrolled', scrollY > 10); fitPickerDetail(); }, { passive: true });
+  document.addEventListener('click', e => { if (e.target.closest('.pill, .seg, .usage-tabs, .cmp-modes')) schedulePillSliders(); });
+  window.addEventListener('scroll', () => { document.body.classList.toggle('scrolled', scrollY > 10); fitSummaryPanel(); fitPickerDetail(); }, { passive: true });
   document.body.classList.toggle('scrolled', scrollY > 10);
   // parallax orbs
   const orbs = $$('[data-bg-parallax]');
-  window.addEventListener('scroll', () => { orbs.forEach(o => { o.style.transform = `translateY(${scrollY * parseFloat(o.dataset.bgParallax)}px)`; }); }, { passive: true });
+  window.addEventListener('scroll', () => {
+    if (prefs.dynamicBg === false) return;
+    orbs.forEach(o => { o.style.transform = `translateY(${scrollY * parseFloat(o.dataset.bgParallax)}px)`; });
+  }, { passive: true });
 }
 
 /* ---------- Init ---------- */
@@ -7272,12 +7389,13 @@ function bind() {
     ]);
     if (r && r.adopted) state = load(LS.state, null) || state;
   } catch { /* LS seed already rendered below */ }
-  prefs = { theme: load(LS.prefs, {}).theme || 'system', lang };
-  lang = load(LS.prefs, {}).lang || 'fr';
+  const storedPrefs = load(LS.prefs, {});
+  prefs = { ...prefs, ...storedPrefs, theme: storedPrefs.theme || prefs.theme || 'system' };
+  lang = storedPrefs.lang || lang;
   // load from share link
   baselineSaved(); // draft restored as-is; dirty iff different from last save
   window.addEventListener('beforeunload', () => { persist(); try { if (typeof StoreDB !== 'undefined') StoreDB.flush(); } catch {} }); // belt & braces: draft always restorable
-  applyTheme(); applyLang(); bind(); refresh(); showBench();
+  applyUiPrefs(); applyTheme(); applyLang(); bind(); refresh(); showBench(); schedulePillSliders(); fitSummaryPanel();
   const shareObj = (location.hash.includes('#c=') || location.hash.includes('cfg=1')) ? (() => { try { return decodeShare(location.hash); } catch { return null; } })() : null;
   if (shareObj) {
     // gate: a share link replaces the current draft — don't lose unsaved work silently
