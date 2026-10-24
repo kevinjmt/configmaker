@@ -1,11 +1,11 @@
-/* ConfigMaker v2.65 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.66 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.65';
+const APP_VERSION = '2.66';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -248,8 +248,26 @@ const I18N = {
     'compare.savedOn': 'Sauvegardée le', 'compare.diffLegend': 'Surligné : différent de la config actuelle',
     'compare.fps': 'FPS', 'compare.score': 'Score',
     'compare.empty': 'Sélectionnez des composants dans la config ou ajoutez une configuration sauvegardée.',
-    'compare.hint': 'La config actuelle est à gauche. Les changements effectués ici sont temporaires et ne modifient ni le brouillon ni les sauvegardes.',
+    'compare.hint': 'La config actuelle est à gauche. Les changements effectués ici sont temporaires et ne modifient ni le brouillon ni les sauvegardes, sauf « Ajouter en alternative ».',
     'compare.hintDiff': 'Les différences par rapport à la config actuelle sont surlignées ; les lignes identiques sont atténuées.',
+    'compare.cardsTitle': 'Comparer les composants',
+    'compare.cardsHint': 'Le composant sélectionné de chaque configuration, côte à côte. Les changements restent limités à la comparaison, sauf l’ajout d’une alternative à la config actuelle.',
+    'compare.cardExpand': 'Comparer les composants côte à côte',
+    'compare.cardOptions': 'Alternatives et variantes',
+    'compare.optionsHint': 'Les changements ne concernent que cette colonne de comparaison.',
+    'compare.addAlt': 'Ajouter en alternative',
+    'compare.addAltTitle': 'Ajouter ce composant comme alternative à la config actuelle',
+    'compare.addedAlt': 'Déjà dans la config',
+    'compare.altAdded': 'Alternative ajoutée à la config actuelle',
+    'compare.altExists': 'Déjà présente dans la config actuelle',
+    'compare.cardCurrent': 'Actuelle',
+    'compare.cardDelivery': 'livraison incluse',
+    'compare.cardQty': 'Qté',
+    'compare.cardDatasheet': 'Fiche technique',
+    'compare.openManual': 'Manuel',
+    'compare.openIdealo': 'Idealo',
+    'compare.openMerchant': 'Marchand',
+    'compare.noAlt': 'Aucune alternative',
     'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
     'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative", 'picker.detail': 'Fiche du composant', 'picker.openIdealo': 'Ouvrir sur Idealo',
@@ -342,8 +360,26 @@ const I18N = {
     'compare.savedOn': 'Saved on', 'compare.diffLegend': 'Highlighted: differs from the current config',
     'compare.fps': 'FPS', 'compare.score': 'Score',
     'compare.empty': 'Select components in the config or add a saved configuration.',
-    'compare.hint': 'The current draft is on the left. Changes made here are temporary and never modify the draft or saved versions.',
+    'compare.hint': 'The current draft is on the left. Changes made here are temporary and never modify the draft or saved versions, except “Add as alternative”.',
     'compare.hintDiff': 'Differences from the current config are highlighted; identical rows are dimmed.',
+    'compare.cardsTitle': 'Compare components',
+    'compare.cardsHint': 'The selected component in each configuration, side by side. Changes stay limited to the comparison, except adding an alternative to the current config.',
+    'compare.cardExpand': 'Compare components side by side',
+    'compare.cardOptions': 'Alternatives and variants',
+    'compare.optionsHint': 'Changes apply only to this comparison column.',
+    'compare.addAlt': 'Add as alternative',
+    'compare.addAltTitle': 'Add this component as an alternative to the current config',
+    'compare.addedAlt': 'Already in config',
+    'compare.altAdded': 'Alternative added to the current config',
+    'compare.altExists': 'Already in the current config',
+    'compare.cardCurrent': 'Current',
+    'compare.cardDelivery': 'delivery included',
+    'compare.cardQty': 'Qty',
+    'compare.cardDatasheet': 'Datasheet',
+    'compare.openManual': 'Manual',
+    'compare.openIdealo': 'Idealo',
+    'compare.openMerchant': 'Merchant',
+    'compare.noAlt': 'No alternative',
     'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
     'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative', 'picker.detail': 'Component details', 'picker.openIdealo': 'Open on Idealo',
@@ -423,6 +459,8 @@ if (!state.usage) {
   state.usage = normUsage(seeded || {});
 }
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
+let cmpCardsState = null; // open side-by-side component cards popup
+let cmpOptAnchor = null; // trigger of the compact alternatives popover
 let tutSelected = null, tutCloseTimer = null;
 let sheetHideTimer = null;
 const openAlts = new Set();
@@ -626,9 +664,9 @@ function stampVersion(d = new Date()) {
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 2400); }
 
 /* ---------- Modal ---------- */
-const MODAL_SIZES = ['modal-xl', 'modal-wide'];
+const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards'];
 function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) box.classList.remove(...MODAL_SIZES); editingPid = null; }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); } editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
 let editingPid = null;
 
 let pillSlideRaf = 0;
@@ -5359,15 +5397,19 @@ function cmpSection(title, icon, rows, cols, opts = {}) {
     const first = cells[0] || cmpCell('', '', null, 0);
     const diff = cells.some(c => !cmpSame(first, c));
     const ranks = cmpRank(cells, cols.length, row.dir || 'high');
-    return `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}">
-      <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}">${row.icon ? `<span class="cmp-rowicon">${row.icon}</span>` : ''}<span>${esc(row.label || '')}</span>${row.expandKey ? `<button type="button" class="cmp-expand" data-cmp-expand="${esc(row.expandKey)}" aria-expanded="${row.expandOpen ? 'true' : 'false'}" title="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}" aria-label="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}"><i class="fa-solid fa-chevron-${row.expandOpen ? 'down' : 'right'}"></i></button>` : ''}${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</th>
+    const rowInner = `${row.expandKey ? `<span class="cmp-rowchev" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>` : ''}${row.icon ? `<span class="cmp-rowicon">${row.icon}</span>` : ''}<span class="cmp-rowlabel">${esc(row.label || '')}${row.sub ? `<small>${esc(row.sub)}</small>` : ''}</span>`;
+    const rowHead = row.expandKey
+      ? `<button type="button" class="cmp-rowtoggle" data-cmp-expand="${esc(row.expandKey)}" aria-expanded="${row.expandOpen ? 'true' : 'false'}" title="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}">${rowInner}</button>`
+      : `<span class="cmp-rowtoggle cmp-static">${rowInner}</span>`;
+    return `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}${row.expandOpen ? ' cmp-open' : ''}${row.total ? ' cmp-total-row' : ''}">
+      <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}${row.expandKey ? ' has-toggle' : ''}" title="${esc(row.label || '')}">${rowHead}</th>
       ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}${ranks[i] ? ' cmp-' + ranks[i] : ''}"${ranks[i] ? ` title="${esc(t('compare.' + ranks[i]))}"` : ''}>${c.html}</td>`).join('')}
     </tr>`;
   }).join('');
-  return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" aria-labelledby="${sid}">
+  return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" style="--cmp-table-w:${180 + cols.length * 190 + 34}px" aria-labelledby="${sid}">
     <div class="cmp-sec-head" id="${sid}"><i class="${icon}"></i><span>${esc(title)}</span>${opts.badge ? `<span class="cmp-sec-badge">${opts.badge}</span>` : ''}</div>
     ${opts.tools || ''}
-    ${rows.length ? `<div class="cmp-scroll" data-cmp-scroll><table class="cmp-table" style="min-width:${180 + cols.length * 190}px"><colgroup><col class="cmp-colrow">${cols.map(() => '<col class="cmp-colbody">').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table></div>` : `<p class="hint cmp-empty">${esc(t('compare.noRows'))}</p>`}
+    ${rows.length ? `<div class="cmp-scroll"><table class="cmp-table" style="min-width:${180 + cols.length * 190}px"><colgroup><col class="cmp-colrow">${cols.map(() => '<col class="cmp-colbody">').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table></div>` : `<p class="hint cmp-empty">${esc(t('compare.noRows'))}</p>`}
   </section>`;
 }
 function cmpSpecRows(data) {
@@ -5387,13 +5429,13 @@ function cmpSpecRows(data) {
       const prods = slots.map(s => s ? (s.products || []).find(x => x.id === s.selectedId) || null : null);
       const label = cmpSlotNameFor(id, data.cols);
       const cells = data.cols.map((c, i) => {
-        const s = slots[i];
         const p = prods[i];
         if (!p) return cmpCell(`<span class="cmp-none">${esc(t('compare.emptySlot'))}</span>`, '', null, 0);
         const price = unitTotal(p);
-        const hasOpts = (s.products || []).length > 1 || !!(p.variants && p.variants.items && p.variants.items.length);
-        const swap = hasOpts ? `<button class="cmp-swap" data-cmp-swap="${esc(id)}" data-cmp-col="${esc(c.id)}" title="${esc(t('compare.pickComponent'))}" aria-label="${esc(t('compare.pickComponent'))}"><span class="cmp-swap-ico"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-right-left"></i></span></button>` : '';
-        return cmpCell(`<div class="cmp-product"><div class="cmp-pname">${esc(p.name || '—')}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>${swap}`, (p.name || '') + '|' + price.toFixed(2), null, 0);
+        const expand = data.cols.length > 1
+          ? `<button class="cmp-cards-open" data-cmp-cards="${esc(id)}" data-cmp-col="${esc(c.id)}" title="${esc(t('compare.cardExpand'))}" aria-label="${esc(t('compare.cardExpand'))}" aria-haspopup="dialog"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>`
+          : '';
+        return cmpCell(`<div class="cmp-product"><div class="cmp-prow"><div class="cmp-pname">${esc(p.name || '—')}</div>${expand}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>`, (p.name || '') + '|' + price.toFixed(2), null, 0);
       });
       const hasAny = prods.some(Boolean);
       /* Only show the chevron when there is something to expand. */
@@ -5404,7 +5446,7 @@ function cmpSpecRows(data) {
     });
   });
   if (!rows.length) return [];
-  rows.push({ label: t('compare.total'), cells: data.cols.map(c => {
+  rows.push({ label: t('compare.total'), total: true, cells: data.cols.map(c => {
     const T = totalsForState(c.st);
     return cmpCell(`<strong>${eur(T.total)}</strong>`, String(T.total), T.total, 0.005, { rankable: false });
   }) });
@@ -5505,31 +5547,58 @@ function cmpBenchHtml(data) {
     + cmpSection(t('compare.daily'), 'fa-solid fa-house-laptop', dailyRows, data.cols)
     + cmpSection(t('compare.heavy'), 'fa-solid fa-compass-drafting', heavyRows, data.cols);
 }
-function cmpRestoreScroll(scrolls) {
-  if (!scrolls.length) return;
-  requestAnimationFrame(() => {
-    const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
-    els.forEach((el, i) => { if (scrolls[i] != null) el.scrollLeft = scrolls[i]; });
-  });
+function cmpFitViewport() {
+  const body = $('#cmpBody');
+  const page = $('#page-compare');
+  if (!body || !page || page.classList.contains('hidden')) return;
+  const top = Math.max(0, body.getBoundingClientRect().top);
+  const minH = isMobileView() ? 420 : 320;
+  const h = Math.min(window.innerHeight - 16, Math.max(minH, window.innerHeight - top - 16));
+  body.style.maxHeight = Math.round(h) + 'px';
+  cmpMeasureSticky();
 }
-function bindCmpScroll() {
-  const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
-  let lock = false;
-  els.forEach(el => {
-    el.addEventListener('scroll', () => {
-      if (lock) return;
-      lock = true;
-      const x = el.scrollLeft;
-      els.forEach(o => { if (o !== el) o.scrollLeft = x; });
-      requestAnimationFrame(() => { lock = false; });
-    }, { passive: true });
+function cmpMeasureSticky() {
+  if (!$('#page-compare') || $('#page-compare').classList.contains('hidden')) return;
+  $$('#cmpBody .cmp-table').forEach(t => {
+    const head = t.querySelector('thead .cmp-colhead');
+    const group = t.querySelector('tbody .cmp-group');
+    const open = t.querySelector('tbody tr.cmp-open');
+    t.style.setProperty('--cmp-head-h', (head ? head.offsetHeight : 0) + 'px');
+    t.style.setProperty('--cmp-group-h', (group ? group.offsetHeight : 0) + 'px');
+    t.style.setProperty('--cmp-open-h', (open ? open.offsetHeight : 0) + 'px');
   });
+  cmpUpdatePinned();
+}
+function cmpUpdatePinned() {
+  const body = $('#cmpBody');
+  if (!body) return;
+  const open = body.querySelector('tbody tr.cmp-open');
+  if (!open) return;
+  const table = open.closest('.cmp-table');
+  if (!table) return;
+  const headH = parseFloat(table.style.getPropertyValue('--cmp-head-h')) || 0;
+  const groupH = parseFloat(table.style.getPropertyValue('--cmp-group-h')) || 0;
+  const line = body.getBoundingClientRect().top + headH + groupH;
+  const rowH = open.offsetHeight;
+  const top = open.getBoundingClientRect().top;
+  let next = open.nextElementSibling;
+  while (next && !(next.classList.contains('cmp-group') || (next.classList.contains('cmp-row') && !next.classList.contains('cmp-detail-row')))) next = next.nextElementSibling;
+  const nextTop = next ? next.getBoundingClientRect().top : Infinity;
+  if (open.dataset.cmpUnpinned === '1') {
+    if (nextTop > line + rowH + 1) delete open.dataset.cmpUnpinned;
+    else { open.classList.remove('is-pinned'); return; }
+  }
+  if (top <= line + 1 && nextTop > line + rowH + 1) open.classList.add('is-pinned');
+  else if (open.classList.contains('is-pinned')) {
+    open.classList.remove('is-pinned');
+    if (nextTop <= line + rowH + 1) open.dataset.cmpUnpinned = '1';
+  }
 }
 function renderCompare() {
   const body = $('#cmpBody');
   if (!body) return;
   cmpEnsureCols();
-  const scrolls = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]')).map(el => el.scrollLeft);
+  const scrollTop = body.scrollTop, scrollLeft = body.scrollLeft;
   const data = cmpData();
   cmpSectionSeq.n = 0;
   body.classList.toggle('cmp-mode-diff', cmpState.mode === 'diff');
@@ -5551,8 +5620,10 @@ function renderCompare() {
     + cmpBenchHtml(data);
   body.innerHTML = html;
   refreshIcons(body);
-  bindCmpScroll();
-  cmpRestoreScroll(scrolls);
+  cmpMeasureSticky();
+  body.scrollTop = scrollTop;
+  body.scrollLeft = scrollLeft;
+  requestAnimationFrame(() => cmpMeasureSticky());
   cmpLoadExtras(data);
   schedulePillSliders();
 }
@@ -5608,6 +5679,7 @@ function cmpLoadExtras(data) {
 function cmpAfterColumnChange(col) {
   delete cmpState.ext[col.id];
   renderCompare();
+  cmpRefreshCards();
 }
 function cmpRetry(kind, colId) {
   const e = cmpState.ext[colId];
@@ -5617,47 +5689,223 @@ function cmpRetry(kind, colId) {
   renderCompare();
 }
 function cmpNormUrl(u) { return String(u || '').replace(/\/+$/, '').trim(); }
-function cmpOpenOptions(colId, slotId) {
+function cmpOptionData(colId, slotId) {
   const col = cmpState.cols.find(c => c.id === colId);
   const s = col && col.st.slots && col.st.slots[slotId];
-  if (!s) return;
-  const p = (s.products || []).find(x => x.id === s.selectedId) || null;
-  const sorted = [...(s.products || [])].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
-  const altHtml = sorted.map(x => `<button class="cmp-opt-row${x.id === s.selectedId ? ' current' : ''}" data-cmp-pickprod="${esc(x.id)}"><span class="cmp-opt-main"><strong>${esc(x.name || '—')}</strong><small>${x.idealo ? 'Idealo' : (lang === 'en' ? 'Manual entry' : 'Fiche manuelle')}</small></span><span class="cmp-opt-price">${eur(x.price)}</span></button>`).join('') || `<p class="hint">${esc(lang === 'en' ? 'No alternatives.' : 'Aucune alternative.')}</p>`;
+  const p = s ? ((s.products || []).find(x => x.id === s.selectedId) || null) : null;
+  const products = s ? [...(s.products || [])] : [];
   const variants = p && p.variants && Array.isArray(p.variants.items) ? p.variants.items : [];
+  return { col, s, p, products, variants };
+}
+function cmpOptionsCount(s, p) {
+  const alternatives = Math.max(0, ((s && s.products) || []).length - 1);
+  const variants = p && p.variants && Array.isArray(p.variants.items) ? p.variants.items.length : 0;
+  return alternatives + variants;
+}
+function cmpOptionsHtml(colId, slotId) {
+  const { col, s, p, products, variants } = cmpOptionData(colId, slotId);
+  if (!col || !s) return `<p class="hint">${esc(t('compare.noAlt'))}</p>`;
+  const sorted = products.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
   const curUrl = cmpNormUrl(p && p.idealo);
+  const altHtml = sorted.map(x => `<button class="cmp-opt-row${x.id === s.selectedId ? ' current' : ''}" data-cmp-pickprod="${esc(x.id)}"${x.id === s.selectedId ? ' aria-current="true"' : ''}><span class="cmp-opt-main"><strong>${esc(x.name || '—')}</strong><small>${x.idealo ? 'Idealo' : (lang === 'en' ? 'Manual entry' : 'Fiche manuelle')}</small></span><span class="cmp-opt-price">${eur(x.price)}</span></button>`).join('') || `<p class="hint">${esc(t('compare.noAlt'))}</p>`;
   const varHtml = variants.map((it, i) => {
     const cur = curUrl && cmpNormUrl(it.url) === curUrl;
-    return `<button class="cmp-opt-row${cur ? ' current' : ''}" data-cmp-pickvar="${i}"><span class="cmp-opt-main"><strong>${esc(it.name || '—')}</strong><small>${cur ? (lang === 'en' ? 'Current variant' : 'Variante actuelle') : (lang === 'en' ? 'Variant' : 'Variante')}</small></span><span class="cmp-opt-price">${eur(it.price)}</span></button>`;
+    return `<button class="cmp-opt-row${cur ? ' current' : ''}" data-cmp-pickvar="${i}"${cur ? ' aria-current="true"' : ''}><span class="cmp-opt-main"><strong>${esc(it.name || '—')}</strong><small>${cur ? (lang === 'en' ? 'Current variant' : 'Variante actuelle') : (lang === 'en' ? 'Variant' : 'Variante')}</small></span><span class="cmp-opt-price">${eur(it.price)}</span></button>`;
   }).join('');
-  openModal(`${cmpSlotNameFor(slotId, [col])} — ${col.name || 'Ma Config'}`, `
-    <p class="hint">${esc(lang === 'en' ? 'Changes apply only to this comparison column.' : 'Les changements ne concernent que cette colonne de comparaison.')}</p>
-    <div class="cmp-opt-group"><h3>${esc(t('compare.alts'))}</h3><div class="cmp-opt-list">${altHtml}</div></div>
-    ${variants.length ? `<div class="cmp-opt-group"><h3>${esc(t('compare.variants'))}</h3><div class="cmp-opt-list">${varHtml}</div></div>` : ''}
-  `, 'modal-wide');
-  $$('#modalBody [data-cmp-pickprod]').forEach(b => {
+  return `<div class="cmp-optpop-head"><strong>${esc(cmpSlotNameFor(slotId, [col]))}</strong><small>${esc(col.name || 'Ma Config')}</small></div><p class="hint">${esc(t('compare.optionsHint'))}</p><div class="cmp-opt-group"><h3>${esc(t('compare.alts'))}</h3><div class="cmp-opt-list">${altHtml}</div></div>${variants.length ? `<div class="cmp-opt-group"><h3>${esc(t('compare.variants'))}</h3><div class="cmp-opt-list">${varHtml}</div></div>` : ''}`;
+}
+function cmpCloseOptPop() {
+  const el = document.getElementById('cmpOptPop');
+  if (!el) return false;
+  const anchor = cmpOptAnchor;
+  const restore = el.contains(document.activeElement);
+  el.remove();
+  cmpOptAnchor = null;
+  if (restore && anchor && document.body.contains(anchor)) {
+    try { anchor.focus({ preventScroll: true }); } catch { try { anchor.focus(); } catch { /* ignore */ } }
+  }
+  return true;
+}
+function cmpOpenOptPop(anchor, colId, slotId) {
+  if (!anchor) return;
+  cmpCloseOptPop();
+  cmpOptAnchor = anchor;
+  const pop = document.createElement('div');
+  pop.id = 'cmpOptPop';
+  pop.className = 'cmp-optpop';
+  pop.setAttribute('role', 'group');
+  pop.setAttribute('aria-label', t('compare.cardOptions'));
+  pop.innerHTML = cmpOptionsHtml(colId, slotId);
+  document.body.appendChild(pop);
+  const width = Math.min(360, window.innerWidth - 24);
+  pop.style.width = width + 'px';
+  const r = anchor.getBoundingClientRect();
+  const maxH = Math.min(430, window.innerHeight - 24);
+  const left = Math.max(12, Math.min(r.right - width, window.innerWidth - width - 12));
+  pop.style.left = left + 'px';
+  const popH = Math.min(pop.scrollHeight, maxH);
+  let top = r.bottom + 7;
+  if (top + popH > window.innerHeight - 12) top = Math.max(12, r.top - popH - 7);
+  pop.style.top = top + 'px';
+  pop.style.maxHeight = maxH + 'px';
+  pop.querySelectorAll('[data-cmp-pickprod]').forEach(b => {
     b.onclick = () => {
       const id = b.dataset.cmpPickprod;
-      if (!(s.products || []).some(x => x.id === id)) return;
-      s.selectedId = id; closeModal(); cmpAfterColumnChange(col);
+      const cur = cmpState.cols.find(c => c.id === colId);
+      const sl = cur && cur.st.slots && cur.st.slots[slotId];
+      if (!sl || !(sl.products || []).some(x => x.id === id)) return;
+      sl.selectedId = id;
+      cmpCloseOptPop();
+      cmpAfterColumnChange(cur);
     };
   });
-  $$('#modalBody [data-cmp-pickvar]').forEach(b => {
+  pop.querySelectorAll('[data-cmp-pickvar]').forEach(b => {
     b.onclick = () => {
+      const { col, variants } = cmpOptionData(colId, slotId);
       const it = variants[Number(b.dataset.cmpPickvar)];
-      if (it) cmpSelectVariant(col, slotId, it);
+      if (it && col) cmpSelectVariant(col, slotId, it, { keepCards: !!cmpCardsState });
     };
   });
+  const first = pop.querySelector('button');
+  if (first) { try { first.focus({ preventScroll: true }); } catch { try { first.focus(); } catch { /* ignore */ } } }
 }
-async function cmpSelectVariant(col, slotId, item) {
+function cmpProductDup(a, b) {
+  const ua = cmpNormUrl(a && a.idealo), ub = cmpNormUrl(b && b.idealo);
+  if (ua && ub && ua === ub) return true;
+  const na = normTxt((a && a.name) || '').trim(), nb = normTxt((b && b.name) || '').trim();
+  const pa = Number(a && a.price) || 0, pb = Number(b && b.price) || 0;
+  return !!na && na === nb && Math.abs(pa - pb) < 0.005;
+}
+function cmpAltExists(slotId, p) {
+  const cur = state.slots[slotId];
+  if (!cur || !p) return false;
+  return (cur.products || []).some(x => cmpProductDup(x, p));
+}
+function cmpAddAltToCurrent(slotId, colId) {
+  cmpCloseOptPop();
+  const { p } = cmpOptionData(colId, slotId);
+  if (!p) return;
+  const slot = state.slots[slotId];
+  if (!slot) { toast(t('compare.emptySlot')); return; }
+  if (cmpAltExists(slotId, p)) { toast(t('compare.altExists')); cmpRefreshCards(); return; }
+  const clone = JSON.parse(JSON.stringify(p));
+  clone.id = uid();
+  if (!Array.isArray(clone.verified)) clone.verified = [];
+  slot.products = slot.products || [];
+  slot.products.push(clone);
+  /* Keep temporary comparison-only selections in the current column while
+     reflecting the new draft alternative. */
+  const cur = cmpState.cols.find(c => c.source === 'current');
+  if (cur) {
+    const cs = cur.st.slots && cur.st.slots[slotId];
+    if (cs) {
+      if (!(cs.products || []).some(x => cmpProductDup(x, clone))) {
+        cs.products = cs.products || [];
+        cs.products.push(JSON.parse(JSON.stringify(clone)));
+      }
+      cur.base = JSON.parse(JSON.stringify(state));
+    }
+  }
+  persist(); refresh();
+  cmpRefreshCards();
+  toast(t('compare.altAdded'));
+}
+function cmpCardLinks(p) {
+  if (!p) return '';
+  const links = [];
+  const add = (href, icon, label) => {
+    if (!href || links.some(x => x.href === href)) return;
+    links.push({ href, icon, label });
+  };
+  add(String(p.manual || '').trim(), 'fa-solid fa-book', t('compare.openManual'));
+  if (p.idealo && /idealo\.fr/i.test(p.idealo)) add(p.idealo, 'fa-solid fa-arrow-up-right-from-square', t('compare.openIdealo'));
+  add(buyUrlFor(p), 'fa-solid fa-cart-shopping', t('compare.openMerchant'));
+  if (!links.length) return '';
+  return `<div class="cmp-card-links">${links.map(l => `<a href="${esc(l.href)}" target="_blank" rel="noopener"><i class="${l.icon}"></i><span>${esc(l.label)}</span></a>`).join('')}</div>`;
+}
+function cmpCardHtml(c, slotId, focusColId) {
+  const ci = cmpState.cols.findIndex(x => x.id === c.id);
+  const accent = PIE_COLORS[(ci < 0 ? 0 : ci) % PIE_COLORS.length];
+  const s = c.st.slots && c.st.slots[slotId];
+  const p = s ? ((s.products || []).find(x => x.id === s.selectedId) || null) : null;
+  const isCurrent = c.source === 'current';
+  const meta = cmpVersionLabel(c);
+  const dsRows = p ? pdDatasheetRows(p).slice(0, 8) : [];
+  const optCount = cmpOptionsCount(s, p);
+  const optBtn = p && optCount ? `<button type="button" class="cmp-card-opt" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.cardOptions'))}"><i class="fa-solid fa-list-ul"></i><span>${esc(t('compare.alts'))}</span><i class="fa-solid fa-chevron-down"></i></button>` : '';
+  const addBtn = p && !isCurrent
+    ? (cmpAltExists(slotId, p)
+      ? `<button type="button" class="cmp-card-add is-added" disabled><i class="fa-solid fa-check"></i><span>${esc(t('compare.addedAlt'))}</span></button>`
+      : `<button type="button" class="cmp-card-add" data-cmp-addalt="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.addAltTitle'))}"><i class="fa-solid fa-plus"></i><span>${esc(t('compare.addAlt'))}</span></button>`)
+    : '';
+  const ds = dsRows.length ? `<div class="cmp-card-ds"><h4>${esc(t('compare.cardDatasheet'))}</h4><dl>${dsRows.map(r => `<div><dt>${esc(r.label || '')}</dt><dd>${esc(r.value || '')}</dd></div>`).join('')}</dl></div>` : '';
+  return `<article class="cmp-card${c.id === focusColId ? ' is-focus' : ''}" style="--cmp-accent:${accent}" role="listitem">
+    <div class="cmp-card-top"><span class="cmp-card-badge">${esc(isCurrent ? t('compare.cardCurrent') : meta)}</span><span class="cmp-card-col" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span></div>
+    ${p
+      ? `${p.image ? `<img class="cmp-card-img" src="${esc(p.image)}" alt="" loading="lazy">` : `<div class="cmp-card-img cmp-card-noimg">${iconHtml(defOf(s).icon)}</div>`}
+        <div class="cmp-card-body">
+          <h3 class="cmp-card-name">${esc(p.name || '—')}</h3>
+          ${p.vendor ? `<div class="cmp-card-vendor">${esc(p.vendor)}</div>` : ''}
+          <div class="cmp-card-price">${eur(unitTotal(p))}${Number(p.delivery) > 0 ? ` <small>${esc(t('compare.cardDelivery'))}</small>` : ''}</div>
+          ${(Number(p.qty) || 1) > 1 ? `<div class="cmp-card-pmeta">${esc(t('compare.cardQty'))} ×${p.qty}</div>` : ''}
+          ${p.specs ? `<p class="cmp-card-specs">${esc(p.specs)}</p>` : ''}
+          ${ds}
+          ${cmpCardLinks(p)}
+        </div>
+        <div class="cmp-card-actions">${optBtn}${addBtn}</div>`
+      : `<div class="cmp-card-empty"><i class="fa-solid fa-circle-minus"></i><span>${esc(t('compare.emptySlot'))}</span></div>`}
+  </article>`;
+}
+function cmpCardsHtml(slotId, focusColId) {
+  return `<p class="hint cmp-cards-hint">${esc(t('compare.cardsHint'))}</p><div class="cmp-cards" role="list">${cmpState.cols.map(c => cmpCardHtml(c, slotId, focusColId)).join('')}</div>`;
+}
+function cmpOpenCards(slotId, focusColId) {
+  if (!cmpState.cols.length) return;
+  cmpCloseOptPop();
+  cmpCardsState = { slotId, focusColId };
+  openModal(`${cmpSlotNameFor(slotId, cmpState.cols)} — ${t('compare.cardsTitle')}`, cmpCardsHtml(slotId, focusColId), 'modal-cards');
+  const box = $('#modalBox');
+  if (box) box.style.setProperty('--cmp-card-count', String(cmpState.cols.length));
+  const body = $('#modalBody');
+  if (body) body.scrollTop = 0;
+  refreshIcons(body);
+  const row = body && body.querySelector('.cmp-cards');
+  const focus = row && row.querySelector('.cmp-card.is-focus');
+  if (focus && row.scrollWidth > row.clientWidth) {
+    const rr = row.getBoundingClientRect(), fr = focus.getBoundingClientRect();
+    row.scrollLeft = Math.max(0, row.scrollLeft + (fr.left - rr.left) - (row.clientWidth - fr.width) / 2);
+  }
+}
+function cmpRefreshCards() {
+  if (!cmpCardsState) return;
+  if ($('#modalOverlay').classList.contains('hidden') || !$('#modalBox').classList.contains('modal-cards')) { cmpCardsState = null; return; }
+  const body = $('#modalBody');
+  const box = $('#modalBox');
+  if (box) box.style.setProperty('--cmp-card-count', String(cmpState.cols.length));
+  const oldRow = body.querySelector('.cmp-cards');
+  const left = oldRow ? oldRow.scrollLeft : 0;
+  const top = body.scrollTop;
+  body.innerHTML = cmpCardsHtml(cmpCardsState.slotId, cmpCardsState.focusColId);
+  refreshIcons(body);
+  const row = body.querySelector('.cmp-cards');
+  if (row) row.scrollLeft = left;
+  body.scrollTop = top;
+}
+async function cmpSelectVariant(col, slotId, item, opts = {}) {
   const s = col.st.slots && col.st.slots[slotId];
   if (!s || !item || !item.url) return;
+  cmpCloseOptPop();
+  const keepCards = !!opts.keepCards && !!cmpCardsState;
   const existing = (s.products || []).find(x => cmpNormUrl(x.idealo) === cmpNormUrl(item.url));
   if (existing) {
-    s.selectedId = existing.id; closeModal(); cmpAfterColumnChange(col); return;
+    s.selectedId = existing.id;
+    if (!keepCards) closeModal();
+    cmpAfterColumnChange(col);
+    return;
   }
   if (cmpState.varBusy) return;
-  cmpState.varBusy = true; closeModal();
+  cmpState.varBusy = true;
+  if (!keepCards) closeModal();
   showProgress(t('compare.variantLoad'));
   let d = null, r = null;
   try {
@@ -5748,12 +5996,12 @@ function bindCompareBody() {
     const expand = e.target.closest('[data-cmp-expand]');
     if (expand) {
       const key = expand.dataset.cmpExpand;
-      cmpState.openSpecs[key] = !cmpState.openSpecs[key];
+      cmpState.openSpecs = cmpState.openSpecs[key] ? {} : { [key]: true };
       renderCompare();
       return;
     }
-    const swap = e.target.closest('[data-cmp-swap]');
-    if (swap) { cmpOpenOptions(swap.dataset.cmpCol, swap.dataset.cmpSwap); return; }
+    const cards = e.target.closest('[data-cmp-cards]');
+    if (cards) { cmpOpenCards(cards.dataset.cmpCards, cards.dataset.cmpCol); return; }
     const retry = e.target.closest('[data-cmp-retry]');
     if (retry) cmpRetry(retry.dataset.cmpRetry, retry.dataset.cmpCol);
   });
@@ -5761,6 +6009,29 @@ function bindCompareBody() {
     if (e.target.id === 'cmpGame') { cmpState.game = e.target.value; renderCompare(); }
     else if (e.target.id === 'cmpRes') { cmpState.res = e.target.value; renderCompare(); }
   });
+  if (!body.dataset.cmpPinBound) {
+    body.dataset.cmpPinBound = '1';
+    let raf = 0;
+    body.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; cmpUpdatePinned(); });
+    }, { passive: true });
+  }
+  const modalBody = $('#modalBody');
+  if (modalBody && !modalBody.dataset.cmpOptBound) {
+    modalBody.dataset.cmpOptBound = '1';
+    modalBody.addEventListener('scroll', cmpCloseOptPop, { passive: true });
+  }
+  if (!document.body.dataset.cmpCardBound) {
+    document.body.dataset.cmpCardBound = '1';
+    document.addEventListener('click', e => {
+      const opt = e.target.closest && e.target.closest('[data-cmp-cardopts]');
+      if (opt) { e.preventDefault(); cmpOpenOptPop(opt, opt.dataset.cmpCardopts, opt.dataset.cmpSlot); return; }
+      const add = e.target.closest && e.target.closest('[data-cmp-addalt]');
+      if (add) { e.preventDefault(); cmpAddAltToCurrent(add.dataset.cmpSlot, add.dataset.cmpAddalt); return; }
+      if (document.getElementById('cmpOptPop') && !(e.target.closest && e.target.closest('#cmpOptPop')) && !(e.target.closest && e.target.closest('[data-cmp-cardopts]'))) cmpCloseOptPop();
+    });
+  }
 }
 
 /* ---------- Save / load / history / share / export ---------- */
@@ -7000,6 +7271,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.66 — Comparateur compact, cartes côte à côte et en-têtes épinglés</h3><p class="hint">Le comparateur déplie chaque fiche depuis toute la ligne du composant, avec la flèche placée avant l’icône et une seule fiche ouverte à la fois. Un bouton d’agrandissement à droite du nom ouvre 2 à 5 cartes côte à côte : visuel, specs, fiche technique, prix, liens et une popover compacte pour choisir les alternatives et variantes sans quitter la comparaison. Chaque carte non actuelle peut ajouter son composant comme alternative à la config actuelle, avec dédoublonnage par lien Idealo ou nom + prix. Le comparateur utilise désormais une seule zone de défilement : en-têtes de colonnes, groupes, composant ouvert, en-tête de fiche et total restent épinglés, et la position est conservée après chaque rendu.</p></div>
     <div class="chlog"><h3>v2.65 — Fiches d’information, compteurs et menu mobile</h3><p class="hint">Le partage et l’export affichent une fiche d’information compacte sur deux colonnes : inclus en vert, exclus en rouge, PDF uniquement en orange, avec une légende. La variante sélectionnée garde une bordure plus épaisse que son survol. La création par IA montre chaque composant et son statut sous « Construire la config », avec l’animation d’actualisation des prix en recherche et un balayage vertical à l’import ; le popup reste utilisable après la garde des modifications non sauvegardées. Les prix, consommations et benchmarks comptent désormais de zéro, et le réglage Animations les coupe ou les relance. Le chargement d’une config rafraîchit immédiatement les benchmarks affichés, les offres de la fiche composant reprennent les bons plans et le meilleur total, et le menu mobile est centré avec le tiroir de la navigation KJ.</p></div>
     <div class="chlog"><h3>v2.64 — Verre unifié, boutons verts allégés et bienvenue mobile</h3><p class="hint">Toutes les popups et barres adoptent le verre de la navigation, avec un fond blanc à 97 %. Les boutons verts deviennent translucides et clairs, et repassent en vert uni quand le design translucide est désactivé. Le menu de bienvenue mobile s’ouvre sur l’accueil (logo, atouts, Nouveau / Charger), puis affiche séparément la création ou le chargement avec un retour. Le partage et l’export remplacent le tableau par une fiche d’information : inclus en vert, exclus en rouge, PDF uniquement en orange. La fiche composant est teintée selon la sélection KJ, les onglets mobiles sont plus grands, l’icône de la fiche réduite, la bordure de l’alternative sélectionnée plus épaisse et l’installation n’apparaît dans les paramètres que sur mobile. « Sauver » devient « Sauvegarder ».</p></div>
     <div class="chlog"><h3>v2.63 — Réglages, verre et résumé repensés</h3><p class="hint">Nouveau panneau Paramètres (animations, fond dynamique, design translucide) et installation mobile sous l’en-tête. Les popups reprennent le verre dépoli de la barre de navigation, les onglets partagent un curseur coulissant et les pastilles sont de taille fixe. Le résumé garde ses totaux épinglés en bas, dans une seule zone de défilement pleine hauteur. Les cartes de composants alignent badges et compatibilité, la fiche choisie est teintée entièrement, les étoiles KJ laissent place à un reflet renforcé et le compteur de photos devient une pastille de verre. Le comparateur accepte les doublons, signale les configs non sauvegardées et le partage compare les données réellement incluses avec la config actuelle. Sur mobile, la fenêtre de bienvenue place le chargement avant la création.</p></div>
@@ -7182,7 +7454,7 @@ function showPage(which) {
   if (which === 'tutorials') showTutorials();
   else clearTutorialVideos();
   if (which === 'bench') showBench();
-  if (which === 'compare') showCompare();
+  if (which === 'compare') { showCompare(); requestAnimationFrame(cmpFitViewport); }
   if (which === 'prices') drawPrices();
 }
 
@@ -7340,6 +7612,15 @@ function bind() {
   $('#cmpDiff').onclick = () => { cmpState.mode = 'diff'; renderCompare(); };
   $('#cmpAdd').onclick = openCompareConfigPicker;
   bindCompareBody();
+  let cmpResizeRaf = 0;
+  window.addEventListener('resize', () => {
+    if (cmpResizeRaf) return;
+    cmpResizeRaf = requestAnimationFrame(() => { cmpResizeRaf = 0; cmpFitViewport(); });
+  }, { passive: true });
+  window.addEventListener('load', cmpFitViewport, { once: true });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => cmpFitViewport()).catch(() => {});
+  }
   $('#sumDesc').onclick = () => switchSum('desc');
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');
@@ -7523,6 +7804,7 @@ function bind() {
   $('#modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (cmpCloseOptPop()) { e.preventDefault(); return; }
     if ($('#galleryOverlay') && !$('#galleryOverlay').classList.contains('hidden')) { closeGallery(); return; }
     if (!$('#editorPanel').classList.contains('hidden')) { closeEditorPanel(); return; }
     if (document.body.classList.contains('tutorial-sheet-open')) { closeTutorialVideo(); return; }
