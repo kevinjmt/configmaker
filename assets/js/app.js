@@ -1,11 +1,11 @@
-/* ConfigMaker v2.66 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.67 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.66';
+const APP_VERSION = '2.67';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -252,6 +252,7 @@ const I18N = {
     'compare.hintDiff': 'Les différences par rapport à la config actuelle sont surlignées ; les lignes identiques sont atténuées.',
     'compare.cardsTitle': 'Comparer les composants',
     'compare.cardsHint': 'Le composant sélectionné de chaque configuration, côte à côte. Les changements restent limités à la comparaison, sauf l’ajout d’une alternative à la config actuelle.',
+    'compare.cardsBest': 'Vert : meilleure valeur',
     'compare.cardExpand': 'Comparer les composants côte à côte',
     'compare.cardOptions': 'Alternatives et variantes',
     'compare.optionsHint': 'Les changements ne concernent que cette colonne de comparaison.',
@@ -364,6 +365,7 @@ const I18N = {
     'compare.hintDiff': 'Differences from the current config are highlighted; identical rows are dimmed.',
     'compare.cardsTitle': 'Compare components',
     'compare.cardsHint': 'The selected component in each configuration, side by side. Changes stay limited to the comparison, except adding an alternative to the current config.',
+    'compare.cardsBest': 'Green: best value',
     'compare.cardExpand': 'Compare components side by side',
     'compare.cardOptions': 'Alternatives and variants',
     'compare.optionsHint': 'Changes apply only to this comparison column.',
@@ -666,7 +668,7 @@ function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList
 /* ---------- Modal ---------- */
 const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards'];
 function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); } editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); box.style.removeProperty('--cmp-card-w'); } editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
 let editingPid = null;
 
 let pillSlideRaf = 0;
@@ -5389,6 +5391,7 @@ function cmpDsRows(label, prods) {
 function cmpSection(title, icon, rows, cols, opts = {}) {
   const full = !!opts.full;
   const sid = 'cmpsec' + (++cmpSectionSeq.n);
+  const currentId = ((cols.find(c => c.source === 'current') || cols[0] || {}).id) || '';
   const head = `<tr><th scope="col" class="cmp-rowhead cmp-corner"></th>${cols.map(c => cmpColumnHead(c, full)).join('')}</tr>`;
   const body = rows.map(row => {
     if (row.group) return `<tr class="cmp-group"><th colspan="${cols.length + 1}"><span>${esc(row.group)}</span></th></tr>`;
@@ -5401,15 +5404,18 @@ function cmpSection(title, icon, rows, cols, opts = {}) {
     const rowHead = row.expandKey
       ? `<button type="button" class="cmp-rowtoggle" data-cmp-expand="${esc(row.expandKey)}" aria-expanded="${row.expandOpen ? 'true' : 'false'}" title="${esc(t(row.expandOpen ? 'compare.collapse' : 'compare.expand'))}">${rowInner}</button>`
       : `<span class="cmp-rowtoggle cmp-static">${rowInner}</span>`;
+    const cardsBtn = row.cardsKey && cols.length > 1
+      ? `<button type="button" class="cmp-cards-open cmp-rowcards" data-cmp-cards="${esc(row.cardsKey)}" data-cmp-col="${esc(currentId)}" title="${esc(t('compare.cardExpand'))}" aria-label="${esc(t('compare.cardExpand'))}" aria-haspopup="dialog"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>`
+      : '';
     return `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}${row.expandOpen ? ' cmp-open' : ''}${row.total ? ' cmp-total-row' : ''}">
-      <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}${row.expandKey ? ' has-toggle' : ''}" title="${esc(row.label || '')}">${rowHead}</th>
+      <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}${row.expandKey ? ' has-toggle' : ''}" title="${esc(row.label || '')}"><span class="cmp-rowhead-inner">${rowHead}${cardsBtn}</span></th>
       ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}${ranks[i] ? ' cmp-' + ranks[i] : ''}"${ranks[i] ? ` title="${esc(t('compare.' + ranks[i]))}"` : ''}>${c.html}</td>`).join('')}
     </tr>`;
   }).join('');
-  return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" style="--cmp-table-w:${180 + cols.length * 190 + 34}px" aria-labelledby="${sid}">
+  return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" aria-labelledby="${sid}">
     <div class="cmp-sec-head" id="${sid}"><i class="${icon}"></i><span>${esc(title)}</span>${opts.badge ? `<span class="cmp-sec-badge">${opts.badge}</span>` : ''}</div>
     ${opts.tools || ''}
-    ${rows.length ? `<div class="cmp-scroll"><table class="cmp-table" style="min-width:${180 + cols.length * 190}px"><colgroup><col class="cmp-colrow">${cols.map(() => '<col class="cmp-colbody">').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table></div>` : `<p class="hint cmp-empty">${esc(t('compare.noRows'))}</p>`}
+    ${rows.length ? `<div class="cmp-scroll" data-cmp-scroll><table class="cmp-table" style="min-width:${210 + cols.length * 190}px"><colgroup><col class="cmp-colrow">${cols.map(() => '<col class="cmp-colbody">').join('')}</colgroup><thead>${head}</thead><tbody>${body}</tbody></table></div>` : `<p class="hint cmp-empty">${esc(t('compare.noRows'))}</p>`}
   </section>`;
 }
 function cmpSpecRows(data) {
@@ -5432,16 +5438,18 @@ function cmpSpecRows(data) {
         const p = prods[i];
         if (!p) return cmpCell(`<span class="cmp-none">${esc(t('compare.emptySlot'))}</span>`, '', null, 0);
         const price = unitTotal(p);
-        const expand = data.cols.length > 1
-          ? `<button class="cmp-cards-open" data-cmp-cards="${esc(id)}" data-cmp-col="${esc(c.id)}" title="${esc(t('compare.cardExpand'))}" aria-label="${esc(t('compare.cardExpand'))}" aria-haspopup="dialog"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>`
+        const s = slots[i];
+        const hasOpts = !!s && ((s.products || []).length > 1 || !!(p.variants && p.variants.items && p.variants.items.length));
+        const swap = hasOpts
+          ? `<button class="cmp-cards-open cmp-swap" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(id)}" title="${esc(t('compare.cardOptions'))}" aria-label="${esc(t('compare.cardOptions'))}"><span class="cmp-swap-ico"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-right-left"></i></span></button>`
           : '';
-        return cmpCell(`<div class="cmp-product"><div class="cmp-prow"><div class="cmp-pname">${esc(p.name || '—')}</div>${expand}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>`, (p.name || '') + '|' + price.toFixed(2), null, 0);
+        return cmpCell(`<div class="cmp-product"><div class="cmp-prow"><div class="cmp-pname">${esc(p.name || '—')}</div>${swap}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>`, (p.name || '') + '|' + price.toFixed(2), null, 0);
       });
       const hasAny = prods.some(Boolean);
       /* Only show the chevron when there is something to expand. */
       const canExpand = hasAny && prods.some(p => p && (p.datasheet || p.specs));
       const open = !!cmpState.openSpecs[id] && canExpand;
-      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: canExpand ? id : null, expandOpen: open });
+      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: canExpand ? id : null, expandOpen: open, cardsKey: data.cols.length > 1 ? id : null });
       if (canExpand && open) cmpDsRows(label, prods).forEach(r => rows.push(r));
     });
   });
@@ -5547,58 +5555,31 @@ function cmpBenchHtml(data) {
     + cmpSection(t('compare.daily'), 'fa-solid fa-house-laptop', dailyRows, data.cols)
     + cmpSection(t('compare.heavy'), 'fa-solid fa-compass-drafting', heavyRows, data.cols);
 }
-function cmpFitViewport() {
-  const body = $('#cmpBody');
-  const page = $('#page-compare');
-  if (!body || !page || page.classList.contains('hidden')) return;
-  const top = Math.max(0, body.getBoundingClientRect().top);
-  const minH = isMobileView() ? 420 : 320;
-  const h = Math.min(window.innerHeight - 16, Math.max(minH, window.innerHeight - top - 16));
-  body.style.maxHeight = Math.round(h) + 'px';
-  cmpMeasureSticky();
-}
-function cmpMeasureSticky() {
-  if (!$('#page-compare') || $('#page-compare').classList.contains('hidden')) return;
-  $$('#cmpBody .cmp-table').forEach(t => {
-    const head = t.querySelector('thead .cmp-colhead');
-    const group = t.querySelector('tbody .cmp-group');
-    const open = t.querySelector('tbody tr.cmp-open');
-    t.style.setProperty('--cmp-head-h', (head ? head.offsetHeight : 0) + 'px');
-    t.style.setProperty('--cmp-group-h', (group ? group.offsetHeight : 0) + 'px');
-    t.style.setProperty('--cmp-open-h', (open ? open.offsetHeight : 0) + 'px');
+function cmpRestoreScroll(scrolls) {
+  if (!scrolls.length) return;
+  requestAnimationFrame(() => {
+    const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
+    els.forEach((el, i) => { if (scrolls[i] != null) el.scrollLeft = scrolls[i]; });
   });
-  cmpUpdatePinned();
 }
-function cmpUpdatePinned() {
-  const body = $('#cmpBody');
-  if (!body) return;
-  const open = body.querySelector('tbody tr.cmp-open');
-  if (!open) return;
-  const table = open.closest('.cmp-table');
-  if (!table) return;
-  const headH = parseFloat(table.style.getPropertyValue('--cmp-head-h')) || 0;
-  const groupH = parseFloat(table.style.getPropertyValue('--cmp-group-h')) || 0;
-  const line = body.getBoundingClientRect().top + headH + groupH;
-  const rowH = open.offsetHeight;
-  const top = open.getBoundingClientRect().top;
-  let next = open.nextElementSibling;
-  while (next && !(next.classList.contains('cmp-group') || (next.classList.contains('cmp-row') && !next.classList.contains('cmp-detail-row')))) next = next.nextElementSibling;
-  const nextTop = next ? next.getBoundingClientRect().top : Infinity;
-  if (open.dataset.cmpUnpinned === '1') {
-    if (nextTop > line + rowH + 1) delete open.dataset.cmpUnpinned;
-    else { open.classList.remove('is-pinned'); return; }
-  }
-  if (top <= line + 1 && nextTop > line + rowH + 1) open.classList.add('is-pinned');
-  else if (open.classList.contains('is-pinned')) {
-    open.classList.remove('is-pinned');
-    if (nextTop <= line + rowH + 1) open.dataset.cmpUnpinned = '1';
-  }
+function bindCmpScroll() {
+  const els = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]'));
+  let lock = false;
+  els.forEach(el => {
+    el.addEventListener('scroll', () => {
+      if (lock) return;
+      lock = true;
+      const x = el.scrollLeft;
+      els.forEach(o => { if (o !== el) o.scrollLeft = x; });
+      requestAnimationFrame(() => { lock = false; });
+    }, { passive: true });
+  });
 }
 function renderCompare() {
   const body = $('#cmpBody');
   if (!body) return;
   cmpEnsureCols();
-  const scrollTop = body.scrollTop, scrollLeft = body.scrollLeft;
+  const scrolls = Array.from(document.querySelectorAll('#cmpBody [data-cmp-scroll]')).map(el => el.scrollLeft);
   const data = cmpData();
   cmpSectionSeq.n = 0;
   body.classList.toggle('cmp-mode-diff', cmpState.mode === 'diff');
@@ -5620,10 +5601,8 @@ function renderCompare() {
     + cmpBenchHtml(data);
   body.innerHTML = html;
   refreshIcons(body);
-  cmpMeasureSticky();
-  body.scrollTop = scrollTop;
-  body.scrollLeft = scrollLeft;
-  requestAnimationFrame(() => cmpMeasureSticky());
+  bindCmpScroll();
+  cmpRestoreScroll(scrolls);
   cmpLoadExtras(data);
   schedulePillSliders();
 }
@@ -5823,6 +5802,29 @@ function cmpCardLinks(p) {
   if (!links.length) return '';
   return `<div class="cmp-card-links">${links.map(l => `<a href="${esc(l.href)}" target="_blank" rel="noopener"><i class="${l.icon}"></i><span>${esc(l.label)}</span></a>`).join('')}</div>`;
 }
+function cmpCardDsRows(prods) {
+  const parsed = prods.map(p => p ? pdDatasheetRows(p) : []);
+  const order = [], seen = new Set();
+  parsed.forEach(rows => rows.forEach(r => {
+    const key = cmpDsLabelKey(r.label);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    order.push({ key, label: r.label });
+  }));
+  const multiValue = v => /\d[^0-9,.]*[/+·;x×]\s*\d/i.test(v) || /\d\s*[-–—]\s*\d/.test(v);
+  const out = [];
+  order.forEach(item => {
+    const matches = parsed.map(rows => rows.filter(r => cmpDsLabelKey(r.label) === item.key).map(r => r.value));
+    const values = matches.map(v => v.join(' · '));
+    if (!values.some(Boolean)) return;
+    const units = [...new Set(values.map(cmpMetricUnit).filter(Boolean))];
+    const compound = matches.some(v => v.length > 1) || values.some(v => v.includes(' · ') || multiValue(v));
+    const rankable = !compound && cmpDsRankable(item.label) && units.length <= 1;
+    const cells = values.map(v => cmpDsCell(v, rankable));
+    out.push({ label: item.label, cells, ranks: cmpRank(cells, prods.length, cmpDsDirection(item.label)) });
+  });
+  return out;
+}
 function cmpCardHtml(c, slotId, focusColId) {
   const ci = cmpState.cols.findIndex(x => x.id === c.id);
   const accent = PIE_COLORS[(ci < 0 ? 0 : ci) % PIE_COLORS.length];
@@ -5830,7 +5832,6 @@ function cmpCardHtml(c, slotId, focusColId) {
   const p = s ? ((s.products || []).find(x => x.id === s.selectedId) || null) : null;
   const isCurrent = c.source === 'current';
   const meta = cmpVersionLabel(c);
-  const dsRows = p ? pdDatasheetRows(p).slice(0, 8) : [];
   const optCount = cmpOptionsCount(s, p);
   const optBtn = p && optCount ? `<button type="button" class="cmp-card-opt" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.cardOptions'))}"><i class="fa-solid fa-list-ul"></i><span>${esc(t('compare.alts'))}</span><i class="fa-solid fa-chevron-down"></i></button>` : '';
   const addBtn = p && !isCurrent
@@ -5838,8 +5839,7 @@ function cmpCardHtml(c, slotId, focusColId) {
       ? `<button type="button" class="cmp-card-add is-added" disabled><i class="fa-solid fa-check"></i><span>${esc(t('compare.addedAlt'))}</span></button>`
       : `<button type="button" class="cmp-card-add" data-cmp-addalt="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.addAltTitle'))}"><i class="fa-solid fa-plus"></i><span>${esc(t('compare.addAlt'))}</span></button>`)
     : '';
-  const ds = dsRows.length ? `<div class="cmp-card-ds"><h4>${esc(t('compare.cardDatasheet'))}</h4><dl>${dsRows.map(r => `<div><dt>${esc(r.label || '')}</dt><dd>${esc(r.value || '')}</dd></div>`).join('')}</dl></div>` : '';
-  return `<article class="cmp-card${c.id === focusColId ? ' is-focus' : ''}" style="--cmp-accent:${accent}" role="listitem">
+  return `<article class="cmp-card${c.id === focusColId ? ' is-focus' : ''}" style="--cmp-accent:${accent}">
     <div class="cmp-card-top"><span class="cmp-card-badge">${esc(isCurrent ? t('compare.cardCurrent') : meta)}</span><span class="cmp-card-col" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span></div>
     ${p
       ? `${p.image ? `<img class="cmp-card-img" src="${esc(p.image)}" alt="" loading="lazy">` : `<div class="cmp-card-img cmp-card-noimg">${iconHtml(defOf(s).icon)}</div>`}
@@ -5849,7 +5849,6 @@ function cmpCardHtml(c, slotId, focusColId) {
           <div class="cmp-card-price">${eur(unitTotal(p))}${Number(p.delivery) > 0 ? ` <small>${esc(t('compare.cardDelivery'))}</small>` : ''}</div>
           ${(Number(p.qty) || 1) > 1 ? `<div class="cmp-card-pmeta">${esc(t('compare.cardQty'))} ×${p.qty}</div>` : ''}
           ${p.specs ? `<p class="cmp-card-specs">${esc(p.specs)}</p>` : ''}
-          ${ds}
           ${cmpCardLinks(p)}
         </div>
         <div class="cmp-card-actions">${optBtn}${addBtn}</div>`
@@ -5857,7 +5856,34 @@ function cmpCardHtml(c, slotId, focusColId) {
   </article>`;
 }
 function cmpCardsHtml(slotId, focusColId) {
-  return `<p class="hint cmp-cards-hint">${esc(t('compare.cardsHint'))}</p><div class="cmp-cards" role="list">${cmpState.cols.map(c => cmpCardHtml(c, slotId, focusColId)).join('')}</div>`;
+  const cols = cmpState.cols;
+  const prods = cols.map(c => {
+    const s = c.st.slots && c.st.slots[slotId];
+    return s ? ((s.products || []).find(x => x.id === s.selectedId) || null) : null;
+  });
+  const dsRows = cmpCardDsRows(prods);
+  const heads = cols.map(c => `<th scope="col" class="cmp-cards-headcell">${cmpCardHtml(c, slotId, focusColId)}</th>`).join('');
+  const body = dsRows.map(row => `<tr class="cmp-cards-dsrow">
+    <th scope="row" class="cmp-cards-dslabel">${esc(row.label)}</th>
+    ${row.cells.map((cell, i) => `<td class="cmp-cards-dsval${row.ranks[i] === 'best' ? ' cmp-best' : ''}"${row.ranks[i] === 'best' ? ` title="${esc(t('compare.best'))}"` : ''}>${cell.html}</td>`).join('')}
+  </tr>`).join('');
+  return `<p class="hint cmp-cards-hint">${esc(t('compare.cardsHint'))}</p>
+    <div class="cmp-cards-wrap">
+      <table class="cmp-cards-table">
+        <colgroup><col class="cmp-cards-col-label">${cols.map(() => '<col class="cmp-cards-col-value">').join('')}</colgroup>
+        <thead><tr><th scope="col" class="cmp-cards-corner" aria-label="${esc(t('compare.cardDatasheet'))}"></th>${heads}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      ${dsRows.length ? '' : `<p class="hint cmp-cards-empty">${esc(t('compare.noDatasheet'))}</p>`}
+    </div>
+    ${dsRows.length ? `<p class="hint cmp-cards-best">${esc(t('compare.cardsBest'))}</p>` : ''}`;
+}
+function cmpApplyCardSizing(box) {
+  if (!box) return;
+  const count = Math.max(1, cmpState.cols.length);
+  box.style.setProperty('--cmp-card-count', String(count));
+  if (window.innerWidth <= 960) box.style.setProperty('--cmp-card-w', 'calc(75vw - 10px)');
+  else box.style.setProperty('--cmp-card-w', Math.round(Math.max(200, window.innerWidth * (0.4 - Math.max(0, count - 2) * 0.1))) + 'px');
 }
 function cmpOpenCards(slotId, focusColId) {
   if (!cmpState.cols.length) return;
@@ -5865,15 +5891,17 @@ function cmpOpenCards(slotId, focusColId) {
   cmpCardsState = { slotId, focusColId };
   openModal(`${cmpSlotNameFor(slotId, cmpState.cols)} — ${t('compare.cardsTitle')}`, cmpCardsHtml(slotId, focusColId), 'modal-cards');
   const box = $('#modalBox');
-  if (box) box.style.setProperty('--cmp-card-count', String(cmpState.cols.length));
+  cmpApplyCardSizing(box);
   const body = $('#modalBody');
   if (body) body.scrollTop = 0;
   refreshIcons(body);
-  const row = body && body.querySelector('.cmp-cards');
-  const focus = row && row.querySelector('.cmp-card.is-focus');
-  if (focus && row.scrollWidth > row.clientWidth) {
-    const rr = row.getBoundingClientRect(), fr = focus.getBoundingClientRect();
-    row.scrollLeft = Math.max(0, row.scrollLeft + (fr.left - rr.left) - (row.clientWidth - fr.width) / 2);
+  const wrap = body && body.querySelector('.cmp-cards-wrap');
+  const focus = wrap && wrap.querySelector('.cmp-card.is-focus');
+  if (focus && wrap.scrollWidth > wrap.clientWidth) {
+    const rr = wrap.getBoundingClientRect(), fr = focus.getBoundingClientRect();
+    const label = wrap.querySelector('.cmp-cards-corner') || wrap.querySelector('.cmp-cards-dslabel');
+    const labelW = label ? label.getBoundingClientRect().width : 0;
+    wrap.scrollLeft = Math.max(0, wrap.scrollLeft + (fr.left - rr.left) - labelW);
   }
 }
 function cmpRefreshCards() {
@@ -5881,14 +5909,14 @@ function cmpRefreshCards() {
   if ($('#modalOverlay').classList.contains('hidden') || !$('#modalBox').classList.contains('modal-cards')) { cmpCardsState = null; return; }
   const body = $('#modalBody');
   const box = $('#modalBox');
-  if (box) box.style.setProperty('--cmp-card-count', String(cmpState.cols.length));
-  const oldRow = body.querySelector('.cmp-cards');
-  const left = oldRow ? oldRow.scrollLeft : 0;
+  cmpApplyCardSizing(box);
+  const oldWrap = body.querySelector('.cmp-cards-wrap');
+  const left = oldWrap ? oldWrap.scrollLeft : 0;
   const top = body.scrollTop;
   body.innerHTML = cmpCardsHtml(cmpCardsState.slotId, cmpCardsState.focusColId);
   refreshIcons(body);
-  const row = body.querySelector('.cmp-cards');
-  if (row) row.scrollLeft = left;
+  const wrap = body.querySelector('.cmp-cards-wrap');
+  if (wrap) wrap.scrollLeft = left;
   body.scrollTop = top;
 }
 async function cmpSelectVariant(col, slotId, item, opts = {}) {
@@ -6009,14 +6037,6 @@ function bindCompareBody() {
     if (e.target.id === 'cmpGame') { cmpState.game = e.target.value; renderCompare(); }
     else if (e.target.id === 'cmpRes') { cmpState.res = e.target.value; renderCompare(); }
   });
-  if (!body.dataset.cmpPinBound) {
-    body.dataset.cmpPinBound = '1';
-    let raf = 0;
-    body.addEventListener('scroll', () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; cmpUpdatePinned(); });
-    }, { passive: true });
-  }
   const modalBody = $('#modalBody');
   if (modalBody && !modalBody.dataset.cmpOptBound) {
     modalBody.dataset.cmpOptBound = '1';
@@ -6031,6 +6051,12 @@ function bindCompareBody() {
       if (add) { e.preventDefault(); cmpAddAltToCurrent(add.dataset.cmpSlot, add.dataset.cmpAddalt); return; }
       if (document.getElementById('cmpOptPop') && !(e.target.closest && e.target.closest('#cmpOptPop')) && !(e.target.closest && e.target.closest('[data-cmp-cardopts]'))) cmpCloseOptPop();
     });
+    document.addEventListener('scroll', e => {
+      if (!document.getElementById('cmpOptPop')) return;
+      const t = e.target;
+      if (t === document || (t.closest && (t.closest('#page-compare') || t.closest('#modalBox')))) cmpCloseOptPop();
+    }, true);
+    window.addEventListener('resize', cmpCloseOptPop, { passive: true });
   }
 }
 
@@ -7271,6 +7297,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.67 — Comparateur pleine page et fiches alignées</h3><p class="hint">Le comparateur reprend toute la hauteur de la page : plus de petite zone défilante, chaque tableau garde son défilement horizontal synchronisé. L’en-tête de la config actuelle reste opaque, le bouton d’agrandissement passe à côté du type de composant et le bouton de choix des alternatives revient dans chaque cellule. La popup de comparaison des composants utilise une largeur adaptée au nombre de configs (40 vw par carte à deux, puis 10 vw de moins par config, avec un plancher de 200 px ; 75 vw par carte sur mobile). Les lignes de fiche technique sont alignées dans une grille commune avec la meilleure valeur surlignée en vert.</p></div>
     <div class="chlog"><h3>v2.66 — Comparateur compact, cartes côte à côte et en-têtes épinglés</h3><p class="hint">Le comparateur déplie chaque fiche depuis toute la ligne du composant, avec la flèche placée avant l’icône et une seule fiche ouverte à la fois. Un bouton d’agrandissement à droite du nom ouvre 2 à 5 cartes côte à côte : visuel, specs, fiche technique, prix, liens et une popover compacte pour choisir les alternatives et variantes sans quitter la comparaison. Chaque carte non actuelle peut ajouter son composant comme alternative à la config actuelle, avec dédoublonnage par lien Idealo ou nom + prix. Le comparateur utilise désormais une seule zone de défilement : en-têtes de colonnes, groupes, composant ouvert, en-tête de fiche et total restent épinglés, et la position est conservée après chaque rendu.</p></div>
     <div class="chlog"><h3>v2.65 — Fiches d’information, compteurs et menu mobile</h3><p class="hint">Le partage et l’export affichent une fiche d’information compacte sur deux colonnes : inclus en vert, exclus en rouge, PDF uniquement en orange, avec une légende. La variante sélectionnée garde une bordure plus épaisse que son survol. La création par IA montre chaque composant et son statut sous « Construire la config », avec l’animation d’actualisation des prix en recherche et un balayage vertical à l’import ; le popup reste utilisable après la garde des modifications non sauvegardées. Les prix, consommations et benchmarks comptent désormais de zéro, et le réglage Animations les coupe ou les relance. Le chargement d’une config rafraîchit immédiatement les benchmarks affichés, les offres de la fiche composant reprennent les bons plans et le meilleur total, et le menu mobile est centré avec le tiroir de la navigation KJ.</p></div>
     <div class="chlog"><h3>v2.64 — Verre unifié, boutons verts allégés et bienvenue mobile</h3><p class="hint">Toutes les popups et barres adoptent le verre de la navigation, avec un fond blanc à 97 %. Les boutons verts deviennent translucides et clairs, et repassent en vert uni quand le design translucide est désactivé. Le menu de bienvenue mobile s’ouvre sur l’accueil (logo, atouts, Nouveau / Charger), puis affiche séparément la création ou le chargement avec un retour. Le partage et l’export remplacent le tableau par une fiche d’information : inclus en vert, exclus en rouge, PDF uniquement en orange. La fiche composant est teintée selon la sélection KJ, les onglets mobiles sont plus grands, l’icône de la fiche réduite, la bordure de l’alternative sélectionnée plus épaisse et l’installation n’apparaît dans les paramètres que sur mobile. « Sauver » devient « Sauvegarder ».</p></div>
@@ -7454,7 +7481,7 @@ function showPage(which) {
   if (which === 'tutorials') showTutorials();
   else clearTutorialVideos();
   if (which === 'bench') showBench();
-  if (which === 'compare') { showCompare(); requestAnimationFrame(cmpFitViewport); }
+  if (which === 'compare') showCompare();
   if (which === 'prices') drawPrices();
 }
 
@@ -7612,15 +7639,6 @@ function bind() {
   $('#cmpDiff').onclick = () => { cmpState.mode = 'diff'; renderCompare(); };
   $('#cmpAdd').onclick = openCompareConfigPicker;
   bindCompareBody();
-  let cmpResizeRaf = 0;
-  window.addEventListener('resize', () => {
-    if (cmpResizeRaf) return;
-    cmpResizeRaf = requestAnimationFrame(() => { cmpResizeRaf = 0; cmpFitViewport(); });
-  }, { passive: true });
-  window.addEventListener('load', cmpFitViewport, { once: true });
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => cmpFitViewport()).catch(() => {});
-  }
   $('#sumDesc').onclick = () => switchSum('desc');
   $('#sumCharts').onclick = () => switchSum('charts');
   $('#sumPower').onclick = () => switchSum('power');
