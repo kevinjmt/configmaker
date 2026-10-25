@@ -354,7 +354,8 @@ const Perf = (() => {
 
   /* ---------- 3DMark Time Spy via Jina (verifie live) ----------
      Autocomplete cpu/gpu -> ids ; buckets search2 (combo / gpu seul /
-     cpu seul, preset P) -> medianes overallScore (top runs, biais optimiste).
+     cpu seul, preset P) -> moyenne overallScore de tous les runs disponibles
+     (plafond 1000 echantillons par panier).
      Bottleneck : rCpu = combo/gpuSeul (<1 = ce CPU bride ce GPU),
      seuils .85 jaune / .70 rouge. Cache session. */
   const TS_API = 'https://www.3dmark.com/proxycon/ajax/';
@@ -394,11 +395,11 @@ const Perf = (() => {
       } finally { clearTimeout(to); }
     });
   }
-  function tsMedian(a) {
-    const v = (a || []).filter(x => typeof x === 'number' && isFinite(x)).sort((x, y) => x - y);
+  const TS_MAX_SAMPLES = 1000;
+  function tsMean(a, cap) {
+    const v = (a || []).filter(x => typeof x === 'number' && isFinite(x)).slice(0, cap || TS_MAX_SAMPLES);
     if (!v.length) return null;
-    const m = v.length >> 1;
-    return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
+    return Math.round(v.reduce((sum, x) => sum + x, 0) / v.length);
   }
   function tsToken(name, kind) {
     const s = String(name || '');
@@ -431,11 +432,13 @@ const Perf = (() => {
     tsCache[ck] = v;
     return v;
   }
-  async function tsBucket(url, cap, pages) {
+  async function tsBucket(url, cap) {
     const out = [];
     let next = url, n = 0, topUri = null;
-    cap = cap || 120; pages = pages || 3;
-    while (next && n < pages && out.length < cap) {
+    cap = cap || TS_MAX_SAMPLES;
+    // All available public runs up to 1000; the hard page guard only protects
+    // against a broken/looping nextPageLink.
+    while (next && n < 120 && out.length < cap) {
       const j = await tsFetchJson(next).catch(() => null);
       if (!j || !Array.isArray(j.results)) break;
       for (const r of j.results) {
@@ -447,26 +450,28 @@ const Perf = (() => {
       next = j.nextPageLink ? ('https://www.3dmark.com' + j.nextPageLink) : null;
       n++;
     }
-    return { scores: out, topUri };
+    return { scores: out.slice(0, cap), topUri };
   }
   async function tsCombo(cpuName, gpuName) {
     const c = await tsHwId('cpu', cpuName), g = await tsHwId('gpu', gpuName);
-    if (!c || !g) return { median: null, n: 0, cpu: c, gpu: g };
+    if (!c || !g) return { mean: null, median: null, n: 0, cpu: c, gpu: g };
     const ck = 'combo:' + c.id + ':' + g.id;
     if (tsCache[ck]) return { ...tsCache[ck], cpu: c, gpu: g };
-    const bk = await tsBucket(TS_API + 'search2/cpugpu/spy/P/' + c.id + '/' + g.id + '/999999?minScore=0');
-    const v = { median: tsMedian(bk.scores), n: bk.scores.length, topUri: bk.topUri };
+    const bk = await tsBucket(TS_API + 'search2/cpugpu/spy/P/' + c.id + '/' + g.id + '/999999?minScore=0', TS_MAX_SAMPLES);
+    const m = tsMean(bk.scores, TS_MAX_SAMPLES);
+    const v = { mean: m, median: m, n: bk.scores.length, topUri: bk.topUri };
     tsCache[ck] = v;
     return { ...v, cpu: c, gpu: g };
   }
   async function tsSingle(kind, name) {
     const h = await tsHwId(kind, name);
-    if (!h) return { median: null, n: 0, hw: h };
+    if (!h) return { mean: null, median: null, n: 0, hw: h };
     const ck = kind + ':' + h.id;
     if (tsCache[ck]) return { ...tsCache[ck], hw: h };
     // NOTE : les paniers solo sont au singulier (/search2/gpu|/cpu/), pas gpus/cpus (404).
-    const bk = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpu' : 'cpu') + '/spy/P/' + h.id + '/999999?minScore=0', 60, 2);
-    const v = { median: tsMedian(bk.scores), n: bk.scores.length };
+    const bk = await tsBucket(TS_API + 'search2/' + (kind === 'gpu' ? 'gpu' : 'cpu') + '/spy/P/' + h.id + '/999999?minScore=0', TS_MAX_SAMPLES);
+    const m = tsMean(bk.scores, TS_MAX_SAMPLES);
+    const v = { mean: m, median: m, n: bk.scores.length };
     tsCache[ck] = v;
     return { ...v, hw: h };
   }
@@ -481,30 +486,44 @@ const Perf = (() => {
     if (rGpu < 0.85) return { side: 'gpu', level: 'warn', ratio: rGpu };
     return { side: 'none', level: null, ratio: rGpu };
   }
-  /* ---------- Geekbench via Jina (verifie live) : medians single/multi ---------- */
+  /* ---------- Geekbench via Jina (verifie live) : moyennes single/multi ---------- */
   const gbCache = {};
   function gbClear() { for (const k of Object.keys(gbCache)) delete gbCache[k]; }
-  async function gbScores(cpuName) {
-    const q = String(cpuName || '').trim();
-    if (!q) return { single: null, multi: null, n: 0, version: '?' };
-    if (gbCache[q]) return gbCache[q];
-    const md = await tsQueued(async () => {
+  const GB_MAX_PAGES = 120; // 25 runs/page -> largely enough to reach the 1000 cap
+  async function gbPage(q, page) {
+    return tsQueued(async () => {
       const ctl = new AbortController();
       const to = setTimeout(() => ctl.abort(), 30000);
       try {
-        const res = await fetch(TS_READER + 'https://browser.geekbench.com/search?q=' + encodeURIComponent(q), { signal: ctl.signal });
+        const u = 'https://browser.geekbench.com/search?q=' + encodeURIComponent(q) + (page > 1 ? '&page=' + page : '');
+        const res = await fetch(TS_READER + u, { signal: ctl.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return await res.text();
       } finally { clearTimeout(to); }
     }).catch(() => null);
+  }
+  async function gbScores(cpuName) {
+    const q = String(cpuName || '').trim();
+    if (!q) return { single: null, multi: null, n: 0, version: '?' };
+    if (gbCache[q]) return gbCache[q];
     const v = { single: null, multi: null, n: 0, version: '?' };
-    if (md) {
-      const vm = md.match(/Geekbench (\d)/);
-      if (vm) v.version = 'V' + vm[1];
-      const s1 = [...md.matchAll(/Single-Core Score\s*([\d, \u00a0]+)/gi)].map(m => parseInt(m[1].replace(/[^\d]/g, ''), 10)).filter(x => x > 100 && x < 100000);
-      const mu = [...md.matchAll(/Multi-Core Score\s*([\d, \u00a0]+)/gi)].map(m => parseInt(m[1].replace(/[^\d]/g, ''), 10)).filter(x => x > 500 && x < 1000000);
-      v.single = tsMedian(s1); v.multi = tsMedian(mu); v.n = Math.min(s1.length, mu.length);
+    const s1 = [], mu = [];
+    for (let page = 1; page <= GB_MAX_PAGES; page++) {
+      const md = await gbPage(q, page);
+      if (!md) break;
+      if (v.version === '?') {
+        const vm = md.match(/Geekbench (\d)/);
+        if (vm) v.version = 'V' + vm[1];
+      }
+      const ps = [...md.matchAll(/Single-Core Score\s*([\d, \u00a0]+)/gi)].map(m => parseInt(m[1].replace(/[^\d]/g, ''), 10)).filter(x => x > 100 && x < 100000);
+      const pm = [...md.matchAll(/Multi-Core Score\s*([\d, \u00a0]+)/gi)].map(m => parseInt(m[1].replace(/[^\d]/g, ''), 10)).filter(x => x > 500 && x < 1000000);
+      if (!ps.length && !pm.length) break;
+      s1.push(...ps); mu.push(...pm);
+      if (s1.length >= TS_MAX_SAMPLES && mu.length >= TS_MAX_SAMPLES) break;
     }
+    v.single = tsMean(s1, TS_MAX_SAMPLES);
+    v.multi = tsMean(mu, TS_MAX_SAMPLES);
+    v.n = Math.min(s1.length, mu.length, TS_MAX_SAMPLES);
     gbCache[q] = v;
     return v;
   }

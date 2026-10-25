@@ -1,11 +1,11 @@
-/* ConfigMaker v2.68 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.69 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.68';
+const APP_VERSION = '2.69';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -261,6 +261,9 @@ const I18N = {
     'settings.translucent': 'Design translucide', 'settings.translucentHint': 'Désactive la transparence et le flou du verre (popups et boutons verts) dans toute l’application.',
     'settings.installHint': 'Ajouter ConfigMaker à l’écran d’accueil.',
     'settings.exportAll': 'Exporter toutes les données', 'settings.exportAllHint': 'Toutes les configurations, l’historique, les prix et les préférences.',
+    'settings.review': 'Avis sur le projet', 'settings.reviewHint': 'Une étoile ou une issue GitHub aide à faire avancer ConfigMaker.',
+    'settings.noPriceRefresh': 'Ne pas actualiser les prix', 'settings.noPriceRefreshHint': 'Bloque uniquement l’actualisation automatique. Les mises à jour manuelles restent disponibles.',
+    'settings.noPriceRefreshOn': 'Actualisation automatique désactivée.',
     'settings.on': 'Activé', 'settings.off': 'Désactivé',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauvegarder', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
@@ -337,8 +340,8 @@ const I18N = {
     'bench.videos': 'Vidéos', 'bench.extraPh': 'Préciser la recherche… (ex : ray tracing, undervolt)', 'bench.search': 'Chercher',
     'bench.needs': 'Sélectionnez un CPU + un GPU (ou un graphique intégré) pour charger les benchmarks.',
     'bench.needBoth': 'CPU + GPU requis (composants absents ou hors base iobit)', 'bench.needCpu': 'CPU requis.',
-    'bench.nodata': 'Pas de données — réessayez plus tard.', 'bench.topruns': 'Médiane des meilleurs runs publics (biais optimiste)',
-    'bench.typical': 'médianes par panier', 'bench.tsGpu': 'GPU typique', 'bench.tsCpu': 'CPU typique',
+    'bench.nodata': 'Pas de données — réessayez plus tard.', 'bench.topruns': 'Moyenne de tous les runs publics disponibles (plafond 1 000)',
+    'bench.typical': 'moyennes par panier', 'bench.tsGpu': 'GPU typique', 'bench.tsCpu': 'CPU typique',
     'bench.single': 'Mono-cœur', 'bench.multi': 'Multi-cœurs',
     'bench.btCpu': 'CPU limite — ce couple obtient moins que la moyenne de ce GPU', 'bench.btGpu': 'Config limitée par le GPU (normal à cette résolution)', 'bench.btOk': 'Couple équilibré',
     'bench.q_low': 'Bas', 'bench.q_medium': 'Moyen', 'bench.q_high': 'Élevé', 'bench.q_ultra': 'Ultra', 'bench.q_max': 'Max',
@@ -365,7 +368,36 @@ const I18N = {
     'consent.msg': 'Ce site stocke vos configs localement. Accepter ?', 'consent.accept': 'Accepter', 'consent.deny': 'Refuser',
     'consent.saveBlocked': 'Sauvegarde désactivée (stockage refusé) — JSON exporté en secours.', 'consent.deniedHint': 'Stockage refusé : mode mémoire seule.',
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.power': 'Consommation', 'prices.perMonth': 'Prix / mois', 'prices.perYear': 'Prix / an', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.',
-    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
+    'review.eyebrow': 'Projet open source', 'review.title': 'Soutenir ConfigMaker',
+    'review.hint': 'ConfigMaker reste gratuit, local et sans publicité. Une étoile sur GitHub ou une issue bien décrite aide énormément le projet à progresser.',
+    'review.star': 'Mettre une étoile', 'review.issue': 'Ouvrir une issue',
+    'idealo.eyebrow': 'Merci pour les prix !', 'idealo.title': 'Merci Idealo !',
+    'idealo.thanks': 'Les prix, les offres marchands et une grande partie des fiches techniques viennent d’Idealo. Sans ce service, ConfigMaker ne pourrait pas comparer les composants aussi précisément.',
+    'idealo.feat1': 'Prix et offres en direct', 'idealo.feat2': 'Fiches techniques détaillées', 'idealo.feat3': 'Comparaison de marchands',
+    'idealo.dependency': 'Dépendance assumée : la recherche Idealo passe par Jina Reader et peut être limitée en cas de forte affluence.',
+    'idealo.cta': 'Découvrir Idealo',
+    'services.title': 'Services externes', 'services.hint': 'ConfigMaker fonctionne en local, mais s’appuie sur ces services pour les prix, les benchmarks, les tutoriels, l’IA, les icônes et les polices. Chaque lien ouvre le site officiel dans un nouvel onglet.',
+    'services.footerTitle': 'Services utilisés', 'services.prices': 'Prix & fiches', 'services.bench': 'Benchmarks & tutoriels',
+    'services.infra': 'Infrastructure & IA', 'services.cdn': 'CDN & polices', 'services.dependency': 'Services externes utilisés par ConfigMaker. Aucun panier, aucun suivi publicitaire.',
+    'export.title': 'Contenu de l’export', 'export.hint': 'Choisissez un preset ou cochez les éléments à inclure. La configuration reste toujours incluse pour que le JSON soit réimportable.',
+    'export.lockedHint': 'Vue Partager : toutes les cases sont cochées et verrouillées. Le lien généré ne contient toujours que la configuration.',
+    'export.presetAll': 'Tout', 'export.presetCurrent': 'Données actuelles', 'export.presetConfigPerf': 'Config + performances',
+    'export.presetConfig': 'Configuration seule', 'export.custom': 'Personnalisé',
+    'export.config': 'Configuration', 'export.configHint': 'Nom, budget, composants, quantités, liens et fiches.',
+    'export.performances': 'Performances', 'export.performancesHint': 'Résumé d’usage, FPS, Geekbench et 3DMark.',
+    'export.graphs': 'Graphiques', 'export.graphsHint': 'Répartition du budget et données des graphiques.',
+    'export.consumption': 'Consommation', 'export.consumptionHint': 'Puissance, calendriers d’usage et tarification.',
+    'export.compatibility': 'Compatibilité', 'export.compatibilityHint': 'Vérifications, alertes et justifications.',
+    'export.priceHistory': 'Historique des prix', 'export.priceHistoryHint': 'Courbes et points de prix enregistrés.',
+    'export.savedVersions': 'Sauvegardes', 'export.savedVersionsHint': 'Versions sauvegardées de cette config (JSON uniquement).',
+    'export.tutorials': 'Tutoriels', 'export.tutorialsHint': 'Tutoriels des composants sélectionnés et playlists.',
+    'export.pdfOnly': 'PDF', 'export.jsonOnly': 'JSON', 'export.both': 'PDF + JSON',
+    'export.configAlways': 'La configuration est toujours incluse.',
+    'export.empty': 'Sélectionnez au moins un élément à exporter.',
+    'export.saved': 'Sélection d’export enregistrée.',
+    'export.shareNote': 'Le lien de partage ne contient que la configuration (nom, budget, composants, prix et liens Idealo).',
+    'export.pdfHint': 'PDF : rapport imprimable. Astuce : choisissez « Enregistrer au format PDF », pas une imprimante système.',
+    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'footer.top': 'Haut de page ↑', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
     'nav.exportAll': 'Export data', 'nav.install': 'Install', 'nav.settings': 'Settings',
@@ -374,6 +406,9 @@ const I18N = {
     'settings.translucent': 'Translucent design', 'settings.translucentHint': 'Disables transparency and glass blur (popups and green buttons) throughout the app.',
     'settings.installHint': 'Add ConfigMaker to your home screen.',
     'settings.exportAll': 'Export all data', 'settings.exportAllHint': 'All configurations, history, prices and preferences.',
+    'settings.review': 'Review the project', 'settings.reviewHint': 'A GitHub star or a clear issue helps ConfigMaker move forward.',
+    'settings.noPriceRefresh': 'Do not refresh prices', 'settings.noPriceRefreshHint': 'Blocks automatic refresh only. Manual updates remain available.',
+    'settings.noPriceRefreshOn': 'Automatic price refresh disabled.',
     'settings.on': 'On', 'settings.off': 'Off',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
@@ -450,8 +485,8 @@ const I18N = {
     'bench.videos': 'Videos', 'bench.extraPh': 'Refine the search… (e.g. ray tracing, undervolt)', 'bench.search': 'Search',
     'bench.needs': 'Select a CPU + GPU (or integrated graphics) to load benchmarks.',
     'bench.needBoth': 'CPU + GPU required (missing parts or outside iobit DB)', 'bench.needCpu': 'CPU required.',
-    'bench.nodata': 'No data — retry later.', 'bench.topruns': 'Median of top public runs (optimistic bias)',
-    'bench.typical': 'bucket medians', 'bench.tsGpu': 'Typical GPU', 'bench.tsCpu': 'Typical CPU',
+    'bench.nodata': 'No data — retry later.', 'bench.topruns': 'Mean of all available public runs (capped at 1,000)',
+    'bench.typical': 'bucket means', 'bench.tsGpu': 'Typical GPU', 'bench.tsCpu': 'Typical CPU',
     'bench.single': 'Single-core', 'bench.multi': 'Multi-core',
     'bench.btCpu': 'CPU-limited — this combo scores below this GPU average', 'bench.btGpu': 'GPU-bound config (normal at this resolution)', 'bench.btOk': 'Balanced combo',
     'bench.q_low': 'Low', 'bench.q_medium': 'Medium', 'bench.q_high': 'High', 'bench.q_ultra': 'Ultra', 'bench.q_max': 'Max',
@@ -478,7 +513,36 @@ const I18N = {
     'consent.msg': 'This site stores your configs locally. Accept?', 'consent.accept': 'Accept', 'consent.deny': 'Decline',
     'consent.saveBlocked': 'Saving disabled (storage declined) — JSON exported as backup.', 'consent.deniedHint': 'Storage declined: memory-only mode.',
     'prices.title': 'Price history', 'prices.total': 'Config total', 'prices.per': 'Per part', 'prices.power': 'Power draw', 'prices.perMonth': 'Cost / month', 'prices.perYear': 'Cost / year', 'prices.hint': 'One point is added on each save. Budget is the dotted line (total view). Hover the curve for per-date details.',
-    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
+    'review.eyebrow': 'Open-source project', 'review.title': 'Support ConfigMaker',
+    'review.hint': 'ConfigMaker stays free, local and ad-free. A GitHub star or a clear issue helps the project a lot.',
+    'review.star': 'Star on GitHub', 'review.issue': 'Open an issue',
+    'idealo.eyebrow': 'Thanks for the prices!', 'idealo.title': 'Thank you Idealo!',
+    'idealo.thanks': 'Prices, merchant offers and much of the datasheet data come from Idealo. Without this service, ConfigMaker could not compare components this precisely.',
+    'idealo.feat1': 'Live prices and offers', 'idealo.feat2': 'Detailed datasheets', 'idealo.feat3': 'Merchant comparison',
+    'idealo.dependency': 'Acknowledged dependency: Idealo search goes through Jina Reader and may be rate-limited during heavy use.',
+    'idealo.cta': 'Discover Idealo',
+    'services.title': 'External services', 'services.hint': 'ConfigMaker runs locally, but relies on these services for prices, benchmarks, tutorials, AI, icons and fonts. Each link opens the official site in a new tab.',
+    'services.footerTitle': 'Services used', 'services.prices': 'Prices & specs', 'services.bench': 'Benchmarks & tutorials',
+    'services.infra': 'Infrastructure & AI', 'services.cdn': 'CDN & fonts', 'services.dependency': 'External services used by ConfigMaker. No cart, no ad tracking.',
+    'export.title': 'Export contents', 'export.hint': 'Pick a preset or tick the items to include. Configuration is always included so the JSON remains re-importable.',
+    'export.lockedHint': 'Share view: every box is checked and locked. The generated link still only contains the configuration.',
+    'export.presetAll': 'Everything', 'export.presetCurrent': 'Current data', 'export.presetConfigPerf': 'Config + performance',
+    'export.presetConfig': 'Configuration only', 'export.custom': 'Custom',
+    'export.config': 'Configuration', 'export.configHint': 'Name, budget, components, quantities, links and datasheets.',
+    'export.performances': 'Performance', 'export.performancesHint': 'Usage summary, FPS, Geekbench and 3DMark.',
+    'export.graphs': 'Graphs', 'export.graphsHint': 'Budget allocation and chart data.',
+    'export.consumption': 'Power draw', 'export.consumptionHint': 'Power, usage calendars and pricing.',
+    'export.compatibility': 'Compatibility', 'export.compatibilityHint': 'Checks, warnings and explanations.',
+    'export.priceHistory': 'Price history', 'export.priceHistoryHint': 'Saved curves and price points.',
+    'export.savedVersions': 'Saved versions', 'export.savedVersionsHint': 'Saved versions of this config (JSON only).',
+    'export.tutorials': 'Tutorials', 'export.tutorialsHint': 'Selected-component tutorials and playlists.',
+    'export.pdfOnly': 'PDF', 'export.jsonOnly': 'JSON', 'export.both': 'PDF + JSON',
+    'export.configAlways': 'Configuration is always included.',
+    'export.empty': 'Select at least one item to export.',
+    'export.saved': 'Export selection saved.',
+    'export.shareNote': 'The share link only carries the configuration (name, budget, components, prices and Idealo links).',
+    'export.pdfHint': 'PDF: printable report. Tip: choose “Save as PDF”, not a system printer.',
+    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'footer.top': 'Back to top ↑', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
 };
 const SLOT_NAMES = {
@@ -5102,7 +5166,7 @@ async function loadBench3d(f) {
     if (run !== benchRun) return;
     bench3d = { combo, gpuOnly: null, cpuOnly: null, singlesErr: false };
     render3d();
-  } catch (e) { if (run === benchRun) { bench3d = { combo: { median: null, n: 0 }, err: String((e && e.message) || e) }; render3d(); } return; }
+  } catch (e) { if (run === benchRun) { bench3d = { combo: { mean: null, n: 0 }, err: String((e && e.message) || e) }; render3d(); } return; }
   // Les typiques ne doivent jamais masquer un combine reussi.
   try {
     const [g, c] = await Promise.all([Perf.tsSingle('gpu', f.gpuP.name), Perf.tsSingle('cpu', f.cpuP.name)]);
@@ -5130,22 +5194,22 @@ function render3d() {
     bindTsRetry();
     return;
   }
-  if (combo.median == null) {
+  if (combo.mean == null) {
     $('#tsScore').textContent = '—';
     $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.nodata'))} (${esc((combo.gpu && combo.gpu.label) || '')} + ${esc((combo.cpu && combo.cpu.label) || '')})</p>` + retry
       + `<div class="btn-row"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://www.3dmark.com/search"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.tsOpen'))}</a></div>`;
     bindTsRetry();
     return;
   }
-  $('#tsScore').innerHTML = countNum(combo.median, 'num', 0);
-  const comboTile = `<div class="brief-tile static ts-combo"><i class="fa-solid fa-trophy bt-icon"></i><span class="bt-title">${esc(t('bench.tsCombo'))}</span><strong class="bt-fps">${countNum(combo.median, 'num', 0)}</strong></div>`;
+  $('#tsScore').innerHTML = countNum(combo.mean, 'num', 0);
+  const comboTile = `<div class="brief-tile static ts-combo"><i class="fa-solid fa-trophy bt-icon"></i><span class="bt-title">${esc(t('bench.tsCombo'))}</span><strong class="bt-fps">${countNum(combo.mean, 'num', 0)}</strong></div>`;
   let tiles = comboTile, sub = `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i></p>`;
-  if (bench3d.gpuOnly && bench3d.cpuOnly && bench3d.gpuOnly.median && bench3d.cpuOnly.median) {
-    const v = Perf.tsBottleneck(combo.median, bench3d.gpuOnly.median, bench3d.cpuOnly.median);
+  if (bench3d.gpuOnly && bench3d.cpuOnly && bench3d.gpuOnly.mean && bench3d.cpuOnly.mean) {
+    const v = Perf.tsBottleneck(combo.mean, bench3d.gpuOnly.mean, bench3d.cpuOnly.mean);
     const cls = v.level === 'err' ? 'r' : v.level === 'warn' ? 'y' : 'g';
     const msg = v.side === 'cpu' ? t('bench.btCpu') : v.side === 'gpu' ? t('bench.btGpu') : t('bench.btOk');
-    tiles += `<div class="brief-tile static"><i class="fa-solid fa-microchip bt-icon"></i><span class="bt-title">${esc((combo.cpu && combo.cpu.label) || t('bench.tsCpu'))}</span><strong class="bt-fps">${countNum(bench3d.cpuOnly.median, 'num', 0)}</strong></div>`
-      + `<div class="brief-tile static"><span class="bt-icon">${iconHtml('bi:bi-gpu-card')}</span><span class="bt-title">${esc((combo.gpu && combo.gpu.label) || t('bench.tsGpu'))}</span><strong class="bt-fps">${countNum(bench3d.gpuOnly.median, 'num', 0)}</strong></div>`;
+    tiles += `<div class="brief-tile static"><i class="fa-solid fa-microchip bt-icon"></i><span class="bt-title">${esc((combo.cpu && combo.cpu.label) || t('bench.tsCpu'))}</span><strong class="bt-fps">${countNum(bench3d.cpuOnly.mean, 'num', 0)}</strong></div>`
+      + `<div class="brief-tile static"><span class="bt-icon">${iconHtml('bi:bi-gpu-card')}</span><span class="bt-title">${esc((combo.gpu && combo.gpu.label) || t('bench.tsGpu'))}</span><strong class="bt-fps">${countNum(bench3d.gpuOnly.mean, 'num', 0)}</strong></div>`;
     sub = `<p class="hint"><strong class="fps-${cls}">●</strong> ${esc(msg)}${v.ratio ? ` (${Math.round(v.ratio * 100)} %)` : ''} · ${esc(t('bench.typical'))}</p>`;
   } else if (bench3d.singlesErr) {
     sub = `<p class="hint">${esc(t('bench.typErr'))}</p>` + retry;
@@ -5615,13 +5679,13 @@ function cmpTsCell(colId, f, e, kind) {
   if (e.b3dErr) return cmpRetryCell('ts', colId);
   if (!e.b3d) return cmpLoadingCell();
   const combo = e.b3d.combo || {};
-  if (combo.median == null) return cmpRetryCell('ts', colId);
-  if (kind === 'combo') return cmpScoreCell(combo.median, `${combo.n || 0} runs`);
+  if (combo.mean == null) return cmpRetryCell('ts', colId);
+  if (kind === 'combo') return cmpScoreCell(combo.mean, `${combo.n || 0} runs`);
   if (kind === 'bottleneck') {
-    if (!e.b3d.gpuOnly || !e.b3d.cpuOnly || e.b3d.gpuOnly.median == null || e.b3d.cpuOnly.median == null) return e.b3d.singlesErr ? cmpNoneCell('—') : cmpLoadingCell();
-    return cmpBottleneckCell(Perf.tsBottleneck(combo.median, e.b3d.gpuOnly.median, e.b3d.cpuOnly.median));
+    if (!e.b3d.gpuOnly || !e.b3d.cpuOnly || e.b3d.gpuOnly.mean == null || e.b3d.cpuOnly.mean == null) return e.b3d.singlesErr ? cmpNoneCell('—') : cmpLoadingCell();
+    return cmpBottleneckCell(Perf.tsBottleneck(combo.mean, e.b3d.gpuOnly.mean, e.b3d.cpuOnly.mean));
   }
-  const v = kind === 'cpu' ? (e.b3d.cpuOnly && e.b3d.cpuOnly.median) : (e.b3d.gpuOnly && e.b3d.gpuOnly.median);
+  const v = kind === 'cpu' ? (e.b3d.cpuOnly && e.b3d.cpuOnly.mean) : (e.b3d.gpuOnly && e.b3d.gpuOnly.mean);
   if (v == null && !e.b3d.singlesErr) return cmpLoadingCell();
   return cmpScoreCell(v);
 }
@@ -5742,7 +5806,7 @@ function cmpLoadExtras(data) {
             const [g, c] = await Promise.all([Perf.tsSingle('gpu', f.gpuP.name), Perf.tsSingle('cpu', f.cpuP.name)]);
             if (cmpState.ext[col.id] !== e) return;
             e.b3d.gpuOnly = g; e.b3d.cpuOnly = c;
-            if (g.median == null || c.median == null) e.b3d.singlesErr = true;
+            if (g.mean == null || c.mean == null) e.b3d.singlesErr = true;
           } catch {
             if (cmpState.ext[col.id] === e) e.b3d.singlesErr = true;
           }
@@ -6902,18 +6966,62 @@ function importConfig(obj, opts) {
 }
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
+let priceRefreshCancel = false, priceRefreshCancelArmed = false, priceRefreshCancelTimer = null, priceProgressText = '';
 const refreshingPids = new Set();
 const refreshFailed = new Set();
 function schedulePriceRefresh(delay = 1200, quiet = false) {
   clearTimeout(priceRefreshTimer);
+  if (prefs.noPriceRefresh === true) return;
   priceRefreshTimer = setTimeout(() => refreshPrices(quiet), delay);
 }
-function showProgress(txt) {
+function showProgress(txt, opts = {}) {
   const pp = $('#progressPop'); if (!pp) return;
-  $('#progressTxt').textContent = txt;
+  priceProgressText = txt;
+  if (!priceRefreshCancelArmed) $('#progressTxt').textContent = txt;
+  const btn = $('#progressCancel');
+  if (btn) {
+    btn.classList.toggle('hidden', !opts.cancelable);
+    if (!priceRefreshCancelArmed) {
+      btn.disabled = false;
+      btn.classList.remove('confirm');
+      btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation';
+    }
+  }
+  pp.classList.toggle('cancelable', !!opts.cancelable);
   pp.classList.remove('hidden');
 }
-function hideProgress() { const pp = $('#progressPop'); if (pp) pp.classList.add('hidden'); }
+function resetProgressCancel() {
+  clearTimeout(priceRefreshCancelTimer);
+  priceRefreshCancelArmed = false;
+  const btn = $('#progressCancel');
+  if (btn) { btn.disabled = false; btn.classList.remove('confirm'); btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation'; }
+  if (priceProgressText) { const txt = $('#progressTxt'); if (txt) txt.textContent = priceProgressText; }
+}
+function hideProgress() {
+  const pp = $('#progressPop'); if (pp) pp.classList.add('hidden');
+  resetProgressCancel();
+  priceRefreshCancel = false;
+}
+function wireProgressCancel() {
+  const btn = $('#progressCancel');
+  if (!btn) return;
+  btn.onclick = () => {
+    if (!priceRefreshRunning || priceRefreshCancel) return;
+    if (!priceRefreshCancelArmed) {
+      priceRefreshCancelArmed = true;
+      clearTimeout(priceRefreshCancelTimer);
+      $('#progressTxt').textContent = lang === 'en' ? 'Cancel the price refresh?' : 'Annuler l’actualisation ?';
+      btn.classList.add('confirm');
+      btn.title = lang === 'en' ? 'Click again to confirm' : 'Cliquez à nouveau pour confirmer';
+      priceRefreshCancelTimer = setTimeout(resetProgressCancel, 5000);
+      return;
+    }
+    priceRefreshCancel = true;
+    clearTimeout(priceRefreshCancelTimer);
+    btn.disabled = true;
+    $('#progressTxt').textContent = lang === 'en' ? 'Cancelling…' : 'Annulation…';
+  };
+}
 /* Apply listing offers to one fiche. Returns true if anything changed.
    Same vendor matched, else cheapest when no vendor. Flags only for the selected fiche. */
 function applyOfferRefresh(cur, offers, withFlags) {
@@ -6969,10 +7077,12 @@ async function refreshPrices(quiet) {
   const urls = [...byUrl.keys()];
   if (!urls.length || typeof Idealo === 'undefined') return;
   priceRefreshRunning = true;
+  priceRefreshCancel = false;
   const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
-  if (!quiet) showProgress(`${prog} (0/${urls.length})…`);
+  if (!quiet) showProgress(`${prog} (0/${urls.length})…`, { cancelable: true });
   let updated = 0, failed = 0;
   for (let i = 0; i < urls.length; i++) {
+    if (priceRefreshCancel) break;
     const url = urls[i];
     const entries = byUrl.get(url).filter(e => {
       const s = state.slots[e.id];
@@ -6981,9 +7091,10 @@ async function refreshPrices(quiet) {
     if (!entries.length) continue;
     entries.forEach(e => refreshingPids.add(e.pid));
     renderSlots(); renderSummary();
-    if (!quiet) showProgress(`${prog} (${i + 1}/${urls.length})…`);
+    if (!quiet) showProgress(`${prog} (${i + 1}/${urls.length})…`, { cancelable: true });
     try {
       const r = await Idealo.offers(url, true);
+      if (priceRefreshCancel) { entries.forEach(e => refreshingPids.delete(e.pid)); break; }
       if (r.error || !r.offers.length) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
       else {
         entries.forEach(({ id, pid }) => {
@@ -6994,98 +7105,155 @@ async function refreshPrices(quiet) {
           if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
         });
       }
-    } catch { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
+    } catch { if (!priceRefreshCancel) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); } }
     entries.forEach(e => refreshingPids.delete(e.pid));
   }
+  const cancelled = priceRefreshCancel;
   refreshingPids.clear();
   persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
-  for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
+  if (!cancelled) for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
+  if (cancelled) { toast(lang === 'en' ? 'Price refresh cancelled' : 'Actualisation annulée'); return; }
   toast(updated
     ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
     : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
+const EXPORT_PARTS = [
+  { id: 'config', icon: 'fa-solid fa-computer', fr: 'Configuration', en: 'Configuration', hintFr: 'Nom, budget, composants, quantités, liens et fiches.', hintEn: 'Name, budget, components, quantities, links and datasheets.', pdf: true, json: true },
+  { id: 'performances', icon: 'fa-solid fa-chart-line', fr: 'Performances', en: 'Performance', hintFr: 'Résumé d’usage, FPS, Geekbench et 3DMark.', hintEn: 'Usage summary, FPS, Geekbench and 3DMark.', pdf: true, json: true },
+  { id: 'graphs', icon: 'fa-solid fa-chart-pie', fr: 'Graphiques', en: 'Graphs', hintFr: 'Répartition du budget et données des graphiques.', hintEn: 'Budget allocation and chart data.', pdf: true, json: true },
+  { id: 'consumption', icon: 'fa-solid fa-bolt', fr: 'Consommation', en: 'Power draw', hintFr: 'Puissance, calendriers d’usage et tarification.', hintEn: 'Power, usage calendars and pricing.', pdf: true, json: true },
+  { id: 'compatibility', icon: 'fa-solid fa-shield-halved', fr: 'Compatibilité', en: 'Compatibility', hintFr: 'Vérifications, alertes et justifications.', hintEn: 'Checks, warnings and explanations.', pdf: true, json: true },
+  { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés et playlists.', hintEn: 'Selected-component tutorials and playlists.', pdf: true, json: true },
+  { id: 'priceHistory', icon: 'fa-solid fa-clock-rotate-left', fr: 'Historique des prix', en: 'Price history', hintFr: 'Courbes et points de prix enregistrés.', hintEn: 'Saved curves and price points.', pdf: true, json: true },
+  { id: 'savedVersions', icon: 'fa-solid fa-box-archive', fr: 'Sauvegardes', en: 'Saved versions', hintFr: 'Versions sauvegardées de cette config (JSON uniquement).', hintEn: 'Saved versions of this config (JSON only).', pdf: false, json: true },
+];
+const EXPORT_PRESETS = [
+  { id: 'all', fr: 'Tout', en: 'Everything', parts: null },
+  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption'] },
+  { id: 'configPerf', fr: 'Config + performances', en: 'Config + performance', parts: ['config', 'performances'] },
+  { id: 'config', fr: 'Configuration seule', en: 'Configuration only', parts: ['config'] },
+];
+const exportText = (en, fr) => (lang === 'en' ? en : fr);
+const exportPartText = p => (lang === 'en' ? p.en : p.fr);
+const exportPartHint = p => (lang === 'en' ? p.hintEn : p.hintFr);
+const exportAllPartIds = () => EXPORT_PARTS.map(p => p.id);
+function exportPresetParts(id) {
+  if (id === 'all') return exportAllPartIds();
+  const p = EXPORT_PRESETS.find(x => x.id === id);
+  return p && Array.isArray(p.parts) ? normalizeExportParts(p.parts) : null;
+}
+function normalizeExportParts(list) {
+  const valid = new Set(exportAllPartIds());
+  const out = [...new Set((Array.isArray(list) ? list : []).filter(id => valid.has(id)))];
+  if (!out.includes('config')) out.unshift('config');
+  return out;
+}
+function exportPresetForParts(list) {
+  const set = new Set(normalizeExportParts(list));
+  if (set.size === EXPORT_PARTS.length) return 'all';
+  for (const p of EXPORT_PRESETS) {
+    if (!Array.isArray(p.parts)) continue;
+    const q = normalizeExportParts(p.parts);
+    if (q.length === set.size && q.every(id => set.has(id))) return p.id;
+  }
+  return 'custom';
+}
+function readExportSelection() {
+  const saved = prefs && prefs.exportSelection;
+  const parts = normalizeExportParts(saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds());
+  return { preset: (saved && saved.preset) || exportPresetForParts(parts), parts };
+}
+function saveExportSelection(sel) {
+  const parts = normalizeExportParts(sel && sel.parts);
+  const preset = (sel && sel.preset && sel.preset !== 'custom') ? sel.preset : exportPresetForParts(parts);
+  prefs.exportSelection = { preset, parts };
+  try { save(LS.prefs, { ...load(LS.prefs, {}), exportSelection: prefs.exportSelection }); } catch { /* ignore */ }
+  return { preset, parts };
+}
+function exportPickerHtml(sel, locked) {
+  const parts = locked ? exportAllPartIds() : normalizeExportParts(sel && sel.parts);
+  const active = locked ? 'all' : ((sel && sel.preset) || exportPresetForParts(parts));
+  const presetBtn = p => `<button type="button" class="se-preset${active === p.id ? ' active' : ''}" data-export-preset="${p.id}" aria-pressed="${active === p.id}">${esc(exportText(p.en, p.fr))}</button>`;
+  return `<div class="se-picker${locked ? ' locked' : ''}" data-export-picker>
+    <div class="se-picker-head">
+      <h4><i class="fa-solid ${locked ? 'fa-lock' : 'fa-list-check'}"></i> ${esc(exportText('Export contents', 'Contenu de l’export'))}</h4>
+      <span class="se-picker-state">${locked ? esc(exportText('Locked · everything', 'Verrouillé · tout')) : esc(exportText('Choose freely', 'Choix libre'))}</span>
+    </div>
+    <p class="hint">${esc(locked ? exportText('Share view: every box is checked and locked. The generated link still only contains the configuration.', 'Vue Partager : toutes les cases sont cochées et verrouillées. Le lien généré ne contient toujours que la configuration.') : exportText('Pick a preset or tick the items to include. Configuration is always included so the JSON remains re-importable.', 'Choisissez un preset ou cochez les éléments à inclure. La configuration reste toujours incluse pour que le JSON soit réimportable.'))}</p>
+    ${locked ? '' : `<div class="se-presets">${EXPORT_PRESETS.map(presetBtn).join('')}${active === 'custom' ? `<span class="se-preset active">${esc(exportText('Custom', 'Personnalisé'))}</span>` : ''}</div>`}
+    <div class="se-pick-list">${EXPORT_PARTS.map(p => {
+      const on = parts.includes(p.id);
+      const ro = locked || p.id === 'config';
+      const tags = p.pdf && p.json ? exportText('PDF + JSON', 'PDF + JSON') : p.pdf ? 'PDF' : 'JSON';
+      return `<label class="se-pick-row${on ? ' on' : ''}${ro ? ' locked' : ''}">
+        <input type="checkbox" data-export-part="${p.id}"${on ? ' checked' : ''}${ro ? ' disabled' : ''}>
+        <span class="se-pick-ico"><i class="${p.icon}"></i></span>
+        <span class="se-pick-txt"><strong>${esc(exportPartText(p))}</strong><small>${esc(exportPartHint(p))}</small></span>
+        <span class="se-pick-tag">${esc(tags)}</span>
+      </label>`;
+    }).join('')}</div>
+    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : exportText('Configuration is always included. Saved versions are JSON-only.', 'La configuration est toujours incluse. Les sauvegardes sont réservées au JSON.'))}</p>
+  </div>`;
+}
 function openShareExport(pill) {
   pill = pill === 'export' ? 'export' : 'share';
-  const T = (en, fr) => (lang === 'en' ? en : fr);
+  const T = (en, fr) => exportText(en, fr);
+  let currentTab = pill;
+  let exportSel = readExportSelection();
   const link = buildShareLink();
-  const selected = state.order.filter(id => state.slots[id] && sel(state.slots[id]));
-  const altCount = state.order.reduce((n, id) => {
-    const sl = state.slots[id];
-    return n + (sl ? (sl.products || []).filter(p => p.id !== sl.selectedId).length : 0);
-  }, 0);
-  const snapshots = (load(LS.configs, {})[state.name] || []).length;
-  const pricePoints = (load(LS.hist, {})[state.name] || []).length;
-  const usageHours = state.usage ? usageWeeklyHours(normUsage(state.usage)) : 0;
-  const infoRow = (label, status, detail = '') => {
-    const icon = status === 'inc' ? 'check' : status === 'out' ? 'xmark' : status === 'pdf' ? 'file-pdf' : 'file-code';
-    return `<li class="se-${status}"><i class="fa-solid fa-${icon}"></i><span><strong>${esc(label)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span></li>`;
-  };
-  const shareInfo = `<div class="se-info">
-    <h4><i class="fa-solid fa-share-nodes"></i> ${T('Included in the share link', 'Inclus dans le lien de partage')}</h4>
-    <p class="hint">${T('Only what is needed to recreate the selection is shared. Everything else stays on this device.', 'Seul le nécessaire pour recréer la sélection est partagé. Le reste reste sur cet appareil.')}</p>
-    <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('Shared', 'Partagé')}</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Omitted', 'Omis')}</span></div>
-    <ul class="se-list">
-      ${infoRow(T('Config name and budget', 'Nom de la config et budget'), 'inc')}
-      ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', selected.length ? `${selected.length} ${T('component(s)', 'composant(s)')}` : T('None selected', 'Aucun sélectionné'))}
-      ${infoRow(T('Component name, price and Idealo link', 'Nom, prix et lien Idealo des composants'), 'inc')}
-    </ul>
-    <div class="se-group-title">${T('Not in the link', 'Absent du lien')}</div>
-    <ul class="se-list">
-      ${infoRow(T('Alternatives', 'Alternatives'), 'out', altCount ? `${altCount} ${T('not shared', 'non partagée(s)')}` : T('None', 'Aucune'))}
-      ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'out')}
-      ${infoRow(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), 'out')}
-      ${infoRow(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), 'out')}
-      ${infoRow(T('PC usage & pricing', 'Utilisation & tarification PC'), 'out', `${usageHours} h ${T('per week', 'par semaine')}`)}
-      ${infoRow(T('Saved snapshots and price history', 'Sauvegardes et historique des prix'), 'out', `${snapshots} ${T('save(s)', 'sauvegarde(s)')} · ${pricePoints} ${T('price point(s)', 'point(s) de prix')}`)}
-      ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out')}
-    </ul>
-  </div>`;
-  const exportInfo = `<div class="se-info">
-    <h4><i class="fa-solid fa-file-export"></i> ${T('What each export contains', 'Ce que contient chaque export')}</h4>
-    <p class="hint">${T('JSON keeps the full config for re-import. PDF is a printable report. Orange items exist only in the PDF.', 'JSON conserve toute la config pour le réimport. PDF est un rapport imprimable. Les éléments orange existent uniquement dans le PDF.')}</p>
-    <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('JSON + PDF', 'JSON + PDF')}</span><span class="se-json"><i class="fa-solid fa-circle"></i>JSON</span><span class="se-pdf"><i class="fa-solid fa-circle"></i>PDF</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Not exported', 'Non exporté')}</span></div>
-    <ul class="se-list">
-      ${infoRow(T('Config name, budget and selected components', 'Nom, budget et composants sélectionnés'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Links, vendor and delivery', 'Liens, vendeur et livraison'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Specs, datasheets, notes and compatibility', 'Specs, fiches, notes et compatibilité'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('PC usage and pricing', 'Utilisation et tarification PC'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Price history', 'Historique des prix'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Alternatives and saved snapshots', 'Alternatives et sauvegardes'), 'json', T('JSON only — not printed in the PDF report.', 'JSON uniquement — non imprimé dans le rapport PDF.'))}
-      ${infoRow(T('PDF report layout', 'Mise en page du rapport PDF'), 'pdf', T('PDF only — cover, charts, benchmarks, usage calendars and price curves.', 'PDF uniquement — couverture, graphiques, benchmarks, calendriers et courbes.'))}
-      ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out', T('Use “Export data” in Settings or the footer.', 'Utilisez « Exporter données » dans les paramètres ou le pied de page.'))}
-    </ul>
-  </div>`;
   const sharePane = `
     <p class="hint">${T('Scan the QR code or copy the link to share this configuration.', 'Scannez le QR code ou copiez le lien pour partager cette configuration.')}</p>
+    <p class="hint se-share-note"><i class="fa-solid fa-circle-info"></i> ${T('The link only carries the configuration (name, budget, components, prices and Idealo links).', 'Le lien ne transporte que la configuration (nom, budget, composants, prix et liens Idealo).')}</p>
     <div class="qr-img" id="s_qr"></div>
     <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
     <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
   const exportPane = `
-    <p class="hint">${T('PDF = full report (name, budget, description, components with manual / Idealo / merchant links, power draw, benchmarks, price history). JSON = this config with all its history, re-importable.', 'PDF = rapport complet (nom, budget, description, composants avec liens manuel / Idealo / marchand, consommation, benchmarks, historique des prix). JSON = cette config avec tout son historique, réimportable.')}</p>
-    <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working. The preview pane itself never allows selecting text or clicking links.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs. L’aperçu, lui, ne permet jamais de sélectionner le texte ni de cliquer les liens.')}</p>
-    <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
-    <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> JSON</button></div>`;
+    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('The selection above drives both PDF and JSON. JSON is re-importable; PDF is a printable report.', 'La sélection ci-dessus pilote à la fois le PDF et le JSON. Le JSON est réimportable ; le PDF est un rapport imprimable.')}</p>
+    <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs.')}</p>
+    <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> ${T('Export PDF', 'Exporter en PDF')}</button>
+    <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> ${T('Export JSON', 'Exporter en JSON')}</button></div>`;
   openModal(T('Share / Export', 'Partager / Exporter'), `
     <div class="usage-tabs">
       <button type="button" class="usage-tab${pill === 'share' ? ' active' : ''}" data-tab="share">${T('Share', 'Partager')}</button>
       <button type="button" class="usage-tab${pill === 'export' ? ' active' : ''}" data-tab="export">${T('Export', 'Exporter')}</button>
     </div>
-    ${pill === 'share' ? shareInfo : exportInfo}
+    <div id="sePickerSlot"></div>
     <div class="usage-pane" data-pane="share"${pill === 'share' ? '' : ' style="display:none"'}>${sharePane}</div>
     <div class="usage-pane" data-pane="export"${pill === 'export' ? '' : ' style="display:none"'}>${exportPane}</div>`, 'modal-wide');
   const host = $('#modalBody');
+  const renderPicker = () => {
+    const slot = $('#sePickerSlot');
+    if (!slot) return;
+    slot.innerHTML = exportPickerHtml(exportSel, currentTab === 'share');
+    slot.querySelectorAll('[data-export-preset]').forEach(b => {
+      b.onclick = () => {
+        if (currentTab === 'share') return;
+        const next = exportPresetParts(b.dataset.exportPreset);
+        if (!next) return;
+        exportSel = saveExportSelection({ preset: b.dataset.exportPreset, parts: next });
+        renderPicker();
+      };
+    });
+    slot.querySelectorAll('[data-export-part]').forEach(cb => {
+      cb.onchange = () => {
+        if (currentTab === 'share') return;
+        const set = new Set(exportSel.parts);
+        if (cb.checked) set.add(cb.dataset.exportPart); else set.delete(cb.dataset.exportPart);
+        const parts = normalizeExportParts([...set]);
+        exportSel = saveExportSelection({ preset: exportPresetForParts(parts), parts });
+        renderPicker();
+        $('#sePickerSlot')?.querySelector(`[data-export-part="${cb.dataset.exportPart}"]`)?.focus();
+      };
+    });
+  };
+  renderPicker();
   host.querySelectorAll('.usage-tab').forEach(b => b.onclick = () => {
-    const tab = b.dataset.tab;
-    host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
-    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
-    host.querySelector('.se-info')?.replaceWith((() => {
-      const tpl = document.createElement('div');
-      tpl.innerHTML = tab === 'share' ? shareInfo : exportInfo;
-      return tpl.firstElementChild;
-    })());
+    currentTab = b.dataset.tab;
+    host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
+    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === currentTab ? '' : 'none'; });
+    renderPicker();
   });
   const qrEl = $('#s_qr');
   if (qrEl && typeof qrcode === 'function') {
@@ -7093,8 +7261,8 @@ function openShareExport(pill) {
     catch { qrEl.innerHTML = ''; }
   }
   $('#s_copy').onclick = () => { navigator.clipboard?.writeText(link); toast(T('Link copied', 'Lien copié')); };
-  $('#e_pdf').onclick = () => { closeModal(); exportPdf(); };
-  $('#e_json').onclick = () => exportConfigJson();
+  $('#e_pdf').onclick = () => { exportSel = saveExportSelection(exportSel); closeModal(); exportPdf(exportSel.parts); };
+  $('#e_json').onclick = () => { exportSel = saveExportSelection(exportSel); exportConfigJson(exportSel.parts); };
 }
 /* ---------- Print / PDF report ----------
    The printed PDF is a dedicated report (name+budget, description, components
@@ -7208,10 +7376,13 @@ function prUsageConfig() {
     <div><h3 class="pr-h3">${esc(lang === 'en' ? 'Pricing (peak / off-peak)' : 'Tarification (HP / HC)')}</h3>${cal('tarif')}<p class="hint">${hp} HP · ${168 - hp} HC · ${lang === 'en' ? 'peak' : 'HP'} ${st.priceHP.toFixed(4)} €/kWh · ${lang === 'en' ? 'off-peak' : 'HC'} ${st.priceHC.toFixed(4)} €/kWh</p></div>
   </div></div>`;
 }
-function buildPrintReport() {
+function buildPrintReport(parts) {
+  const chosen = new Set(normalizeExportParts(parts));
+  const show = id => chosen.has(id);
   renderSummary();
   renderSumExtra();
   renderCompat();
+  try { renderBriefFacts(benchFacts()); } catch { /* ignore */ }
   const root = printRoot();
   root.innerHTML = '';
   const T = totals();
@@ -7223,7 +7394,7 @@ function buildPrintReport() {
   const exportDate = new Date().toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'long', timeStyle: 'short' });
   const badge = txt => (txt ? `<span class="pr-badge">${esc(txt)}</span>` : '');
 
-  /* 1 — cover: hero card (case image + title + budget/totals/diffs) + main menu */
+  /* 1 — cover: hero, ConfigMaker ad, Idealo ad, horizontal usage brief */
   const cover = prSection(root, null);
   cover.classList.add('pr-cover');
   const caseP = prCaseProduct();
@@ -7267,89 +7438,151 @@ function buildPrintReport() {
       <a class="pr-menu-cta" href="${esc(appUrl)}">${esc(L('Create your configuration with ConfigMaker', 'Créez votre configuration avec ConfigMaker'))}</a>
     </div>
   </div>`;
+  cover.insertAdjacentHTML('beforeend', `<div class="pr-idealo-ad">
+    <div class="pr-idealo-brand"><span class="pr-idealo-wordmark">idealo</span><span class="pr-idealo-kicker">${esc(L('Price partner', 'Partenaire prix'))}</span></div>
+    <div class="pr-idealo-copy">
+      <strong>${esc(L('Thank you Idealo!', 'Merci Idealo !'))}</strong>
+      <span>${esc(L('Prices, merchant offers and datasheet data used by ConfigMaker come from Idealo.', 'Les prix, offres marchands et fiches techniques utilisés par ConfigMaker viennent d’Idealo.'))}</span>
+    </div>
+    <a href="https://www.idealo.fr/" target="_blank" rel="noopener">idealo.fr</a>
+  </div>`);
+  if (show('performances')) {
+    const briefSrc = document.getElementById('briefBody');
+    if (briefSrc && briefSrc.children.length) {
+      const brief = document.createElement('div');
+      brief.className = 'pr-brief';
+      brief.innerHTML = `<h3 class="pr-h3"><i class="fa-solid fa-gauge-high"></i> ${esc(L('Usage summary', 'Résumé d’usage'))}</h3>`;
+      const body = prStripIds(briefSrc.cloneNode(true));
+      body.className = 'pr-brief-body';
+      brief.appendChild(body);
+      cover.appendChild(brief);
+    }
+  }
 
   /* 2 — description */
-  const desc = prSection(root, L('Summary', 'Description'), 'fa-solid fa-list');
-  const descSrc = document.getElementById('sumDescPane');
-  if (descSrc && descSrc.children.length) desc.appendChild(prCleanPane(descSrc.cloneNode(true)));
-  else desc.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
-  const descDock = document.getElementById('sumTotalsDesc');
-  if (descDock && descDock.children.length) desc.appendChild(prCleanPane(descDock.cloneNode(true)));
+  if (show('config')) {
+    const desc = prSection(root, L('Summary', 'Description'), 'fa-solid fa-list');
+    const descSrc = document.getElementById('sumDescPane');
+    if (descSrc && descSrc.children.length) desc.appendChild(prCleanPane(descSrc.cloneNode(true)));
+    else desc.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+    const descDock = document.getElementById('sumTotalsDesc');
+    if (descDock && descDock.children.length) desc.appendChild(prCleanPane(descDock.cloneNode(true)));
+  }
 
   /* 3 — graphs (budget allocation + per-section pies) */
-  const graphs = prSection(root, L('Graphs', 'Graphiques'), 'fa-solid fa-chart-pie');
-  const chartsSrc = document.getElementById('sumChartsPane');
-  if (chartsSrc && chartsSrc.children.length) graphs.appendChild(prCleanPane(chartsSrc.cloneNode(true)));
-  else graphs.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+  if (show('graphs')) {
+    const graphs = prSection(root, L('Graphs', 'Graphiques'), 'fa-solid fa-chart-pie');
+    const chartsSrc = document.getElementById('sumChartsPane');
+    if (chartsSrc && chartsSrc.children.length) graphs.appendChild(prCleanPane(chartsSrc.cloneNode(true)));
+    else graphs.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+  }
 
   /* 4 — components (grouped PC / Setup / Options) with real links */
-  const comps = prSection(root, L('Components', 'Composants'), 'fa-solid fa-computer');
-  let anyComp = false;
-  ['pc', 'setup', 'others'].forEach(secId => {
-    const ids = state.order.filter(id => { const s = state.slots[id]; return s && defOf(s).sec === secId && sel(s); });
-    if (!ids.length) return;
-    anyComp = true;
-    const grp = document.createElement('div');
-    grp.className = 'pr-group';
-    const sub = secId === 'pc' ? T.pc : secId === 'setup' ? T.setup : T.others;
-    grp.innerHTML = `<h3 class="pr-h3"><i class="${SECTIONS.find(x => x.id === secId).icon}"></i> ${esc(secName(secId))}<span class="pr-grp-total">${eur(sub)}</span></h3>`;
-    ids.forEach(id => grp.appendChild(prComponentCard(id)));
-    comps.appendChild(grp);
-  });
-  if (!anyComp) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+  if (show('config')) {
+    const comps = prSection(root, L('Components', 'Composants'), 'fa-solid fa-computer');
+    let anyComp = false;
+    ['pc', 'setup', 'others'].forEach(secId => {
+      const ids = state.order.filter(id => { const s = state.slots[id]; return s && defOf(s).sec === secId && sel(s); });
+      if (!ids.length) return;
+      anyComp = true;
+      const grp = document.createElement('div');
+      grp.className = 'pr-group';
+      const sub = secId === 'pc' ? T.pc : secId === 'setup' ? T.setup : T.others;
+      grp.innerHTML = `<h3 class="pr-h3"><i class="${SECTIONS.find(x => x.id === secId).icon}"></i> ${esc(secName(secId))}<span class="pr-grp-total">${eur(sub)}</span></h3>`;
+      ids.forEach(id => grp.appendChild(prComponentCard(id)));
+      comps.appendChild(grp);
+    });
+    if (!anyComp) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+  }
 
   /* 5 — consumption: usage & pricing config + power charts/totals */
-  const power = prSection(root, L('Power draw', 'Consommation'), 'fa-solid fa-bolt');
-  const usageWrap = document.createElement('div');
-  usageWrap.innerHTML = prUsageConfig();
-  power.appendChild(usageWrap);
-  const powerSrc = document.getElementById('sumPowerPane');
-  if (powerSrc && powerSrc.children.length) {
-    const c = powerSrc.cloneNode(true);
-    const ub = c.querySelector('#openUsageBtn'); if (ub) ub.remove();
-    power.appendChild(prCleanPane(c));
+  if (show('consumption')) {
+    const power = prSection(root, L('Power draw', 'Consommation'), 'fa-solid fa-bolt');
+    const usageWrap = document.createElement('div');
+    usageWrap.innerHTML = prUsageConfig();
+    power.appendChild(usageWrap);
+    const powerSrc = document.getElementById('sumPowerPane');
+    if (powerSrc && powerSrc.children.length) {
+      const c = powerSrc.cloneNode(true);
+      const ub = c.querySelector('#openUsageBtn'); if (ub) ub.remove();
+      power.appendChild(prCleanPane(c));
+    }
+    const powerDock = document.getElementById('sumTotalsPower');
+    if (powerDock && powerDock.children.length) power.appendChild(prCleanPane(powerDock.cloneNode(true)));
   }
-  const powerDock = document.getElementById('sumTotalsPower');
-  if (powerDock && powerDock.children.length) power.appendChild(prCleanPane(powerDock.cloneNode(true)));
 
   /* 6 — compatibility */
-  const compat = prSection(root, L('Compatibility', 'Compatibilité'), 'fa-solid fa-shield-halved');
-  const compatSrc = document.getElementById('sumCompatPane');
-  if (compatSrc && compatSrc.children.length) compat.appendChild(prCleanPane(compatSrc.cloneNode(true)));
-  else compat.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No checks.', 'Aucune vérification.'))}</p>`);
-
-  /* 7 — benchmarks */
-  const bench = prSection(root, 'Benchmarks', 'fa-solid fa-gauge-high');
-  const benchSrc = document.getElementById('page-bench');
-  if (benchSrc) {
-    const c = benchSrc.cloneNode(true);
-    c.className = 'pr-bench';
-    c.querySelectorAll('h2, .btn-row, .bench-gamerow, #benchGrid, #benchStatus, #benchQuery, .search-row').forEach(n => n.remove());
-    prStripIds(c);
-    const q = benchQuery();
-    if (q) {
-      const p = document.createElement('p');
-      p.className = 'pr-yt';
-      p.innerHTML = `<i class="fa-brands fa-youtube"></i> <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">${esc(q)}</a>`;
-      c.insertBefore(p, c.firstChild);
-    }
-    bench.appendChild(c);
+  if (show('compatibility')) {
+    const compat = prSection(root, L('Compatibility', 'Compatibilité'), 'fa-solid fa-shield-halved');
+    const compatSrc = document.getElementById('sumCompatPane');
+    if (compatSrc && compatSrc.children.length) compat.appendChild(prCleanPane(compatSrc.cloneNode(true)));
+    else compat.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No checks.', 'Aucune vérification.'))}</p>`);
   }
 
-  /* 8 — price history (three charts as images) */
-  const prices = prSection(root, L('Price history', 'Historique des prix'), 'fa-solid fa-chart-line');
-  const h = hist()[state.name] || [];
-  if (!h.length) {
-    prices.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No price points yet — a point is added on each save.', 'Aucun point de prix — un point est ajouté à chaque sauvegarde.'))}</p>`);
-  } else {
-    [['total', L('Total config', 'Total config')], ['per', L('Per component', 'Par composant')], ['power', L('Power', 'Consommation')]].forEach(([m, title]) => {
-      const cap = prChartImage(m);
-      if (!cap) return;
-      const box = document.createElement('div');
-      box.className = 'pr-chart';
-      box.innerHTML = `<h3 class="pr-h3">${esc(title)}</h3><img class="pr-chart-img" src="${cap.url}" alt=""><div class="legend">${cap.legend}</div>`;
-      prices.appendChild(box);
+  /* 7 — benchmarks (the horizontal brief already sits on the cover) */
+  if (show('performances')) {
+    const bench = prSection(root, 'Benchmarks', 'fa-solid fa-gauge-high');
+    const benchSrc = document.getElementById('page-bench');
+    if (benchSrc) {
+      const c = benchSrc.cloneNode(true);
+      const brief = c.querySelector('#bsecBrief'); if (brief) brief.remove();
+      c.className = 'pr-bench';
+      c.querySelectorAll('h2, .btn-row, .bench-gamerow, #benchGrid, #benchStatus, #benchQuery, .search-row').forEach(n => n.remove());
+      prStripIds(c);
+      const q = benchQuery();
+      if (q) {
+        const p = document.createElement('p');
+        p.className = 'pr-yt';
+        p.innerHTML = `<i class="fa-brands fa-youtube"></i> <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">${esc(q)}</a>`;
+        c.insertBefore(p, c.firstChild);
+      }
+      bench.appendChild(c);
+    }
+  }
+
+  /* 8 — tutorials: selected components + full playlists */
+  if (show('tutorials')) {
+    const tut = prSection(root, L('Tutorials', 'Tutoriels'), 'fa-solid fa-graduation-cap');
+    const rows = [];
+    state.order.forEach(id => {
+      const sl = state.slots[id]; const p = sl ? sel(sl) : null;
+      if (!p) return;
+      const item = TUTORIALS.find(x => x.slot === id) || TUTORIALS.find(x => x.slot === sl.defId);
+      if (item) rows.push({ id, p, item });
     });
+    if (rows.length) {
+      tut.insertAdjacentHTML('beforeend', `<div class="pr-tut-list">${rows.map(({ id, p, item }) => `
+        <div class="pr-tut-item">
+          <div class="pr-tut-head"><strong>${esc(slotName(id))}</strong><span>${esc(p.name || '')}</span></div>
+          <a href="https://www.youtube.com/watch?v=${esc(item.top.id)}" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> TopAchat · ${esc(item.top.title)}</a>
+          <a href="https://www.youtube.com/watch?v=${esc(item.materiel.id)}" target="_blank" rel="noopener"><i class="fa-brands fa-youtube"></i> Materiel.net · ${esc(item.materiel.title)}${item.approx ? ` · ${esc(L('approximate match', 'correspondance approximative'))}` : ''}</a>
+        </div>`).join('')}</div>`);
+    } else {
+      tut.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No selected component has a matching tutorial.', 'Aucun composant sélectionné n’a de tutoriel correspondant.'))}</p>`);
+    }
+    tut.insertAdjacentHTML('beforeend', `<h3 class="pr-h3"><i class="fa-brands fa-youtube"></i> ${esc(L('Full playlists', 'Playlists complètes'))}</h3>
+      <div class="pr-tut-playlists">
+        <a href="${esc(TUT_PLAYLISTS.topachat.url)}" target="_blank" rel="noopener"><strong>TopAchat</strong><span>${esc(L('PC build · 18 videos', 'Montage PC · 18 vidéos'))}</span></a>
+        <a href="${esc(TUT_PLAYLISTS.materiel.url)}" target="_blank" rel="noopener"><strong>Materiel.net</strong><span>${esc(L('PC build · 16 videos', 'Montage PC · 16 vidéos'))}</span></a>
+      </div>`);
+  }
+
+  /* 9 — price history (three charts as images) */
+  if (show('priceHistory')) {
+    const prices = prSection(root, L('Price history', 'Historique des prix'), 'fa-solid fa-chart-line');
+    const h = hist()[state.name] || [];
+    if (!h.length) {
+      prices.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No price points yet — a point is added on each save.', 'Aucun point de prix — un point est ajouté à chaque sauvegarde.'))}</p>`);
+    } else {
+      [['total', L('Total config', 'Total config')], ['per', L('Per component', 'Par composant')], ['power', L('Power', 'Consommation')]].forEach(([m, title]) => {
+        const cap = prChartImage(m);
+        if (!cap) return;
+        const box = document.createElement('div');
+        box.className = 'pr-chart';
+        box.innerHTML = `<h3 class="pr-h3">${esc(title)}</h3><img class="pr-chart-img" src="${cap.url}" alt=""><div class="legend">${cap.legend}</div>`;
+        prices.appendChild(box);
+      });
+    }
   }
 
   refreshIcons(root);
@@ -7358,13 +7591,21 @@ function prCleanup() {
   document.body.classList.remove('printing');
   const r = document.getElementById('printRoot'); if (r) r.innerHTML = '';
 }
-function exportPdf() {
+let printSelection = null;
+function exportPdf(parts) {
+  printSelection = normalizeExportParts(parts && parts.length ? parts : readExportSelection().parts);
   try { showBench(); } catch { /* ignore */ } // refresh live scores first (sync part)
-  try { buildPrintReport(); document.body.classList.add('printing'); } catch { /* fall back to on-screen print */ }
+  try { renderBriefFacts(benchFacts()); } catch { /* ignore */ }
+  try { buildPrintReport(printSelection); document.body.classList.add('printing'); } catch { /* fall back to on-screen print */ }
   window.print();
 }
 window.addEventListener('beforeprint', () => {
-  try { buildPrintReport(); document.body.classList.add('printing'); } catch { /* ignore */ }
+  if (document.body.classList.contains('printing')) return;
+  try {
+    printSelection = normalizeExportParts(readExportSelection().parts);
+    buildPrintReport(printSelection);
+    document.body.classList.add('printing');
+  } catch { /* ignore */ }
 });
 window.addEventListener('afterprint', prCleanup);
 function download(name, content, type) {
@@ -7372,17 +7613,93 @@ function download(name, content, type) {
   a.href = URL.createObjectURL(new Blob([content], { type }));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-/* JSON export of the currently selected config — absolutely everything about it
-   (the config itself, its saved snapshots and its price history). */
-function exportConfigJson() {
+function exportPerformanceData() {
+  const f = benchFacts();
+  const b = benchParts();
+  const out = {
+    parts: {
+      cpu: b.cpu || '', gpu: b.gpu || '', gpuSeries: b.gpuSeries || '', ram: b.ram || '',
+      hasGpu: !!f.gpuP && !f.igpu, hasCpu: !!f.cpuP, iGpu: !!f.igpu, res: f.res || '', gRank: f.gRank,
+    },
+    game: benchGame,
+    daily: null, pro: null, gaming: [],
+    geekbench: benchGb ? { query: benchGb.q, version: benchGb.version, single: benchGb.single, multi: benchGb.multi, samples: benchGb.n } : null,
+    threeDMark: bench3d ? { combo: bench3d.combo || null, single: bench3d.single || null } : null,
+  };
+  try { out.daily = Perf.dailyCriteria(f); } catch { /* ignore */ }
+  try { out.pro = Perf.proCriteria(f, f.gRank); } catch { /* ignore */ }
+  if (f.cpuEntry && f.gpuEntry) {
+    try {
+      out.gaming = Object.keys(FpsDb.GAMES).map(id => ({
+        id, name: FpsDb.GAMES[id].name,
+        fps: Perf.fpsFor({ cpuPerf: f.cpuEntry[2], gpuPerf: f.gpuEntry[3], game: id, res: f.res, quality: 'ultra', rt: 'off', up: 'native', ramGB: f.ramGB }),
+      }));
+    } catch { /* ignore */ }
+  }
+  return out;
+}
+function exportGraphData() {
+  const T = totals();
+  const components = [];
+  state.order.forEach(id => {
+    const sl = state.slots[id]; const p = sl ? sel(sl) : null;
+    if (!p) return;
+    components.push({
+      slot: id, label: slotName(id), section: defOf(sl).sec,
+      name: p.name || '', price: Number(p.price) || 0, qty: Number(p.qty) || 1,
+      delivery: Number(p.delivery) || 0, total: unitTotal(p), watts: Number(p.watts) || 0,
+    });
+  });
+  return { totals: T, components };
+}
+function exportConsumptionData() {
+  const st = usagePrefs();
+  const out = {
+    weeklyHours: usageWeeklyHours(st), dailyHours: Math.round(usageDailyHours(st) * 100) / 100,
+    priceHP: st.priceHP, priceHC: st.priceHC,
+    usage: st.usage.map(Boolean), tarif: st.tarif.map(Boolean),
+    power: null,
+  };
+  try {
+    out.power = Compat.powerBreakdown({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
+  } catch { /* ignore */ }
+  return out;
+}
+function exportCompatibilityData() {
+  try {
+    return Compat.check({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
+  } catch { return null; }
+}
+function exportTutorialData() {
+  const items = [];
+  state.order.forEach(id => {
+    const sl = state.slots[id]; const p = sl ? sel(sl) : null;
+    if (!p) return;
+    const item = TUTORIALS.find(x => x.slot === id) || TUTORIALS.find(x => x.slot === sl.defId);
+    if (item) items.push({ slot: id, label: slotName(id), component: p.name || '', videos: item });
+  });
+  return { items, playlists: TUT_PLAYLISTS };
+}
+/* JSON export of the currently selected config. Configuration is always
+   present so the file stays re-importable; the selection controls the rest. */
+function exportConfigJson(parts) {
   const name = state.name || 'Ma Config';
-  download(name + '.configmaker.json', JSON.stringify({
+  const selected = normalizeExportParts(parts && parts.length ? parts : readExportSelection().parts);
+  const chosen = new Set(selected);
+  const obj = {
     app: 'ConfigMaker', version: APP_VERSION, kind: 'config',
     exportedAt: new Date().toISOString(),
+    selection: { preset: exportPresetForParts(selected), parts: selected },
     config: state,
-    history: load(LS.configs, {})[name] || [],
-    prices: load(LS.hist, {})[name] || [],
-  }, null, 2), 'application/json');
+  };
+  if (chosen.has('performances')) obj.performances = exportPerformanceData();
+  if (chosen.has('graphs')) obj.graphs = exportGraphData();
+  if (chosen.has('consumption')) obj.consumption = exportConsumptionData();
+  if (chosen.has('compatibility')) obj.compatibility = exportCompatibilityData();
+  if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
+  if (chosen.has('priceHistory')) obj.prices = load(LS.hist, {})[name] || [];
+  if (chosen.has('savedVersions')) obj.history = load(LS.configs, {})[name] || [];
+  download(name + '.configmaker.json', JSON.stringify(obj, null, 2), 'application/json');
 }
 /* JSON export of everything stored (all configs, all history, prefs). */
 function exportAll() {
@@ -7395,6 +7712,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.69 — Soutien au projet, exports à la carte et benchmarks moyens</h3><p class="hint">Deux nouveaux blocs avant les fichiers Excel mettent en avant le projet et remercient Idealo, avec une section complète des services externes et leurs liens en pied de page. Les exports PDF et JSON partagent désormais un sélecteur compact : tout, données actuelles, configuration + performances, configuration seule ou choix libre, avec la configuration toujours incluse et un aperçu verrouillé tout coché dans Partager. Le PDF place les publicités ConfigMaker et Idealo puis le résumé d’usage horizontal sur la première page, supprime le doublon plus loin, reprend les sections IObit et usage quotidien dans les mêmes encadrés que les blocs lourds et peut inclure les tutoriels. Les benchmarks 3DMark et Geekbench utilisent la moyenne de tous les runs disponibles, plafonnée à 1 000 échantillons. L’actualisation des prix peut être annulée en deux clics, un réglage permet de la désactiver, les avertissements couvrent l’absence de GPU avec un CPU sans graphique intégré et l’absence de ventirad avec un CPU sans ventilateur fourni, et le favicon reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.68 — Fiche composant, compteurs et offres fiabilisées</h3><p class="hint">La fiche composant s’ouvre en lecture seule depuis « Infos » et le crayon reste disponible pour modifier la fiche sélectionnée. Les offres affichent toujours « N offres · dès X € », s’ouvrent au bon endroit et séparent leur erreur de celle de la fiche technique avec un bouton Réessayer. L’aperçu passe avant les variantes, avec des raccourcis vers les variantes et la fiche technique. Les compteurs n’animent que les valeurs modifiées, depuis leur ancienne valeur, et restent statiques sans animation. La création par IA tient sur une seule ligne de progression. Les panneaux Partager/Exporter reprennent une liste verticale compacte. Les offres Idealo sont récupérées dans le HTML brut quand le Markdown les omet, les contrôles actifs restent lisibles en thème sombre et le comparateur mobile ne déborde plus horizontalement.</p></div>
     <div class="chlog"><h3>v2.67 — Comparateur pleine page et fiches alignées</h3><p class="hint">Le comparateur reprend toute la hauteur de la page : plus de petite zone défilante, chaque tableau garde son défilement horizontal synchronisé. L’en-tête de la config actuelle reste opaque, le bouton d’agrandissement passe à côté du type de composant et le bouton de choix des alternatives revient dans chaque cellule. La popup de comparaison des composants utilise une largeur adaptée au nombre de configs (40 vw par carte à deux, puis 10 vw de moins par config, avec un plancher de 200 px ; 75 vw par carte sur mobile). Les lignes de fiche technique sont alignées dans une grille commune avec la meilleure valeur surlignée en vert.</p></div>
     <div class="chlog"><h3>v2.66 — Comparateur compact, cartes côte à côte et en-têtes épinglés</h3><p class="hint">Le comparateur déplie chaque fiche depuis toute la ligne du composant, avec la flèche placée avant l’icône et une seule fiche ouverte à la fois. Un bouton d’agrandissement à droite du nom ouvre 2 à 5 cartes côte à côte : visuel, specs, fiche technique, prix, liens et une popover compacte pour choisir les alternatives et variantes sans quitter la comparaison. Chaque carte non actuelle peut ajouter son composant comme alternative à la config actuelle, avec dédoublonnage par lien Idealo ou nom + prix. Le comparateur utilise désormais une seule zone de défilement : en-têtes de colonnes, groupes, composant ouvert, en-tête de fiche et total restent épinglés, et la position est conservée après chaque rendu.</p></div>
@@ -7584,6 +7902,69 @@ function showPage(which) {
   if (which === 'prices') drawPrices();
 }
 
+/* ---------- External services ---------- */
+const EXTERNAL_SERVICES = [
+  {
+    key: 'prices', icon: 'fa-solid fa-tag',
+    items: [
+      { name: 'Idealo', url: 'https://www.idealo.fr/', icon: 'fa-solid fa-tag', fr: 'Prix, offres marchands et fiches techniques', en: 'Prices, merchant offers and datasheets' },
+    ],
+  },
+  {
+    key: 'bench', icon: 'fa-solid fa-chart-line',
+    items: [
+      { name: 'IObit', url: 'https://www.iobit.com/en/fps-calculator.php', icon: 'fa-solid fa-gamepad', fr: 'Estimation des FPS en jeu', en: 'In-game FPS estimates' },
+      { name: '3DMark', url: 'https://www.3dmark.com/', icon: 'fa-solid fa-gauge-high', fr: 'Scores Time Spy publics', en: 'Public Time Spy scores' },
+      { name: 'Geekbench', url: 'https://browser.geekbench.com/', icon: 'fa-solid fa-microchip', fr: 'Scores CPU mono et multicœur', en: 'Single- and multi-core CPU scores' },
+      { name: 'YouTube', url: 'https://www.youtube.com/', icon: 'fa-brands fa-youtube', fr: 'Tutoriels et vidéos de benchmark', en: 'Tutorials and benchmark videos' },
+      { name: 'TopAchat', url: 'https://www.youtube.com/playlist?list=PL4gCLcJ-OWrAoRkK36cLcitKubsEyoTDf', icon: 'fa-brands fa-youtube', fr: 'Playlist de montage PC', en: 'PC build playlist' },
+      { name: 'Materiel.net', url: 'https://www.youtube.com/playlist?list=PLnRZHGSOC2iKh2yifHyzYgyGPPASRs9Rz', icon: 'fa-brands fa-youtube', fr: 'Playlist de montage PC', en: 'PC build playlist' },
+    ],
+  },
+  {
+    key: 'infra', icon: 'fa-solid fa-server',
+    items: [
+      { name: 'Jina Reader', url: 'https://jina.ai/reader/', icon: 'fa-solid fa-book-open-reader', fr: 'Lecture des pages Idealo sans blocage CORS', en: 'Reads Idealo pages without CORS blocking' },
+      { name: 'Perplexity', url: 'https://www.perplexity.ai/', icon: 'fa-solid fa-wand-magic-sparkles', fr: 'Assistant IA pour les configurations', en: 'AI assistant for configurations' },
+      { name: 'GitHub', url: 'https://github.com/kevinjmt/configmaker', icon: 'fa-brands fa-github', fr: 'Code source, étoiles et issues', en: 'Source code, stars and issues' },
+      { name: 'PCIe Simulator', url: 'https://pcie-simulator.vercel.app/', icon: 'fa-solid fa-diagram-project', fr: 'Simulateur de lignes PCIe', en: 'PCIe lane simulator' },
+    ],
+  },
+  {
+    key: 'cdn', icon: 'fa-solid fa-font',
+    items: [
+      { name: 'cdnjs', url: 'https://cdnjs.com/', icon: 'fa-solid fa-cloud', fr: 'CDN Font Awesome', en: 'Font Awesome CDN' },
+      { name: 'jsDelivr', url: 'https://www.jsdelivr.com/', icon: 'fa-solid fa-cloud', fr: 'CDN Bootstrap Icons et Tabler', en: 'Bootstrap Icons and Tabler CDN' },
+      { name: 'unpkg', url: 'https://unpkg.com/', icon: 'fa-solid fa-cloud', fr: 'CDN Lucide', en: 'Lucide CDN' },
+      { name: 'Font Awesome', url: 'https://fontawesome.com/', icon: 'fa-brands fa-font-awesome', fr: 'Icônes', en: 'Icons' },
+      { name: 'Bootstrap Icons', url: 'https://icons.getbootstrap.com/', icon: 'fa-brands fa-bootstrap', fr: 'Icônes', en: 'Icons' },
+      { name: 'Tabler Icons', url: 'https://tabler.io/icons', icon: 'fa-solid fa-table-cells', fr: 'Icônes', en: 'Icons' },
+      { name: 'Lucide', url: 'https://lucide.dev/', icon: 'fa-solid fa-feather', fr: 'Icônes', en: 'Icons' },
+      { name: 'Google Fonts', url: 'https://fonts.google.com/', icon: 'fa-solid fa-font', fr: 'Polices web', en: 'Web fonts' },
+    ],
+  },
+];
+function externalServiceDesc(item) { return lang === 'en' ? item.en : item.fr; }
+function renderExternalServices() {
+  const host = $('#externalServicesList');
+  if (host) {
+    host.innerHTML = EXTERNAL_SERVICES.map(g => `<div class="service-group">
+      <h3><i class="${g.icon}"></i> ${esc(t('services.' + g.key))}</h3>
+      <div class="service-links">${g.items.map(it => `<a class="service-link" href="${esc(it.url)}" target="_blank" rel="noopener">
+        <span class="service-ico"><i class="${it.icon}"></i></span>
+        <span class="service-txt"><strong>${esc(it.name)}</strong><small>${esc(externalServiceDesc(it))}</small></span>
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+      </a>`).join('')}</div>
+    </div>`).join('') + `<p class="hint service-dependency"><i class="fa-solid fa-circle-info"></i> ${esc(t('services.dependency'))}</p>`;
+    refreshIcons(host);
+  }
+  const foot = $('#footerServiceLinks');
+  if (foot) {
+    const all = EXTERNAL_SERVICES.flatMap(g => g.items);
+    foot.innerHTML = all.map(it => `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.name)}</a>`).join('');
+  }
+}
+
 /* ---------- Theme / lang ---------- */
 function applyTheme() {
   document.documentElement.dataset.theme = prefs.theme || 'system';
@@ -7599,6 +7980,8 @@ function applyLang() {
   $('#langFlag').src = lang === 'fr' ? './assets/icons/uk.png' : './assets/icons/fr.png';
   $('#langBtn').title = lang === 'fr' ? 'Switch to English' : 'Passer en français';
   updateVersionChips();
+  renderExternalServices();
+  wireReviewButtons();
   const tutorialList = $('#tutorialList');
   if (tutorialList && tutorialList.children.length) {
     renderTutorialList();
@@ -7622,13 +8005,42 @@ function setUiPref(key, value) {
     else cntReplay(document);
   }
 }
+function githubIssueUrl() {
+  const title = lang === 'en' ? '[Bug] ' : '[Bug] ';
+  const body = [
+    `**ConfigMaker** v${APP_VERSION}`,
+    `- Language: ${lang}`,
+    `- Browser: ${navigator.userAgent}`,
+    '',
+    '**What happened?**',
+    '',
+    '',
+    '**Steps to reproduce**',
+    '1. ',
+    '',
+  ].join('\n');
+  return `https://github.com/kevinjmt/configmaker/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+}
+function wireReviewButtons() {
+  const issue = $('#reviewIssue');
+  if (issue) issue.href = githubIssueUrl();
+}
 function openSettings() {
   const anim = prefs.animations !== false;
   const bg = prefs.dynamicBg !== false;
   const glass = prefs.translucent !== false;
+  const noPriceRefresh = prefs.noPriceRefresh === true;
   const row = (id, label, hint, checked) => `<label class="set-row" for="${id}"><span class="settings-txt"><strong>${esc(t(label))}</strong><small>${esc(t(hint))}</small></span><span class="set-switch"><input type="checkbox" id="${id}"${checked ? ' checked' : ''}><span class="set-slider" aria-hidden="true"></span></span></label>`;
   openModal(t('settings.title'), `
     <div class="settings-list">
+      <div class="settings-review">
+        <span class="settings-ico"><i class="fa-solid fa-star"></i></span>
+        <span class="settings-txt"><strong>${esc(t('settings.review'))}</strong><small>${esc(t('settings.reviewHint'))}</small></span>
+        <span class="settings-review-actions">
+          <a class="btn btn-sm btn-primary" href="https://github.com/kevinjmt/configmaker" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> ${esc(t('review.star'))}</a>
+          <a class="btn btn-sm" id="setReviewIssue" href="${esc(githubIssueUrl())}" target="_blank" rel="noopener"><i class="fa-solid fa-circle-exclamation"></i> ${esc(t('review.issue'))}</a>
+        </span>
+      </div>
       <button type="button" class="settings-export" id="setExportAll">
         <span class="settings-ico"><i class="fa-solid fa-file-export"></i></span>
         <span class="settings-txt"><strong>${esc(t('settings.exportAll'))}</strong><small>${esc(t('settings.exportAllHint'))}</small></span>
@@ -7642,6 +8054,7 @@ function openSettings() {
       ${row('setAnimations', 'settings.animations', 'settings.animationsHint', anim)}
       ${row('setDynamicBg', 'settings.dynamicBg', 'settings.dynamicBgHint', bg)}
       ${row('setTranslucent', 'settings.translucent', 'settings.translucentHint', glass)}
+      ${row('setNoPriceRefresh', 'settings.noPriceRefresh', 'settings.noPriceRefreshHint', noPriceRefresh)}
     </div>`);
   $('#setExportAll').onclick = exportAll;
   const setInstall = $('#setInstall');
@@ -7649,6 +8062,10 @@ function openSettings() {
   $('#setAnimations').onchange = e => setUiPref('animations', e.target.checked);
   $('#setDynamicBg').onchange = e => setUiPref('dynamicBg', e.target.checked);
   $('#setTranslucent').onchange = e => setUiPref('translucent', e.target.checked);
+  $('#setNoPriceRefresh').onchange = e => {
+    setUiPref('noPriceRefresh', e.target.checked);
+    if (e.target.checked) { clearTimeout(priceRefreshTimer); toast(t('settings.noPriceRefreshOn')); }
+  };
 }
 
 /* ---------- PWA install ---------- */
@@ -7718,6 +8135,7 @@ function bind() {
   $('#shareBtn').onclick = () => openShareExport('share');
   $('#exportBtn').onclick = () => openShareExport('export');
   $('#settingsBtn').onclick = openSettings;
+  wireProgressCancel();
   $('#footExport').onclick = e => { e.preventDefault(); exportAll(); };
   $('#versionBtn').onclick = openChangelog;
   $('#footChangelog').onclick = e => { e.preventDefault(); openChangelog(); };

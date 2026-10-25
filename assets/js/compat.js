@@ -367,6 +367,9 @@ const Compat = (() => {
     ['efficacité', 'cert80', 'raw'], ['efficiency', 'cert80', 'raw'], ['rendement', 'cert80', 'raw'],
     ['nombre de ventilateurs', 'fanCount', 'num'], ['number of fans', 'fanCount', 'num'],
     ['ventilateurs préinstallés', 'fanCount', 'num'], ['preinstalled fans', 'fanCount', 'num'],
+    ['ventilateur processeur', 'cpuCooler', 'raw'], ['ventilateur du processeur', 'cpuCooler', 'raw'],
+    ['processeur - ventilateur', 'cpuCooler', 'raw'], ['cpu cooler', 'cpuCooler', 'raw'],
+    ['processor cooler', 'cpuCooler', 'raw'], ['included cpu cooler', 'cpuCooler', 'raw'],
     ['type de produit', 'ddr', 'ddr'], ['product type', 'ddr', 'ddr'],
   ];
   const SORTED = [...LABELS].sort((a, b) => b[0].length - a[0].length);
@@ -988,6 +991,17 @@ const Compat = (() => {
           if (!cpuSock || !mbSock) add(cpuId, 'socket', L('Socket', 'Socket'), WARN, L(`Socket CPU ${cpuSock || '?'} / CM ${mbSock || '?'} — vérifiez`, `CPU socket ${cpuSock || '?'} / board ${mbSock || '?'} — verify`), A('Socket CPU', cpuSock || '?'), A('Socket CM', mbSock || '?', mbId));
           else if (C.sockets.some(s => M.sockets.includes(s))) add(cpuId, 'socket', L('Socket', 'Socket'), OK, L(`Socket ${cpuSock} des deux côtés`, `Socket ${cpuSock} on both`), A('Socket CPU', cpuSock), A('Socket CM', mbSock, mbId));
           else add(cpuId, 'socket', L('Socket', 'Socket'), ERR, L(`CPU ${cpuSock} ≠ CM ${mbSock} !`, `CPU ${cpuSock} ≠ board ${mbSock}!`), A('Socket CPU', cpuSock), A('Socket CM', mbSock, mbId));
+        }
+        /* Bundled CPU cooler: warning only when the CPU datasheet says the
+           processor fan is not included (or its value cannot be determined). */
+        const coolerTxt = C.cpuCooler ? String(C.cpuCooler).trim() : '';
+        const noStockCooler = /\b(?:non|no|aucun|sans|not included|not supplied|sold separately|vendu séparément|excluded)\b/i.test(coolerTxt);
+        const unknownCooler = !coolerTxt || /^(?:[-—?]+|n\/?a|unknown|inconnu)$/i.test(coolerTxt);
+        const hasStockCooler = !unknownCooler && !noStockCooler;
+        if (!coolerId) {
+          if (noStockCooler) add(cpuId, 'cooler', L('Ventilateur processeur', 'CPU cooler'), WARN, L('Aucun ventirad sélectionné et le CPU ne fournit pas de ventilateur — ajoutez un refroidissement.', 'No CPU cooler selected and the CPU does not include one — add a cooler.'), A('Ventilateur processeur', coolerTxt), null);
+          else if (hasStockCooler) add(cpuId, 'cooler', L('Ventilateur processeur', 'CPU cooler'), OK, L('Aucun ventirad sélectionné : le CPU inclut un ventilateur processeur.', 'No CPU cooler selected: the CPU includes a stock cooler.'), A('Ventilateur processeur', coolerTxt), null);
+          else add(cpuId, 'cooler', L('Ventilateur processeur', 'CPU cooler'), WARN, L('Aucun ventirad sélectionné — vérifiez que le CPU inclut un ventilateur processeur.', 'No CPU cooler selected — check that the CPU includes a stock cooler.'), A('Ventilateur processeur', '?'), null);
         }
         const tdp = C.tdp || 0;
         const mbMax = (mbId && P[mbId].hasDs) ? (P[mbId].ds.cpuMaxTdp || 0) : 0;
@@ -1612,19 +1626,23 @@ const Compat = (() => {
       return parts.length ? parts.join(' + ') : '?';
     };
     /* ---- Integrated graphics when no dedicated GPU is selected ---- */
-    if (cpuId && !gpuId && !needDs(cpuId)) {
-      const C = P[cpuId].ds || {};
-      const igpuName = C.igpuName ? String(C.igpuName).trim() : '';
-      const hasI = !!igpuName || C.igpuFlag === true;
-      const flagNo = (typeof C.igpuFlag === 'string' && /non|no|false|aucun/i.test(C.igpuFlag));
-      const mbV = (mbId && P[mbId].hasDs) ? P[mbId].ds.vid : null;
-      const mbHasOut = !!(mbV && (mbV.hdmi || mbV.dp || mbV.usbc));
-      if (flagNo) add(cpuId, 'igpu', L('Graphique', 'Graphics'), ERR, L('Aucun GPU dédié ni graphique intégré — aucune sortie vidéo !', 'No dedicated GPU or integrated graphics — no video output!'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', L('aucun', 'none')));
-      else if (!hasI) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L('Aucun GPU dédié ; graphique intégré non détecté — vérifiez la fiche CPU', 'No dedicated GPU; integrated graphics not detected — check the CPU datasheet'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', '?'));
-      else if (!mbId) add(cpuId, 'igpu', L('Graphique', 'Graphics'), NA, L('Graphique intégré (CPU) — carte mère absente', 'Integrated graphics (CPU) — no motherboard'), A('iGPU', igpuName || L('oui', 'yes')), null);
-      else if (!P[mbId].hasDs) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré${igpuName ? ' ' + igpuName : ''} — sorties vidéo CM à vérifier`, `Integrated graphics${igpuName ? ' ' + igpuName : ''} — verify board outputs`), A('iGPU', igpuName || L('oui', 'yes')), null);
-      else if (mbHasOut) add(cpuId, 'igpu', L('Graphique', 'Graphics'), OK, L(`Graphique intégré (${igpuName || 'iGPU'}) — sorties vidéo CM disponibles`, `Integrated graphics (${igpuName || 'iGPU'}) — board video outputs available`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', fmtVid(mbV), mbId));
-      else add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré (${igpuName || 'iGPU'}) mais aucune sortie vidéo CM détectée — vérifiez (sans GPU, pas d'affichage)`, `Integrated graphics (${igpuName || 'iGPU'}) but no board video output detected — verify (no display without a GPU)`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', '?', mbId));
+    if (cpuId && !gpuId) {
+      if (!P[cpuId].hasDs) {
+        add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L('Aucun GPU dédié — graphique intégré du CPU à vérifier (fiche technique absente)', 'No dedicated GPU — verify the CPU integrated graphics (missing datasheet)'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', '?'));
+      } else {
+        const C = P[cpuId].ds || {};
+        const igpuName = C.igpuName ? String(C.igpuName).trim() : '';
+        const hasI = !!igpuName || C.igpuFlag === true;
+        const flagNo = (typeof C.igpuFlag === 'string' && /non|no|false|aucun/i.test(C.igpuFlag));
+        const mbV = (mbId && P[mbId].hasDs) ? P[mbId].ds.vid : null;
+        const mbHasOut = !!(mbV && (mbV.hdmi || mbV.dp || mbV.usbc));
+        if (flagNo) add(cpuId, 'igpu', L('Graphique', 'Graphics'), ERR, L('Aucun GPU dédié ni graphique intégré — aucune sortie vidéo !', 'No dedicated GPU or integrated graphics — no video output!'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', L('aucun', 'none')));
+        else if (!hasI) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L('Aucun GPU dédié ; graphique intégré non détecté — vérifiez la fiche CPU', 'No dedicated GPU; integrated graphics not detected — check the CPU datasheet'), A('CPU', P[cpuId].p.name || '?'), A('Graphique', '?'));
+        else if (!mbId) add(cpuId, 'igpu', L('Graphique', 'Graphics'), NA, L('Graphique intégré (CPU) — carte mère absente', 'Integrated graphics (CPU) — no motherboard'), A('iGPU', igpuName || L('oui', 'yes')), null);
+        else if (!P[mbId].hasDs) add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré${igpuName ? ' ' + igpuName : ''} — sorties vidéo CM à vérifier`, `Integrated graphics${igpuName ? ' ' + igpuName : ''} — verify board outputs`), A('iGPU', igpuName || L('oui', 'yes')), null);
+        else if (mbHasOut) add(cpuId, 'igpu', L('Graphique', 'Graphics'), OK, L(`Graphique intégré (${igpuName || 'iGPU'}) — sorties vidéo CM disponibles`, `Integrated graphics (${igpuName || 'iGPU'}) — board video outputs available`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', fmtVid(mbV), mbId));
+        else add(cpuId, 'igpu', L('Graphique', 'Graphics'), WARN, L(`Graphique intégré (${igpuName || 'iGPU'}) mais aucune sortie vidéo CM détectée — vérifiez (sans GPU, pas d'affichage)`, `Integrated graphics (${igpuName || 'iGPU'}) but no board video output detected — verify (no display without a GPU)`), A('iGPU', igpuName || L('oui', 'yes')), A('Sorties CM', '?', mbId));
+      }
     }
     const screenIds = byDef('screen1');
     const srcDs = (gpuId && P[gpuId].hasDs) ? P[gpuId].ds : null;
