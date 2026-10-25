@@ -1,11 +1,11 @@
-/* ConfigMaker v2.67 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.68 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.67';
+const APP_VERSION = '2.68';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -32,19 +32,21 @@ function maybeConsentBar() { try { if (!storeConsent()) showConsentBar(); } catc
 const isQuotaErr = r => !!(r && typeof r === 'object' && r.quota);
 const eur = n => (Number(n) || 0).toLocaleString(document.documentElement.lang === 'en' ? 'en-IE' : 'fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-/* Animated count-up values. The final text is rendered static first;
-   cntAnimate() replays it from zero when animations are enabled. */
+/* Animated count-up values. Only keyed values animate, and each starts from
+   its previous value rather than zero. Unkeyed values are rendered static. */
 const CNT_RUNS = new WeakMap();
+const CNT_KEY_RUNS = new Map();
+const CNT_VALUES = new Map();
 function cntFormat(v, fmt, dec) {
   const n = Number(v) || 0;
   if (fmt === 'eur') return eur(n);
   const d = Math.max(0, Number(dec) || 0);
   return n.toLocaleString(document.documentElement.lang === 'en' ? 'en-US' : 'fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-function countNum(value, fmt = 'num', dec = 0, suffix = '') {
+function countNum(value, fmt = 'num', dec = 0, suffix = '', key = '') {
   const v = Number(value) || 0;
   const d = Math.max(0, Number(dec) || 0);
-  return `<span class="cnt" data-cnt="${v}" data-cnt-fmt="${esc(fmt)}" data-cnt-dec="${d}"${suffix ? ` data-cnt-suffix="${esc(suffix)}"` : ''}>${esc(cntFormat(v, fmt, d) + suffix)}</span>`;
+  return `<span class="cnt" data-cnt="${v}" data-cnt-fmt="${esc(fmt)}" data-cnt-dec="${d}"${suffix ? ` data-cnt-suffix="${esc(suffix)}"` : ''}${key ? ` data-cnt-key="${esc(key)}"` : ''}>${esc(cntFormat(v, fmt, d) + suffix)}</span>`;
 }
 function cntFinal(el) {
   const target = parseFloat(el.dataset.cnt) || 0;
@@ -52,15 +54,33 @@ function cntFinal(el) {
   const dec = Number(el.dataset.cntDec) || 0;
   el.textContent = cntFormat(target, fmt, dec) + (el.dataset.cntSuffix || '');
 }
+function cntRemember(el, value) {
+  const key = el.dataset.cntKey || '';
+  if (key) CNT_VALUES.set(key, Number(value) || 0);
+}
+function cntCancel(el) {
+  const run = CNT_RUNS.get(el);
+  if (run) cancelAnimationFrame(run);
+  CNT_RUNS.delete(el);
+  const key = el.dataset.cntKey || '';
+  const kr = key ? CNT_KEY_RUNS.get(key) : null;
+  if (kr && kr.el === el) CNT_KEY_RUNS.delete(key);
+}
+function cntCancelKey(key) {
+  const kr = CNT_KEY_RUNS.get(key);
+  if (!kr) return;
+  cancelAnimationFrame(kr.raf);
+  CNT_RUNS.delete(kr.el);
+  CNT_KEY_RUNS.delete(key);
+}
 function cntStop(root = document) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('[data-cnt]').forEach(el => {
-    const run = CNT_RUNS.get(el);
-    if (run) cancelAnimationFrame(run);
-    CNT_RUNS.delete(el);
+    cntCancel(el);
     cntFinal(el);
     el.dataset.cntState = 'done';
     el.dataset.cntLast = el.dataset.cnt;
+    cntRemember(el, parseFloat(el.dataset.cnt) || 0);
   });
 }
 function cntAnimate(root = document) {
@@ -70,34 +90,59 @@ function cntAnimate(root = document) {
   if (!enabled || reduced) { cntStop(root); return; }
   root.querySelectorAll('[data-cnt]').forEach(el => {
     const target = parseFloat(el.dataset.cnt) || 0;
+    const key = el.dataset.cntKey || '';
     if (el.dataset.cntState === 'running') return;
-    if (el.dataset.cntState === 'done' && Number(el.dataset.cntLast) === target) return;
+    if (!key) {
+      cntFinal(el);
+      el.dataset.cntState = 'done';
+      el.dataset.cntLast = el.dataset.cnt;
+      return;
+    }
+    const prev = CNT_VALUES.get(key);
+    if (prev === undefined || Math.abs(prev - target) < 0.005) {
+      cntFinal(el);
+      el.dataset.cntState = 'done';
+      el.dataset.cntLast = el.dataset.cnt;
+      CNT_VALUES.set(key, target);
+      return;
+    }
     const fmt = el.dataset.cntFmt || 'num';
     const dec = Number(el.dataset.cntDec) || 0;
     const suffix = el.dataset.cntSuffix || '';
+    const from = prev;
     const dur = 680;
     const t0 = performance.now();
+    cntCancelKey(key);
     el.dataset.cntState = 'running';
     el.dataset.cntLast = el.dataset.cnt;
     const tick = now => {
       const p = Math.min(1, (now - t0) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = cntFormat(target * eased, fmt, dec) + suffix;
-      if (p < 1) { CNT_RUNS.set(el, requestAnimationFrame(tick)); return; }
+      const value = from + (target - from) * eased;
+      el.textContent = cntFormat(value, fmt, dec) + suffix;
+      CNT_VALUES.set(key, value);
+      if (p < 1) {
+        const raf = requestAnimationFrame(tick);
+        CNT_RUNS.set(el, raf);
+        CNT_KEY_RUNS.set(key, { el, raf });
+        return;
+      }
       el.textContent = cntFormat(target, fmt, dec) + suffix;
       el.dataset.cntState = 'done';
+      CNT_VALUES.set(key, target);
       CNT_RUNS.delete(el);
+      if ((CNT_KEY_RUNS.get(key) || {}).el === el) CNT_KEY_RUNS.delete(key);
     };
-    el.textContent = cntFormat(0, fmt, dec) + suffix;
-    CNT_RUNS.set(el, requestAnimationFrame(tick));
+    el.textContent = cntFormat(from, fmt, dec) + suffix;
+    const raf = requestAnimationFrame(tick);
+    CNT_RUNS.set(el, raf);
+    CNT_KEY_RUNS.set(key, { el, raf });
   });
 }
 function cntReplay(root = document) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('[data-cnt]').forEach(el => {
-    const run = CNT_RUNS.get(el);
-    if (run) cancelAnimationFrame(run);
-    CNT_RUNS.delete(el);
+    cntCancel(el);
     delete el.dataset.cntState;
     delete el.dataset.cntLast;
   });
@@ -569,8 +614,8 @@ function updateMobileTotalBar() {
   bar.classList.toggle('hidden', !show);
   const label = $('#mtLabel'), total = $('#mtTotal'), deliv = $('#mtDelivery');
   if (label) label.textContent = 'Total';
-  if (total) total.innerHTML = countNum(T.total - T.deliv, 'eur');
-  if (deliv) deliv.innerHTML = (lang === 'en' ? '(incl. delivery) ' : '(avec livraison) ') + countNum(T.total, 'eur');
+  if (total) total.innerHTML = countNum(T.total - T.deliv, 'eur', 0, '', 'mobile-total-net');
+  if (deliv) deliv.innerHTML = (lang === 'en' ? '(incl. delivery) ' : '(avec livraison) ') + countNum(T.total, 'eur', 0, '', 'mobile-total-all');
   if (show) cntAnimate(bar);
   if (!show) closeSummarySheet();
 }
@@ -1255,9 +1300,9 @@ function slotCard(id) {
     const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
     const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
-    priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${countNum(p.price, 'eur')}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
+    priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${countNum(p.price, 'eur', 0, '', 'slot-price:' + id)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
     vendorDiv = `<div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>`;
-    delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${countNum(unitTotal(p), 'eur')}</div>`;
+    delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${countNum(unitTotal(p), 'eur', 0, '', 'slot-total:' + id)}</div>`;
   }
   const priceHtml = priceDiv + vendorDiv + delivDiv;
   const hasIdealo = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
@@ -1283,7 +1328,7 @@ function slotCard(id) {
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
-      <button class="mini-btn" data-act="edit" title="${lang === 'en' ? 'Edit component data' : 'Modifier les données du composant'}"><i class="fa-solid fa-pen"></i>${mlbl('Modifier', 'Edit')}</button>
+      <button class="mini-btn" data-act="details" title="${lang === 'en' ? 'Open the read-only component card' : 'Ouvrir la fiche du composant'}"><i class="fa-solid fa-circle-info"></i>${mlbl('Infos', 'Info')}</button>
       <button class="mini-btn" data-act="idealo" ${hasIdealo ? `title="${lang === 'en' ? 'Open Idealo page' : 'Ouvrir la page Idealo'}"` : `disabled title="${noIdealoTip}"`}><i class="fa-solid fa-arrow-up-right-from-square"></i>${mlbl('Idealo', 'Idealo')}</button>
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span>${mlbl('Alternative', 'Alternative')}</button>
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i>${mlbl('Boutique', 'Store')}</button>
@@ -1370,6 +1415,7 @@ function altRemove(slotId, pid) {
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
   if (act === 'pick') openPicker(id, 'replace');
+  else if (act === 'details') { if (p) { openPicker(id); openPickerDetail(p); } }
   else if (act === 'edit') openProductForm(id, p);
   else if (act === 'addalt') openPicker(id, 'add');
   else if (act === 'idealo') { if (p && p.idealo && /idealo\.fr/i.test(p.idealo)) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
@@ -2203,11 +2249,15 @@ function pdVariantMask(st) {
       ${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="pd-vnoimg"><i class="fa-solid fa-microchip"></i></span>`}
       <span class="pd-vname">${esc(it.name || '—')}</span><span class="pd-vprice">${it.price ? countNum(it.price, 'eur') : '—'}</span></button>`;
   }).join('');
-  return `<section class="pd-sec pd-variants" aria-label="${pdTxt('Variantes', 'Variants')}">
+  return `<section id="pdVariants" class="pd-sec pd-variants" tabindex="-1" aria-label="${pdTxt('Variantes', 'Variants')}">
     <div class="pd-sec-head"><span><i class="fa-solid fa-shuffle"></i> ${esc(String(v.count || v.items.length))} ${pdTxt('variantes', 'variants')}</span>${v.fromPrice ? `<span class="pd-from">${pdTxt('dès', 'from')} ${countNum(v.fromPrice, 'eur')}</span>` : ''}</div>
     ${chips ? `<div class="pd-vfilters">${chips}</div>` : ''}
     <div class="pd-vlist">${cards || `<p class="hint">${pdTxt('Aucun modèle pour ces filtres.', 'No model matches these filters.')}</p>`}</div>
   </section>`;
+}
+function pdScrollOffers() {
+  const el = $('#pdOffers');
+  if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); }
 }
 function pdOffersMask(st) {
   if (!st.offersOpen) return '';
@@ -2216,6 +2266,7 @@ function pdOffersMask(st) {
   const totalOf = o => o.price + shipOf(o);
   const sorted = [...offers].sort((a, b) => totalOf(a) - totalOf(b));
   const bestTotal = sorted.length ? totalOf(sorted[0]) : 0;
+  const fromPrice = offers.length ? Math.min(...offers.map(o => Number(o.price) || 0).filter(Boolean)) : 0;
   const rows = sorted.map(o => {
     const tot = totalOf(o);
     const isBest = bestTotal > 0 && Math.abs(tot - bestTotal) < 0.005;
@@ -2224,9 +2275,14 @@ function pdOffersMask(st) {
       <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
       <span class="pd-offer-price"><strong>${countNum(o.price, 'eur')}</strong>${o.delivered > 0 ? `<small>${countNum(o.delivered, 'eur')} ${pdTxt('livr. incl.', 'incl. delivery')}</small>` : ''}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
   }).join('');
-  return `<section class="pd-sec pd-offers-sec" aria-label="${pdTxt('Offres marchands', 'Merchant offers')}">
-    <div class="pd-sec-head"><span><i class="fa-solid fa-tags"></i> ${offers.length} ${pdTxt('offres', 'offers')}${bestTotal ? ` · ${pdTxt('dès', 'from')} ${countNum(bestTotal, 'eur')}` : ''}</span><button class="mini-btn pd-offers-close" data-pd-act="offers">${pdTxt('Masquer', 'Hide')}</button></div>
-    <div class="pd-offers">${rows || `<p class="hint">${st.loading ? pdTxt('Chargement des offres…', 'Loading offers…') : pdTxt('Aucune offre disponible.', 'No offer available.')}</p>`}</div>
+  const empty = st.loading
+    ? `<p class="hint"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}</p>`
+    : st.offersError
+      ? `<div class="pd-offers-error"><p class="hint"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(st.offersError)}</p><button class="mini-btn" data-pd-act="offersRetry"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button></div>`
+      : `<p class="hint">${pdTxt('Aucune offre disponible.', 'No offer available.')}</p>`;
+  return `<section id="pdOffers" class="pd-sec pd-offers-sec" tabindex="-1" aria-label="${pdTxt('Offres marchands', 'Merchant offers')}">
+    <div class="pd-sec-head"><span><i class="fa-solid fa-tags"></i> ${offers.length} ${pdTxt('offres', 'offers')}${fromPrice ? ` · ${pdTxt('dès', 'from')} ${countNum(fromPrice, 'eur')}` : ''}</span><button class="mini-btn pd-offers-close" data-pd-act="offers">${pdTxt('Masquer', 'Hide')}</button></div>
+    <div class="pd-offers">${rows || empty}</div>
   </section>`;
 }
 function pdDatasheetMask(st) {
@@ -2241,28 +2297,28 @@ function pdDatasheetMask(st) {
     ? detailSecs
     : (storedRows.length ? [{ title: '', rows: storedRows.map(r => [r.label, r.value]) }] : (it.dsManual ? [] : detailSecs));
   if (st.loading && !secs.length) {
-    return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+    return `<section id="pdDatasheet" class="pd-sec pd-ds" tabindex="-1" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement de la fiche technique et des offres…', 'Loading datasheet and offers…')}</span></div>
       <div class="pd-ds-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section>`;
   }
   if (!secs.length && !st.loaded) {
     if (st.error) {
-      return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+      return `<section id="pdDatasheet" class="pd-sec pd-ds" tabindex="-1"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
         <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error)}</span></div>
         ${st.item.url && !it.dsManual ? `<button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button>` : ''}</section>`;
     }
-    return `<section class="pd-sec pd-ds" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+    return `<section id="pdDatasheet" class="pd-sec pd-ds" tabindex="-1" aria-busy="true"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state"><i class="fa-solid fa-circle-notch fa-spin"></i><span>${pdTxt('Chargement automatique de la fiche technique…', 'Loading datasheet automatically…')}</span></div>
       <div class="pd-ds-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div></section>`;
   }
   if (!secs.length) {
-    return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
+    return `<section id="pdDatasheet" class="pd-sec pd-ds" tabindex="-1"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span></div>
       <div class="pd-ds-state is-error"><i class="fa-solid fa-triangle-exclamation"></i><span>${esc(st.error || (it.dsManual ? pdTxt('Fiche enregistrée vide.', 'Saved datasheet is empty.') : pdTxt('Aucune fiche technique disponible.', 'No datasheet available.')))}</span></div>
       ${st.item.url && !it.dsManual ? `<button class="mini-btn" data-pd-act="load"><i class="fa-solid fa-rotate"></i> ${pdTxt('Réessayer', 'Retry')}</button>` : ''}</section>`;
   }
   const groups = secs.map(g => `<div class="pd-ds-group">${g.title ? `<div class="pd-ds-group-title">${esc(g.title)}</div>` : ''}<table class="pd-ds-table"><tbody>${g.rows.map(r => `<tr><th scope="row">${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table></div>`).join('');
   const origin = !useDetails && storedRows.length ? pdTxt('enregistrée', 'stored') : (st.details && st.details.cached ? pdTxt('en cache', 'cached') : 'Idealo');
-  return `<section class="pd-sec pd-ds"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span>${origin ? `<span class="pd-from">${origin}</span>` : ''}</div><div class="pd-ds-scroll">${groups}</div></section>`;
+  return `<section id="pdDatasheet" class="pd-sec pd-ds" tabindex="-1"><div class="pd-sec-head"><span><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</span>${origin ? `<span class="pd-from">${origin}</span>` : ''}</div><div class="pd-ds-scroll">${groups}</div></section>`;
 }
 function renderPickerDetail(resetScroll) {
   const st = pdState;
@@ -2307,21 +2363,34 @@ function renderPickerDetail(resetScroll) {
   const openBtn = it.url
     ? `<a class="btn" id="pdOpen" href="${esc(it.url)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</a>`
     : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
-  const offersLabel = st.loading && !st.offers ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}` : `${offersCount} ${pdTxt('offres', 'offers')}`;
+  const offerPrices = (st.offers || []).map(o => Number(o.price) || 0).filter(Boolean);
+  const offerFrom = offerPrices.length ? Math.min(...offerPrices) : (Number(it.price) || 0);
+  const offersLabel = (st.loading && !st.offers)
+    ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement des offres…', 'Loading offers…')}`
+    : `${offersCount} ${pdTxt('offres', 'offers')}${offerFrom ? ` · ${pdTxt('dès', 'from')} ${eur(offerFrom)}` : ''}`;
+  const offersAction = st.offersOpen ? pdTxt('Masquer', 'Hide') : pdTxt('Ouvrir', 'Open');
+  const hasVariants = !!(it.variants && it.variants.items && it.variants.items.length > 1);
+  const jumpHtml = `<div class="pd-jumps">${hasVariants ? `<button class="mini-btn" data-pd-act="jump" data-jump="pdVariants"><i class="fa-solid fa-shuffle"></i> ${pdTxt('Variantes', 'Variants')}</button>` : ''}<button class="mini-btn" data-pd-act="jump" data-jump="pdDatasheet"><i class="fa-solid fa-table-list"></i> ${pdTxt('Fiche technique', 'Datasheet')}</button></div>`;
   const quickHtml = quick.length ? esc(quick.join(' · ')) : (st.loading ? `<span class="pd-inline-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> ${pdTxt('Chargement du résumé…', 'Loading summary…')}</span>` : '—');
+  const editBtn = $('#pdEdit');
+  if (editBtn) {
+    const exists = !!((state.slots[activeSlot] || {}).products || []).find(x => x.id === it.id);
+    editBtn.classList.toggle('hidden', !exists);
+  }
   body.className = 'pd-body' + (stKj.tags.length ? ' detail-kj' : '');
   body.innerHTML = `<div class="pd-hero${stKj.tags.length ? ' has-kj' : ''}">
       ${media}
       <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
         ${kjPills ? `<div class="pd-kj-pills">${kjPills}</div>` : ''}
         <div class="pd-price-row"><span class="pd-price">${it.price ? countNum(it.price, 'eur') : '—'}</span>${storeBtn}</div>
-        <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers"${st.loading ? ' disabled' : ''}>${offersLabel}</button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
+        <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers" aria-expanded="${st.offersOpen ? 'true' : 'false'}"${st.loading && !st.offers ? ' disabled' : ''}><i class="fa-solid fa-tags"></i><span>${offersLabel}</span><span class="pd-offers-toggle">${offersAction}</span></button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
+        ${jumpHtml}
       </div>
     </div>
     ${stKj.rec && stKj.rec.note ? `<div class="pd-kj-note"><i class="fa-solid fa-note-sticky"></i><span>${esc(stKj.rec.note)}</span></div>` : ''}
+    <section class="pd-sec pd-quick" id="pdQuick"><div class="pd-sec-head"><span><i class="fa-solid fa-bolt"></i> ${pdTxt('Aperçu du produit', 'Product overview')}</span></div><p>${quickHtml}</p></section>
     ${pdVariantMask(st)}
     ${pdOffersMask(st)}
-    <section class="pd-sec pd-quick"><div class="pd-sec-head"><span><i class="fa-solid fa-bolt"></i> ${pdTxt('Aperçu du produit', 'Product overview')}</span></div><p>${quickHtml}</p></section>
     ${pdDatasheetMask(st)}
     <div class="pd-actions">${openBtn}<button class="btn btn-primary" data-pd-act="choose"><i class="fa-solid fa-check"></i> ${esc(t('picker.chooseBtn'))}</button></div>`;
   const hero = body.querySelector('.pd-hero');
@@ -2347,7 +2416,7 @@ function openPickerDetail(it, opts = {}) {
   pickerDetailItem = it;
   pdState = {
     item: { ...it }, productLoaded: !!it._productLoaded, loading: false, loaded: false,
-    details: null, offers: null, offersOpen: false, filters: {}, error: '', scrollTop: 0, animateKj: true,
+    details: null, offers: null, offersOpen: false, offersError: '', scrollOffers: false, filters: {}, error: '', scrollTop: 0, animateKj: true,
   };
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
   panel.classList.add('picker-detail-open');
@@ -2413,7 +2482,7 @@ async function loadPickerDetailData() {
   if (!st || st.loading) return;
   if (!st.item.url) { st.error = pdTxt('Aucun lien Idealo pour charger la fiche.', 'No Idealo link to load the datasheet.'); renderPickerDetail(false); return; }
   const seq = pdSeq, url = st.item.url;
-  st.loading = true; st.error = ''; renderPickerDetail(false);
+  st.loading = true; st.error = ''; st.offersError = ''; renderPickerDetail(false);
   try {
     const jobs = [Idealo.details(url)];
     jobs.push(st.offers && st.offers.length ? Promise.resolve({ offers: st.offers }) : Idealo.offers(url));
@@ -2426,6 +2495,7 @@ async function loadPickerDetailData() {
     if (prod) applyDetailProduct(st, prod.product);
     if (off && !off.error && off.offers) {
       st.offers = off.offers;
+      st.offersError = '';
       if (off.offers.length) {
         const o = off.offers[0];
         if (o.price) st.item.price = o.price;
@@ -2433,6 +2503,8 @@ async function loadPickerDetailData() {
         if (o.delivered > 0 && o.price) st.item.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
         if (o.url) st.item.store = o.url;
       }
+    } else {
+      st.offersError = (off && off.error) ? off.error : pdTxt('Offres indisponibles pour le moment.', 'Offers unavailable right now.');
     }
     if (det && !det.error) {
       st.details = det;
@@ -2451,7 +2523,13 @@ async function loadPickerDetailData() {
   } catch (e) {
     if (pdState === st && seq === pdSeq) st.error = String((e && e.message) || e);
   } finally {
-    if (pdState === st && seq === pdSeq) { st.loading = false; renderPickerDetail(false); }
+    if (pdState === st && seq === pdSeq) {
+      st.loading = false; renderPickerDetail(false);
+      if (st.offersOpen && st.scrollOffers) {
+        st.scrollOffers = false;
+        requestAnimationFrame(pdScrollOffers);
+      }
+    }
   }
 }
 function galleryFullUrl(url) { return String(url || '').replace(/produktbild_(?:mittelgross|klein|mini)/i, 'produktbild_gross'); }
@@ -2509,9 +2587,21 @@ function onPickerDetailClick(e) {
       break;
     case 'offers':
       st.offersOpen = !st.offersOpen;
-      if (st.offersOpen && !st.offers && !st.loading) loadPickerDetailData();
-      else renderPickerDetail(false);
+      if (st.offersOpen && !st.offers && !st.loading && !st.offersError) { st.scrollOffers = true; loadPickerDetailData(); }
+      else {
+        renderPickerDetail(false);
+        if (st.offersOpen) requestAnimationFrame(pdScrollOffers);
+      }
       break;
+    case 'offersRetry':
+      st.offers = null; st.offersError = ''; st.offersOpen = true;
+      loadPickerDetailData();
+      break;
+    case 'jump': {
+      const el = document.getElementById(b.dataset.jump || '');
+      if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); }
+      break;
+    }
     case 'media': {
       const imgs = pdImagesFor(st.item, st.details);
       const cur = st.item.img || imgs[0];
@@ -3940,10 +4030,20 @@ function openProductForm(slotId, p, opts = {}) {
       s.products = s.products.filter(x => x.id !== prevSelected); // replace mode: drop the previous fiche
     }
     persist(); closeEditorPanel(); refresh(); renderPicker();
+    if (pdState && pdState.item && pdState.item.id === p.id) {
+      pdState.item = { ...p };
+      renderPickerDetail(false);
+    }
     toast(lang === 'en' ? (opts.addOnly ? 'Alternative added' : 'Fiche saved') : (opts.addOnly ? 'Alternative ajoutée' : 'Fiche enregistrée'));
   };
   const dp = $('#f_delP');
-  if (dp) dp.onclick = () => { const s = state.slots[slotId]; s.products = s.products.filter(x => x.id !== p.id); if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null; persist(); closeEditorPanel(); refresh(); renderPicker(); };
+  if (dp) dp.onclick = () => {
+    const s = state.slots[slotId];
+    s.products = s.products.filter(x => x.id !== p.id);
+    if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null;
+    if (pdState && pdState.item && pdState.item.id === p.id) closePickerDetail();
+    persist(); closeEditorPanel(); refresh(); renderPicker();
+  };
 }
 
 /* ---------- Merchants (from the Idealo /prix/ page, like picking the component) ---------- */
@@ -4087,14 +4187,14 @@ function renderSummary() {
     const icons = { pc: 'fa-solid fa-computer', setup: 'fa-solid fa-display', others: 'fa-solid fa-box-open' };
     const ce = cnt[sec].err, cw = cnt[sec].warn;
     const flags = (ce || cw) ? `<span class="sum-compat-flags">${ce ? `<span class="mini-count err" title="${ce} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${ce}</span>` : ''}${cw ? `<span class="mini-count warn" title="${cw} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${cw}</span>` : ''}</span>` : '';
-    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span>${flags}<span class="dsec-total">${countNum(sub, 'eur')}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
+    secEl.innerHTML = `<div class="dsec-head" data-sec="${sec}"><i class="${icons[sec]}"></i><span>${esc(secName(sec))}</span>${flags}<span class="dsec-total">${countNum(sub, 'eur', 0, '', 'sum-sec:' + sec)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div>`;
     if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
       const cst = getCompat().statusOf[id];
       row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
-      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${countNum(unitTotal(p), 'eur')}</strong></span>`;
+      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + id)}</strong></span>`;
       row.style.cursor = 'pointer';
       row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
       row.onclick = () => focusComponent(id);
@@ -4120,8 +4220,8 @@ function renderSummary() {
     return `<span class="diff-mini ${over ? 'ko' : 'ok'}" title="${esc(sent)}">(${sign}${abs})</span>`;
   };
   const d1 = state.budget - (T.total - T.deliv), d2 = T.diff;
-  const totalsHtml = `<div class="sum-totals"><div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${countNum(T.total - T.deliv, 'eur')}</span></span></div>
-    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${countNum(T.total, 'eur')}</span></span></div></div>`;
+  const totalsHtml = `<div class="sum-totals"><div class="sum-line"><span>${lang === 'en' ? 'Total (excl. delivery details)' : 'Total'} </span><span class="tot-right">${mkDiff(d1, true)}<span class="big">${countNum(T.total - T.deliv, 'eur', 0, '', 'sum-total-net')}</span></span></div>
+    <div class="sum-line"><span>${lang === 'en' ? 'Total incl. delivery' : 'Total livraison incluse'}</span><span class="tot-right">${mkDiff(d2, false)}<span class="big">${countNum(T.total, 'eur', 0, '', 'sum-total-all')}</span></span></div></div>`;
   const dock = $('#sumTotalsDesc'); if (dock) dock.innerHTML = totalsHtml;
   cntAnimate($('#summaryPanel'));
   if (sumTab !== 'desc') renderSumExtra();
@@ -4384,7 +4484,7 @@ function renderSumExtra() {
           const color = cmap[it.id];
           return `<div class="ditem chart-row" data-ci="${i}" data-sid="${it.id}" style="cursor:pointer" title="${(it.parts || []).map(x => `${x.label} : ${x.w}W`).join(' · ') || (lang === 'en' ? 'Show in page' : 'Voir dans la page')}"><i class="dot" style="background:${color}"></i><span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(it.id))}</span><span class="di-name">${esc(it.name)} (${Math.round(it.w / tot * 100)}%)${it.psu ? '' : ` <small style="color:var(--muted)">(${lang === 'en' ? 'UPS only' : 'onduleur seul.'})</small>`}</span></span><span class="di-price"><strong>${countNum(it.w, 'num', Number.isInteger(it.w) ? 0 : 1, ' W')}</strong></span></div>`;
         }).join('');
-        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</h3>${pieSVG(items.map(a => ({ v: a.w, color: cmap[a.id] })))}</div><div class="chart-list">${rows}</div></div>`;
+        return `<div class="dsec chart-dsec${foldedPower.has(sec) ? ' collapsed' : ''}" data-sec="${sec}"><div class="dsec-head" data-phead="${sec}"><i class="${sumIcons[sec]}"></i><span>${esc(secName(sec))}</span><span class="dsec-total">${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W', 'sum-power-sec:' + sec)}</span><i class="fa-solid fa-chevron-down foldchev"></i></div><div class="dsec-dots"></div><div class="chart-card"><h3>${esc(secName(sec))} — ${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W', 'sum-power-sec-chart:' + sec)}</h3>${pieSVG(items.map(a => ({ v: a.w, color: cmap[a.id] })))}</div><div class="chart-list">${rows}</div></div>`;
       }).join('');
       let allocHtml = '';
       if (pw.psu.usableW > 0 && totP > 0) {
@@ -4400,14 +4500,14 @@ function renderSumExtra() {
           allocHtml = `<div class="dsec chart-dsec"><div class="dsec-head"><i class="fa-solid fa-plug-circle-bolt"></i><span>${alloTitle}</span><span class="dsec-total">${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</span></div><div class="dsec-dots"></div><div class="chart-card"><h3>${alloTitle} — ${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</h3>${pieSVG(used.map(a => ({ v: a.v })))}</div><div class="chart-list">${used.map((a, i) => `<div class="ditem chart-row" data-ci="${i}"><i class="dot" style="background:${cols[i % cols.length]}"></i><span class="di-txt"><span class="di-name">${esc(a.label)}</span></span><span class="di-price"><strong>${countNum(a.v, 'num', Number.isInteger(a.v) ? 0 : 1, ' W')}</strong></span></div>`).join('')}<div class="ditem"><i class="dot" style="background:#e03131"></i><span class="di-txt"><span class="di-name">${lang === 'en' ? 'Overload' : 'Surcharge'} (${countNum(-rest, 'num', Number.isInteger(-rest) ? 0 : 1, ' W')})</span></span><span class="di-price"><strong style="color:var(--danger)">${countNum(usedTot, 'num', Number.isInteger(usedTot) ? 0 : 1, ' W')} / ${countNum(pw.psu.usableW, 'num', Number.isInteger(pw.psu.usableW) ? 0 : 1, ' W')}</strong></span></div></div></div>`;
         }
       }
-      powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W')}</strong></h3>
+      powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W', 'sum-power-total')}</strong></h3>
       ${pwSecs}
       ${allocHtml}
       <div class="sum-totals">
-        <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W')}</span></span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens+consoles)' : 'Charge onduleur (PC+écrans+consoles)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${countNum(totU, 'num', Number.isInteger(totU) ? 0 : 1, ' W')}</strong></span></div>
-        <div class="sum-line"><span>kWh / ${usedHours.toFixed(1)}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum(kwh, 'num', 0, ' kWh/an')}</span><span class="tot-right">${countNum(eurY, 'eur', 2, '/an')}</span></div>
-        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${countNum(eurM, 'eur', 2, '/mois')}</span></span></div>
+        <div class="sum-line"><span><strong>Total PC</strong></span><span class="tot-right"><span class="big">${countNum(totP, 'num', Number.isInteger(totP) ? 0 : 1, ' W', 'sum-power-pc')}</span></span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'UPS load (PC+screens+consoles)' : 'Charge onduleur (PC+écrans+consoles)'} · ${pw.plugs} ${lang === 'en' ? 'plug(s)' : 'prise(s)'}</span><span class="tot-right"><strong>${countNum(totU, 'num', Number.isInteger(totU) ? 0 : 1, ' W', 'sum-power-ups')}</strong></span></div>
+        <div class="sum-line"><span>kWh / ${usedHours.toFixed(1)}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum(kwh, 'num', 0, ' kWh/an', 'sum-power-kwh')}</span><span class="tot-right">${countNum(eurY, 'eur', 2, '/an', 'sum-power-cost-year')}</span></div>
+        <div class="sum-line"><span>${lang === 'en' ? 'Cost' : 'Coût'} (HP ${UP.priceHP.toFixed(4)} / HC ${UP.priceHC.toFixed(4)} €/kWh)</span><span class="tot-right"><span class="big">${countNum(eurM, 'eur', 2, '/mois', 'sum-power-cost-month')}</span></span></div>
       </div>
       <p class="hint">${lang === 'en' ? 'Peak model: CPU TDP×1.35, GPU datasheet TBP, flat per-device rules. Screens excluded from PSU.' : 'Modèle pic : CPU TDP×1,35, TBP datasheet GPU, forfaits par appareil. Écrans hors PSU.'}</p>`;
     }
@@ -4416,8 +4516,8 @@ function renderSumExtra() {
     const UPf = usagePrefs();
     const uh = UPf.usage.reduce((a, b) => a + (b ? 1 : 0), 0);
     const wmap = buildColors(watts.map(x => ({ id: x.id, defId: defOf(state.slots[x.id]).id })));
-    powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W')}</strong></h3>
-    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum((tot * uh * 365) / 1000, 'num', 0, ' kWh/an')}</h3>${pieSVG(watts.map(x => ({ v: x.v, color: wmap[x.id] })))}
+    powerHtml = `<h3 style="margin:4px 0">${t('sum.powerTitle')} : <strong>${countNum(tot, 'num', Number.isInteger(tot) ? 0 : 1, ' W', 'sum-power-total')}</strong></h3>
+    <div class="charts-row"><div class="chart-card"><h3>kWh / ${uh}h ${lang === 'en' ? 'day' : 'jour'} ≈ ${countNum((tot * uh * 365) / 1000, 'num', 0, ' kWh/an', 'sum-power-year')}</h3>${pieSVG(watts.map(x => ({ v: x.v, color: wmap[x.id] })))}
     <div class="legend">${watts.map(x => `<span><i class="dot" style="background:${wmap[x.id]}"></i>${esc(slotName(x.id))} — ${countNum(x.v, 'num', Number.isInteger(x.v) ? 0 : 1, ' W')}</span>`).join('') || (lang === 'en' ? 'Add wattage on PC fiches.' : 'Renseignez les watts sur les fiches PC.')}</div></div></div>`;
   }
   $('#sumPowerPane').innerHTML = powerHtml;
@@ -6468,9 +6568,10 @@ function openWelcome() {
     const start = () => {
       resetDraftForBuild();
       if (bud > 0) state.budget = bud;
-      // Après la garde "non sauvegardé", le modal a été remplacé : il faut
-      // reconstruire la vue IA avant de retrouver #wProgs et #wBuild.
-      if ($('#modalOverlay').classList.contains('hidden') || !$('#wBuild') || !$('#wProgs')) reopenWelcomeAi(paste, bud);
+      // Après la garde "non sauvegardé", le modal a été remplacé : reconstruire
+      // la vue IA avec le texte et le budget saisis avant de lancer la boucle.
+      const activeAi = !$('#modalOverlay').classList.contains('hidden') && $('#wAi') && !$('#wAi').classList.contains('hidden') && $('#wBuild') && $('#wProgs');
+      if (!activeAi) reopenWelcomeAi(paste, bud);
       aiBuild(items);
     };
     guardUnsaved(start, () => reopenWelcomeAi(paste, bud));
@@ -6573,16 +6674,15 @@ function aiSetComp(comp, st) {
   else if (st === 'import') { comp.classList.add('st-import'); if (ic) ic.className = 'fa-solid fa-download'; }
   else if (st === 'done') { comp.classList.add('st-done'); if (ic) ic.className = 'fa-solid fa-check'; }
 }
-function aiSetStep(step, st, label) {
-  if (!step) return;
-  step.classList.remove('st-queued', 'st-search', 'st-import', 'st-manual', 'st-done', 'st-warn');
-  step.classList.add('st-' + st);
-  step.dataset.state = st;
-  const ic = step.querySelector('.wstep-ic i');
+function aiSetProg(prog, st, it, label, count) {
+  if (!prog || !prog.el) return;
+  prog.el.classList.remove('st-queued', 'st-search', 'st-import', 'st-manual', 'st-done', 'st-warn');
+  prog.el.classList.add('st-' + st);
+  prog.el.dataset.state = st;
   const icon = { queued: 'fa-circle', search: 'fa-magnifying-glass', import: 'fa-download', manual: 'fa-hand-pointer', done: 'fa-check', warn: 'fa-forward' }[st] || 'fa-circle';
-  if (ic) ic.className = 'fa-solid ' + icon;
-  const tx = step.querySelector('.wstep-st');
-  if (tx) tx.textContent = label || '';
+  if (prog.ic) prog.ic.className = 'fa-solid ' + icon;
+  if (prog.tx) prog.tx.textContent = [label || '', (it && it.ref) || ''].filter(Boolean).join(' ');
+  if (count && prog.count) prog.count.textContent = count;
 }
 function aiPhoto(comp, url) { const ic = comp && comp.querySelector('.wcomp-ic'); if (ic && url) ic.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy">`; }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
@@ -6630,49 +6730,47 @@ async function aiBuild(items) {
   btn.innerHTML = stopLbl;
   // pre-mapping connue + boutons a gauche
   const slots = items.map(it => AiParse.typeToSlot(it.type));
-  host.innerHTML = `<div class="wsteps" aria-live="polite">${items.map((it, i) => {
-    const slot = slots[i];
-    return `<div class="wstep st-queued" data-step="${i}"><span class="wstep-ic"><i class="fa-solid fa-circle"></i></span><span class="wstep-tx"><strong>${esc(slot ? aiSlotLabel(slot) : it.type)}</strong><small>${esc(it.ref)}</small></span><span class="wstep-st">${esc(t('welcome.stepQueued'))}</span></div>`;
-  }).join('')}</div>`;
-  const stepEls = [...host.querySelectorAll('.wstep')];
+  host.innerHTML = `<div id="wProg" class="wprog st-queued" aria-live="polite"><span class="wprog-ic"><i class="fa-solid fa-circle"></i></span><span class="wprog-tx"></span><span class="wprog-st">0/${items.length}</span></div>`;
+  const prog = { el: $('#wProg'), ic: $('#wProg .wprog-ic i'), tx: $('#wProg .wprog-tx'), count: $('#wProg .wprog-st') };
+  aiSetProg(prog, 'queued', items[0], t('welcome.stepQueued'), `0/${items.length}`);
   const comps = aiRenderComps(items, slots);
   let ok = 0; const skipped = []; let stopped = false;
   for (let i = 0; i < items.length; i++) {
     if (my !== aiRunId) { stopped = true; break; }
     const it = items[i];
     btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 24))} · ${esc(t('welcome.stop'))}`;
+    aiSetProg(prog, 'queued', it, t('welcome.stepQueued'), `${i + 1}/${items.length}`);
     let slot = slots[i];
     if (!slot) {
-      aiSetStep(stepEls[i], 'manual', t('welcome.stepAsk'));
+      aiSetProg(prog, 'manual', it, t('welcome.stepAsk'), `${i + 1}/${items.length}`);
       slot = await aiAskSlot(host, it);
       if (my !== aiRunId) { stopped = true; break; }
       slots[i] = slot;
       if (slot && comps[i]) {
         comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
         comps[i].querySelector('.wcomp-tx strong').textContent = aiSlotLabel(slot);
-        const st = stepEls[i] && stepEls[i].querySelector('.wstep-tx strong');
-        if (st) st.textContent = aiSlotLabel(slot);
         refreshIcons(comps[i]);
       }
     }
-    if (!slot) { aiSetComp(comps[i], 'warn'); aiSetStep(stepEls[i], 'warn', t('welcome.stepSkipped')); skipped.push(it); continue; }
-    aiSetComp(comps[i], 'search'); aiSetStep(stepEls[i], 'search', t('welcome.stepSearch'));
+    if (!slot) { aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); continue; }
+    aiSetComp(comps[i], 'search'); aiSetProg(prog, 'search', it, t('welcome.stepSearch'), `${i + 1}/${items.length}`);
     const found = await aiFindRef(it);
     if (my !== aiRunId) { stopped = true; break; }
     if (!found) {
-      aiSetStep(stepEls[i], 'manual', t('welcome.stepManual'));
+      aiSetProg(prog, 'manual', it, t('welcome.stepManual'), `${i + 1}/${items.length}`);
       const picked = await aiManualPick(slot, it.ref, it.link);
-      if (!picked) { aiSetComp(comps[i], 'warn'); aiSetStep(stepEls[i], 'warn', t('welcome.stepSkipped')); skipped.push(it); if (my !== aiRunId) { stopped = true; break; } continue; }
-      aiSetComp(comps[i], 'done'); aiSetStep(stepEls[i], 'done', t('welcome.stepDone')); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
+      if (!picked) { aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); if (my !== aiRunId) { stopped = true; break; } continue; }
+      aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
       if (my !== aiRunId) { stopped = true; break; }
       continue;
     }
-    aiSetComp(comps[i], 'import'); aiSetStep(stepEls[i], 'import', t('welcome.stepImport'));
+    aiSetComp(comps[i], 'import'); aiSetProg(prog, 'import', it, t('welcome.stepImport'), `${i + 1}/${items.length}`);
     await importAiProduct(slot, found.item, found.link);
-    aiSetComp(comps[i], 'done'); aiSetStep(stepEls[i], 'done', t('welcome.stepDone')); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
+    aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
     if (my !== aiRunId) { stopped = true; break; }
   }
   aiBuilding = false;
+  aiSetProg(prog, stopped ? 'warn' : 'done', null, stopped ? t('welcome.stopped') : t('welcome.stepDone'), `${ok}/${items.length}`);
   persist(); refresh();
   host.insertAdjacentHTML('beforeend', `<p class="hint">${ok} ✓${stopped ? ' · ' + esc(t('welcome.stopped')) : ''}${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(s => s.type + ' : ' + s.ref).join(' | '))}` : ''}</p>
     <div class="btn-row"><button class="btn btn-primary" id="wOpen"><i class="fa-solid fa-computer"></i> ${esc(t('welcome.openConfig'))}</button></div>`);
@@ -6924,16 +7022,18 @@ function openShareExport(pill) {
     const icon = status === 'inc' ? 'check' : status === 'out' ? 'xmark' : status === 'pdf' ? 'file-pdf' : 'file-code';
     return `<li class="se-${status}"><i class="fa-solid fa-${icon}"></i><span><strong>${esc(label)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span></li>`;
   };
-  const shareInfo = `<div class="cmp-col se-info">
+  const shareInfo = `<div class="se-info">
     <h4><i class="fa-solid fa-share-nodes"></i> ${T('Included in the share link', 'Inclus dans le lien de partage')}</h4>
-    <p class="hint">${T('The link is intentionally lightweight. Everything below is either shared or left out.', 'Le lien est volontairement léger. Tout ce qui suit est partagé ou volontairement omis.')}</p>
+    <p class="hint">${T('Only what is needed to recreate the selection is shared. Everything else stays on this device.', 'Seul le nécessaire pour recréer la sélection est partagé. Le reste reste sur cet appareil.')}</p>
     <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('Shared', 'Partagé')}</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Omitted', 'Omis')}</span></div>
-    <ul>
-      ${infoRow(T('Config name', 'Nom de la config'), 'inc')}
-      ${infoRow(T('Budget', 'Budget'), 'inc')}
+    <ul class="se-list">
+      ${infoRow(T('Config name and budget', 'Nom de la config et budget'), 'inc')}
       ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', selected.length ? `${selected.length} ${T('component(s)', 'composant(s)')}` : T('None selected', 'Aucun sélectionné'))}
       ${infoRow(T('Component name, price and Idealo link', 'Nom, prix et lien Idealo des composants'), 'inc')}
-      ${infoRow(T('Alternatives', 'Alternatives'), 'out', altCount ? `${altCount} ${T('alternative(s)', 'alternative(s)')}` : T('Not shared', 'Non partagées'))}
+    </ul>
+    <div class="se-group-title">${T('Not in the link', 'Absent du lien')}</div>
+    <ul class="se-list">
+      ${infoRow(T('Alternatives', 'Alternatives'), 'out', altCount ? `${altCount} ${T('not shared', 'non partagée(s)')}` : T('None', 'Aucune'))}
       ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'out')}
       ${infoRow(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), 'out')}
       ${infoRow(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), 'out')}
@@ -6942,21 +7042,19 @@ function openShareExport(pill) {
       ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out')}
     </ul>
   </div>`;
-  const exportInfo = `<div class="cmp-col se-info">
+  const exportInfo = `<div class="se-info">
     <h4><i class="fa-solid fa-file-export"></i> ${T('What each export contains', 'Ce que contient chaque export')}</h4>
-    <p class="hint">${T('JSON = this config with all its history, re-importable. PDF = a complete printable report. Orange items exist only in the PDF.', 'JSON = cette config avec tout son historique, réimportable. PDF = un rapport complet imprimable. Les éléments orange existent uniquement dans le PDF.')}</p>
+    <p class="hint">${T('JSON keeps the full config for re-import. PDF is a printable report. Orange items exist only in the PDF.', 'JSON conserve toute la config pour le réimport. PDF est un rapport imprimable. Les éléments orange existent uniquement dans le PDF.')}</p>
     <div class="se-legend"><span class="se-inc"><i class="fa-solid fa-circle"></i>${T('JSON + PDF', 'JSON + PDF')}</span><span class="se-json"><i class="fa-solid fa-circle"></i>JSON</span><span class="se-pdf"><i class="fa-solid fa-circle"></i>PDF</span><span class="se-out"><i class="fa-solid fa-circle"></i>${T('Not exported', 'Non exporté')}</span></div>
-    <ul>
-      ${infoRow(T('Config name and budget', 'Nom de la config et budget'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Selected components', 'Composants sélectionnés'), 'inc', 'JSON + PDF')}
+    <ul class="se-list">
+      ${infoRow(T('Config name, budget and selected components', 'Nom, budget et composants sélectionnés'), 'inc', 'JSON + PDF')}
       ${infoRow(T('Quantities, power, PSU/UPS', 'Quantités, puissance, alim/onduleur'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Manual / merchant links, vendor, delivery', 'Liens manuel / marchand, vendeur, livraison'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Specs, datasheets, notes, compatibility', 'Specs, fiches, notes, compatibilité'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('PC usage & pricing', 'Utilisation & tarification PC'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Links, vendor and delivery', 'Liens, vendeur et livraison'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('Specs, datasheets, notes and compatibility', 'Specs, fiches, notes et compatibilité'), 'inc', 'JSON + PDF')}
+      ${infoRow(T('PC usage and pricing', 'Utilisation et tarification PC'), 'inc', 'JSON + PDF')}
       ${infoRow(T('Price history', 'Historique des prix'), 'inc', 'JSON + PDF')}
-      ${infoRow(T('Alternatives', 'Alternatives'), 'json', T('JSON only — alternatives are not printed in the PDF report.', 'JSON uniquement — les alternatives ne sont pas imprimées dans le rapport PDF.'))}
-      ${infoRow(T('Saved snapshots', 'Sauvegardes'), 'json', T('JSON only — saved versions are not printed in the PDF report.', 'JSON uniquement — les versions sauvegardées ne sont pas imprimées dans le rapport PDF.'))}
-      ${infoRow(T('PDF report layout', 'Mise en page du rapport PDF'), 'pdf', T('PDF only — cover, charts, benchmarks, usage calendars and price curves. The JSON keeps the raw data for re-import.', 'PDF uniquement — couverture, graphiques, benchmarks, calendriers et courbes. Le JSON garde les données brutes pour le réimport.'))}
+      ${infoRow(T('Alternatives and saved snapshots', 'Alternatives et sauvegardes'), 'json', T('JSON only — not printed in the PDF report.', 'JSON uniquement — non imprimé dans le rapport PDF.'))}
+      ${infoRow(T('PDF report layout', 'Mise en page du rapport PDF'), 'pdf', T('PDF only — cover, charts, benchmarks, usage calendars and price curves.', 'PDF uniquement — couverture, graphiques, benchmarks, calendriers et courbes.'))}
       ${infoRow(T('Other configs, favourites and preferences', 'Autres configs, favoris et préférences'), 'out', T('Use “Export data” in Settings or the footer.', 'Utilisez « Exporter données » dans les paramètres ou le pied de page.'))}
     </ul>
   </div>`;
@@ -7297,6 +7395,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.68 — Fiche composant, compteurs et offres fiabilisées</h3><p class="hint">La fiche composant s’ouvre en lecture seule depuis « Infos » et le crayon reste disponible pour modifier la fiche sélectionnée. Les offres affichent toujours « N offres · dès X € », s’ouvrent au bon endroit et séparent leur erreur de celle de la fiche technique avec un bouton Réessayer. L’aperçu passe avant les variantes, avec des raccourcis vers les variantes et la fiche technique. Les compteurs n’animent que les valeurs modifiées, depuis leur ancienne valeur, et restent statiques sans animation. La création par IA tient sur une seule ligne de progression. Les panneaux Partager/Exporter reprennent une liste verticale compacte. Les offres Idealo sont récupérées dans le HTML brut quand le Markdown les omet, les contrôles actifs restent lisibles en thème sombre et le comparateur mobile ne déborde plus horizontalement.</p></div>
     <div class="chlog"><h3>v2.67 — Comparateur pleine page et fiches alignées</h3><p class="hint">Le comparateur reprend toute la hauteur de la page : plus de petite zone défilante, chaque tableau garde son défilement horizontal synchronisé. L’en-tête de la config actuelle reste opaque, le bouton d’agrandissement passe à côté du type de composant et le bouton de choix des alternatives revient dans chaque cellule. La popup de comparaison des composants utilise une largeur adaptée au nombre de configs (40 vw par carte à deux, puis 10 vw de moins par config, avec un plancher de 200 px ; 75 vw par carte sur mobile). Les lignes de fiche technique sont alignées dans une grille commune avec la meilleure valeur surlignée en vert.</p></div>
     <div class="chlog"><h3>v2.66 — Comparateur compact, cartes côte à côte et en-têtes épinglés</h3><p class="hint">Le comparateur déplie chaque fiche depuis toute la ligne du composant, avec la flèche placée avant l’icône et une seule fiche ouverte à la fois. Un bouton d’agrandissement à droite du nom ouvre 2 à 5 cartes côte à côte : visuel, specs, fiche technique, prix, liens et une popover compacte pour choisir les alternatives et variantes sans quitter la comparaison. Chaque carte non actuelle peut ajouter son composant comme alternative à la config actuelle, avec dédoublonnage par lien Idealo ou nom + prix. Le comparateur utilise désormais une seule zone de défilement : en-têtes de colonnes, groupes, composant ouvert, en-tête de fiche et total restent épinglés, et la position est conservée après chaque rendu.</p></div>
     <div class="chlog"><h3>v2.65 — Fiches d’information, compteurs et menu mobile</h3><p class="hint">Le partage et l’export affichent une fiche d’information compacte sur deux colonnes : inclus en vert, exclus en rouge, PDF uniquement en orange, avec une légende. La variante sélectionnée garde une bordure plus épaisse que son survol. La création par IA montre chaque composant et son statut sous « Construire la config », avec l’animation d’actualisation des prix en recherche et un balayage vertical à l’import ; le popup reste utilisable après la garde des modifications non sauvegardées. Les prix, consommations et benchmarks comptent désormais de zéro, et le réglage Animations les coupe ou les relance. Le chargement d’une config rafraîchit immédiatement les benchmarks affichés, les offres de la fiche composant reprennent les bons plans et le meilleur total, et le menu mobile est centré avec le tiroir de la navigation KJ.</p></div>
@@ -7664,6 +7763,12 @@ function bind() {
     if (!pdState) return;
     toggleFavorite(pdState.item, activeSlot ? slotCatKey(activeSlot) : '');
     syncFavoriteViews();
+  };
+  const pdEdit = $('#pdEdit');
+  if (pdEdit) pdEdit.onclick = () => {
+    if (!pdState || !activeSlot) return;
+    const prod = ((state.slots[activeSlot] || {}).products || []).find(x => x.id === pdState.item.id);
+    if (prod) openProductForm(activeSlot, prod);
   };
   const gClose = $('#galleryClose'); if (gClose) gClose.onclick = closeGallery;
   const gPrev = $('#galleryPrev'); if (gPrev) gPrev.onclick = () => galleryMove(-1);

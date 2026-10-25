@@ -542,6 +542,20 @@ const Idealo = (() => {
   /* HTML details: quick summary (Idealo productSummary spans), gallery and the
      full datasheet table. Kept in memory only (the HTML page is large). */
   const detailsCache = new Map();
+  const productHtmlCache = new Map();
+  function getProductHtml(url, force) {
+    const c = productHtmlCache.get(url);
+    if (!force && c && (Date.now() - c.t) < TTL && c.p) return c.p;
+    const p = queued(() => fetchHtml(url)).then(html => {
+      if (!html || html.length < 500) throw new Error('empty');
+      productHtmlCache.set(url, { t: Date.now(), p: Promise.resolve(html) });
+      while (productHtmlCache.size > 4) productHtmlCache.delete(productHtmlCache.keys().next().value);
+      return html;
+    });
+    productHtmlCache.set(url, { t: Date.now(), p });
+    p.catch(() => { const cur = productHtmlCache.get(url); if (cur && cur.p === p) productHtmlCache.delete(url); });
+    return p;
+  }
   function htmlText(v) {
     return String(v || '')
       .replace(/<br\s*\/?>/gi, ' ')
@@ -616,12 +630,15 @@ const Idealo = (() => {
   }
   async function details(url) {
     const c = detailsCache.get(url);
-    if (c && (Date.now() - c.t) < TTL) return { ...c.data, cached: true };
+    if (c && (Date.now() - c.t) < TTL) {
+      if (c.html && !productHtmlCache.has(url)) productHtmlCache.set(url, { t: c.t, p: Promise.resolve(c.html) });
+      return { ...c.data, cached: true };
+    }
     try {
-      const html = await queued(() => fetchHtml(url));
+      const html = await getProductHtml(url);
       const data = parseDetailsHtml(html);
       if (!data.summary && !data.sections.length) throw new Error('empty');
-      detailsCache.set(url, { t: Date.now(), data });
+      detailsCache.set(url, { t: Date.now(), data, html });
       while (detailsCache.size > 6) detailsCache.delete(detailsCache.keys().next().value);
       return { ...data, cached: false };
     } catch (e) {
@@ -701,6 +718,65 @@ const Idealo = (() => {
     }).sort((a, b) => a.price - b.price);
   }
 
+  /* Fallback parser for the raw offerpage HTML. The Markdown reader sometimes
+     returns only the datasheet and drops the offer list; the same rows are
+     always present in the HTML (productOffers-listItem). */
+  function parseOffersHtml(html) {
+    const offers = [];
+    const src = String(html || '');
+    const parts = src.split(/(?=<(?:li|div)[^>]+class="[^"]*productOffers-listItem(?![A-Za-z0-9_-])[^"]*")/i).slice(1);
+    for (const chunk of parts) {
+      const linkM = chunk.match(/class="[^"]*productOffers-listItemTitle[^"]*"[^>]*href="([^"]+)"/i)
+        || chunk.match(/href="([^"]*\/relocator\/[^"]+)"/i);
+      if (!linkM) continue;
+      const relUrl = htmlText(linkM[1]);
+      if (!/\/relocator\//i.test(relUrl)) continue;
+      const pm = relUrl.match(/[?&]price=([\d.,]+)/i)
+        || chunk.match(/class="[^"]*productOffers-listItemOfferPrice[^"]*"[^>]*>\s*([\d\s.,]+)\s*€/i);
+      const price = pm ? parsePrice(pm[1]) : 0;
+      if (!price) continue;
+      let delivered = 0;
+      const shipRe = /class="[^"]*productOffers-listItemOfferShippingDetails[^"]*"[^>]*>([\s\S]{0,300}?)<\/div>/gi;
+      let sm;
+      while ((sm = shipRe.exec(chunk)) !== null) {
+        const txt = htmlText(sm[1]);
+        const am = txt.match(/([\d\s]+[.,]\d{2})\s*€/);
+        if (!am) continue;
+        const val = parsePrice(am[1]);
+        if (!val) continue;
+        if (/livraison\s+incl|prix\s+total/i.test(txt)) delivered = val;
+        else if (/frais\s+de\s+port|livraison/i.test(txt) && val < price) delivered = price + val;
+      }
+      const smName = chunk.match(/titleCaption\s*&quot;\s*:\s*&quot;([^&]+)&quot;/i)
+        || chunk.match(/data-shop-name="([^"]+)"/i)
+        || chunk.match(/"shop_name"\s*:\s*"([^"]+)"/i);
+      let merchant = smName ? htmlText(smName[1]) : '';
+      if (merchant && /\s-\s.*Marchand\b/i.test(merchant)) merchant = merchant.split(/\s-\s/)[1] || merchant;
+      const mm = chunk.match(/\/marchand\/(\d+)\/([^/.)\s"]+)/i);
+      if (!merchant && mm) merchant = merchantName(mm[2]);
+      const sid = (relUrl.match(/[?&]sid=(\d+)/) || [])[1] || (mm ? mm[1] : '');
+      const titleM = chunk.match(/class="[^"]*productOffers-listItemTitleInner[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const title = titleM ? htmlText(titleM[1]) : '';
+      const ratingM = chunk.match(/class="[^"]*starAndRatingWrapper[^"]*"[\s\S]{0,300}?<b>\s*([\d.,]+)\s*<\/b>/i);
+      const dateM = chunk.match(/class="[^"]*OfferDeliveryStatusDatesRange[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const provM = chunk.match(/class="[^"]*OfferDeliveryProvider[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const delivery = [dateM ? htmlText(dateM[1]) : '', provM ? htmlText(provM[1]) : ''].filter(Boolean).join(' · ');
+      offers.push({
+        title: title || merchant || 'Offre', price, delivered, merchant,
+        promo: /Code Promo|Bon plan/i.test(chunk),
+        rating: ratingM ? ratingM[1] : '',
+        delivery, sid, url: absUrl(relUrl),
+      });
+    }
+    const seen = new Set();
+    return offers.filter(o => {
+      const k = o.sid + '|' + o.price + '|' + o.title;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a, b) => a.price - b.price);
+  }
+
   async function product(url) {
     try {
       let { md } = await cachedMd(url);
@@ -720,17 +796,25 @@ const Idealo = (() => {
     try {
       let { md, cached } = await cachedMd(url, force);
       let items = parseOffers(md);
-      if (!items.length) { // stale/partial render: refetch once, bypassing cache
+      if (!items.length && cached) { // stale/partial cache: refetch once
         md = (await cachedMd(url, true)).md;
         items = parseOffers(md);
         cached = false;
       }
-      return { offers: items, cached: !!cached };
+      if (items.length) return { offers: items, cached: !!cached };
+      // Reader Markdown can omit the offer list while the raw HTML still has it.
+      let html = await getProductHtml(url);
+      items = parseOffersHtml(html);
+      if (!items.length) {
+        html = await getProductHtml(url, true);
+        items = parseOffersHtml(html);
+      }
+      return { offers: items, cached: false };
     } catch (e) {
-      // last chance: one retry (transient 429 / timeout)
+      // Last chance after a 429/timeout: retry the raw HTML once.
       try {
-        const { md } = await cachedMd(url, true);
-        return { offers: parseOffers(md), cached: false };
+        const html = await getProductHtml(url, true);
+        return { offers: parseOffersHtml(html), cached: false };
       } catch (e2) {
         return { offers: [], error: String((e2 && e2.message) || e2) };
       }
@@ -793,5 +877,5 @@ const Idealo = (() => {
     } finally { clearTimeout(to); }
   }
 
-  return { list, product, details, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseDetailsHtml, parseVariants, matchVariantAttrs, variantNorm, parseOffers, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
+  return { list, product, details, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseDetailsHtml, parseVariants, matchVariantAttrs, variantNorm, parseOffers, parseOffersHtml, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
 })();

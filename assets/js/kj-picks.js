@@ -37,10 +37,10 @@ window.KJ_PICKS = {
         /* ── PC components ─────────────────────────────────────────────────── */
         cpu: [
             // { id: '', name: '', tags: ['top', 'tested'], note: '' },
-            { id: 'https://www.idealo.fr/prix/204581800/amd-ryzen-9-9900x.html', name: 'AMD Ryzen 9 9900X', tags: ['tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204581800/amd-ryzen-9-9900x.html', name: 'AMD Ryzen 9 9900X', tags: ['tested', 'recommended'], note: '' },
             { id: 'https://www.idealo.fr/prix/205072280/amd-ryzen-7-9800x3d-boxed.html', name: 'AMD Ryzen 7 9800X3D', tags: ['recommended'], note: '' },
             { id: 'https://www.idealo.fr/prix/202115887/amd-ryzen-7-5800x3d.html', name: 'AMD Ryzen 7 5800X3D', tags: ['recommended'], note: '' },
-            { id: 'https://www.idealo.fr/prix/204581803/amd-ryzen-7-9700x.html', name: 'AMD Ryzen 7 9700X', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204581803/amd-ryzen-7-9700x.html', name: 'AMD Ryzen 7 9700X', tags: ['tested', 'recommended'], note: '' },
             { id: 'https://www.idealo.fr/prix/201899387/amd-ryzen-5-5600.html', name: 'AMD Ryzen 5 5600', tags: ['tested'], note: '' },
             { id: 'https://www.idealo.fr/prix/202722732/amd-ryzen-7-7800x3d.html', name: 'AMD Ryzen 7 7800X3D', tags: ['tested'], note: '' },
             { id: 'https://www.idealo.fr/prix/202275796/amd-ryzen-7-7700.html', name: 'AMD Ryzen 7 7700', tags: ['top', 'tested'], note: '' },
