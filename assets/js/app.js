@@ -1,11 +1,12 @@
-/* ConfigMaker v2.69 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.0.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.69';
+const APP_VERSION = '2.0.0';
+const APP_URL = 'https://kevinjmt.github.io/configmaker';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
 const save = (k, v) => {
@@ -397,7 +398,7 @@ const I18N = {
     'export.saved': 'Sélection d’export enregistrée.',
     'export.shareNote': 'Le lien de partage ne contient que la configuration (nom, budget, composants, prix et liens Idealo).',
     'export.pdfHint': 'PDF : rapport imprimable. Astuce : choisissez « Enregistrer au format PDF », pas une imprimante système.',
-    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'footer.top': 'Haut de page ↑', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
+    'dl.title': "Fichiers Excel d'origine", 'footer.tag': 'Prix Idealo, consommation, manuels — 100 % local, sans panier.', 'footer.top': 'Haut de page ↑', 'footer.webapp': 'Webapp officielle', 'ai.title': 'Demander à Perplexity', 'ai.ph': 'Posez votre question…',
   },
   en: {
     'nav.exportAll': 'Export data', 'nav.install': 'Install', 'nav.settings': 'Settings',
@@ -542,7 +543,7 @@ const I18N = {
     'export.saved': 'Export selection saved.',
     'export.shareNote': 'The share link only carries the configuration (name, budget, components, prices and Idealo links).',
     'export.pdfHint': 'PDF: printable report. Tip: choose “Save as PDF”, not a system printer.',
-    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'footer.top': 'Back to top ↑', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
+    'dl.title': 'Original Excel files', 'footer.tag': 'Idealo prices, power draw, manuals — 100% local, no cart.', 'footer.top': 'Back to top ↑', 'footer.webapp': 'Official webapp', 'ai.title': 'Ask to Perplexity', 'ai.ph': 'Ask your question…',
   }
 };
 const SLOT_NAMES = {
@@ -6494,7 +6495,7 @@ function openWelcome() {
       <div class="wcols">
         <section class="wbrand">
           <img class="wlogo" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-          <div class="wtitle">ConfigMaker by <a href="https://kevinjmt.github.io/" target="_blank" rel="noopener">KJ</a></div>
+          <div class="wtitle"><a href="${APP_URL}" target="_blank" rel="noopener">ConfigMaker</a> by <a href="https://kevinjmt.github.io/" target="_blank" rel="noopener">KJ</a></div>
           <p class="hint wslogan">${esc(t('footer.tag'))}</p>
           <div class="wfeats">
             <div class="glass wfeat"><i class="fa-solid fa-tag"></i><span>${esc(t('welcome.feat1'))}</span></div>
@@ -6857,13 +6858,14 @@ function idealoLinkId(p) {
   return m ? m[1].replace(/\.html$/i, '') : '';
 }
 function buildShareLink() {
+  /* Always publish through the public app URL, even from a local preview. */
   const parts = ['cfg=1', 'name=' + encodeURIComponent(state.name || 'Ma Config'), 'budget=' + (Number(state.budget) || 0)];
   (state.order || []).forEach(id => {
     const s = state.slots[id]; if (!s) return;
     const p = sel(s); if (!p) return;
     parts.push(encodeURIComponent(id) + '=' + encodeURIComponent(p.name || '') + '|' + (Number(p.price) || 0) + '|' + idealoLinkId(p));
   });
-  return location.origin + location.pathname + '#' + parts.join('&');
+  return APP_URL + '/#' + parts.join('&');
 }
 function shareDefIdFor(key) {
   if (SLOT_DEFS.some(d => d.id === key)) return key;
@@ -7388,7 +7390,7 @@ function buildPrintReport(parts) {
   const T = totals();
   const budget = Number(state.budget) || 0;
   const L = (en, fr) => (lang === 'en' ? en : fr);
-  const appUrl = location.href.split('#')[0];
+  const appUrl = APP_URL;
   const verBtn = document.getElementById('versionBtn');
   const appVer = verBtn ? String(verBtn.textContent || '').trim() : '';
   const exportDate = new Date().toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'long', timeStyle: 'short' });
@@ -7712,6 +7714,7 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.0.0 — Release officielle, installation mobile et liens canoniques</h3><p class="hint">ConfigMaker passe en v2.0.0 avec un README de présentation, un lien officiel unique pour la webapp, les partages et les PDF, et une installation PWA renforcée sur Android et iOS. L’application s’ouvre désormais comme une vraie app depuis l’écran d’accueil, avec le plein écran et les zones sûres iOS, tandis que les liens GitHub du projet et des issues restent centralisés. Toutes les fonctions de la v2.69 sont conservées.</p></div>
     <div class="chlog"><h3>v2.69 — Soutien au projet, exports à la carte et benchmarks moyens</h3><p class="hint">Deux nouveaux blocs avant les fichiers Excel mettent en avant le projet et remercient Idealo, avec une section complète des services externes et leurs liens en pied de page. Les exports PDF et JSON partagent désormais un sélecteur compact : tout, données actuelles, configuration + performances, configuration seule ou choix libre, avec la configuration toujours incluse et un aperçu verrouillé tout coché dans Partager. Le PDF place les publicités ConfigMaker et Idealo puis le résumé d’usage horizontal sur la première page, supprime le doublon plus loin, reprend les sections IObit et usage quotidien dans les mêmes encadrés que les blocs lourds et peut inclure les tutoriels. Les benchmarks 3DMark et Geekbench utilisent la moyenne de tous les runs disponibles, plafonnée à 1 000 échantillons. L’actualisation des prix peut être annulée en deux clics, un réglage permet de la désactiver, les avertissements couvrent l’absence de GPU avec un CPU sans graphique intégré et l’absence de ventirad avec un CPU sans ventilateur fourni, et le favicon reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.68 — Fiche composant, compteurs et offres fiabilisées</h3><p class="hint">La fiche composant s’ouvre en lecture seule depuis « Infos » et le crayon reste disponible pour modifier la fiche sélectionnée. Les offres affichent toujours « N offres · dès X € », s’ouvrent au bon endroit et séparent leur erreur de celle de la fiche technique avec un bouton Réessayer. L’aperçu passe avant les variantes, avec des raccourcis vers les variantes et la fiche technique. Les compteurs n’animent que les valeurs modifiées, depuis leur ancienne valeur, et restent statiques sans animation. La création par IA tient sur une seule ligne de progression. Les panneaux Partager/Exporter reprennent une liste verticale compacte. Les offres Idealo sont récupérées dans le HTML brut quand le Markdown les omet, les contrôles actifs restent lisibles en thème sombre et le comparateur mobile ne déborde plus horizontalement.</p></div>
     <div class="chlog"><h3>v2.67 — Comparateur pleine page et fiches alignées</h3><p class="hint">Le comparateur reprend toute la hauteur de la page : plus de petite zone défilante, chaque tableau garde son défilement horizontal synchronisé. L’en-tête de la config actuelle reste opaque, le bouton d’agrandissement passe à côté du type de composant et le bouton de choix des alternatives revient dans chaque cellule. La popup de comparaison des composants utilise une largeur adaptée au nombre de configs (40 vw par carte à deux, puis 10 vw de moins par config, avec un plancher de 200 px ; 75 vw par carte sur mobile). Les lignes de fiche technique sont alignées dans une grille commune avec la meilleure valeur surlignée en vert.</p></div>

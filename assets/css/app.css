@@ -1441,6 +1441,12 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   .footer-brand{align-items:center}.footercol{align-items:center}.footer-bottom{justify-content:center;text-align:center}
 }
 .mobile-totalbar,.mobile-scrim{display:none}
+@media (max-width:960px), (display-mode: standalone){
+  /* Standalone iOS keeps the status bar over the viewport: reserve its inset. */
+  body{padding-top:env(safe-area-inset-top)}
+  nav{top:env(safe-area-inset-top)}
+  body.scrolled nav{top:calc(12px + env(safe-area-inset-top))}
+}
 @media (max-width:960px){
   body.summary-sheet-open,body.picker-sheet-open,body.tutorial-sheet-open{overflow:hidden}
   .container{width:100%;padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
@@ -1472,7 +1478,7 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   #slotSections>div{margin-bottom:20px}
   nav{padding:0 8px 0 12px;min-height:var(--nav-h);align-content:center;row-gap:0}
   body.scrolled nav{top:8px;width:calc(100% - 16px)}
-  .overlay{padding:8px;align-items:flex-end}
+  .overlay{padding:8px;padding-top:max(8px,env(safe-area-inset-top));align-items:flex-end}
   .modal{width:100%;max-height:92dvh;border-radius:22px 22px 0 0}
   .modal.modal-wide{width:100%}
   .modal-head{padding:14px}
