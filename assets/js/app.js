@@ -341,6 +341,7 @@ const I18N = {
     'bench.videos': 'Vidéos', 'bench.extraPh': 'Préciser la recherche… (ex : ray tracing, undervolt)', 'bench.search': 'Chercher',
     'bench.needs': 'Sélectionnez un CPU + un GPU (ou un graphique intégré) pour charger les benchmarks.',
     'bench.needBoth': 'CPU + GPU requis (composants absents ou hors base iobit)', 'bench.needCpu': 'CPU requis.',
+    'bench.dedicatedGpu': 'GPU dédié requis pour le calculateur iobit.',
     'bench.nodata': 'Pas de données — réessayez plus tard.', 'bench.topruns': 'Moyenne de tous les runs publics disponibles (plafond 1 000)',
     'bench.typical': 'moyennes par panier', 'bench.tsGpu': 'GPU typique', 'bench.tsCpu': 'CPU typique',
     'bench.single': 'Mono-cœur', 'bench.multi': 'Multi-cœurs',
@@ -485,6 +486,7 @@ const I18N = {
     'bench.videos': 'Videos', 'bench.extraPh': 'Refine the search… (e.g. ray tracing, undervolt)', 'bench.search': 'Search',
     'bench.needs': 'Select a CPU + GPU (or integrated graphics) to load benchmarks.',
     'bench.needBoth': 'CPU + GPU required (missing parts or outside iobit DB)', 'bench.needCpu': 'CPU required.',
+    'bench.dedicatedGpu': 'Dedicated GPU required for the iobit calculator.',
     'bench.nodata': 'No data — retry later.', 'bench.topruns': 'Mean of all available public runs (capped at 1,000)',
     'bench.typical': 'bucket means', 'bench.tsGpu': 'Typical GPU', 'bench.tsCpu': 'Typical CPU',
     'bench.single': 'Single-core', 'bench.multi': 'Multi-core',
@@ -5050,11 +5052,29 @@ function prodIn(st, id) {
   const s = st && st.slots && st.slots[id];
   return (s && (s.products || []).find(p => p.id === s.selectedId)) || null;
 }
-function cpuIgpuNameIn(st) {
+function cpuIgpuInfoIn(st) {
   const p = prodIn(st, 'cpu');
-  if (!p || !p.datasheet || typeof Compat === 'undefined') return '';
-  try { const C = Compat.parseDatasheet(p.datasheet); if (C && C.igpuName) return String(C.igpuName).trim(); } catch { /* ignore */ }
-  return '';
+  if (!p || !p.datasheet || typeof Compat === 'undefined') return { has: false, name: '' };
+  try {
+    const C = Compat.parseDatasheet(p.datasheet) || {};
+    const clean = value => String(value || '').trim();
+    const isNo = value => /^(n\/?a|non|no|false|aucun|none)\b/i.test(clean(value));
+    const isYes = value => /^(oui|yes|true)\b/i.test(clean(value));
+    const raw = clean(C.igpuName);
+    const flag = clean(C.igpuFlag);
+    const flagNo = isNo(flag);
+    /* Some datasheets put the model in the "integrated graphics" field rather
+       than in "graphics chipset" (e.g. "Puce graphique intégrée: Radeon 780M"). */
+    const flagName = flag && !flagNo && !isYes(flag) ? flag : '';
+    const name = !isNo(raw) ? (raw || flagName) : '';
+    const has = !flagNo && (!!name || C.igpuFlag === true || isYes(flag));
+    return { has, name };
+  } catch { /* ignore */ }
+  return { has: false, name: '' };
+}
+function cpuIgpuNameIn(st) {
+  const info = cpuIgpuInfoIn(st);
+  return info.has ? info.name : '';
 }
 function gpuSeriesNameIn(st) {
   const p = prodIn(st, 'gpu');
@@ -5070,7 +5090,10 @@ function benchPartsFor(st) {
   const g = id => { const p = prodIn(st, id); return p ? p.name : ''; };
   const cpu = g('cpu'), ram = g('ram');
   let gpu = g('gpu'), iGpu = false;
-  if (!gpu) { const ig = cpuIgpuNameIn(st); if (ig) { gpu = ig; iGpu = true; } }
+  if (!gpu) {
+    const ig = cpuIgpuInfoIn(st);
+    if (ig.has) { gpu = ig.name || 'Integrated graphics'; iGpu = true; }
+  }
   const gpuSeries = gpu ? (iGpu ? gpu : (gpuSeriesNameIn(st) || gpu)) : '';
   return { cpu, gpu, gpuSeries, ram, iGpu };
 }
@@ -5104,9 +5127,13 @@ function benchFactsFor(st) {
   const cpuP = benchProdIn(st, 'cpu'), ramP = benchProdIn(st, 'ram');
   let gpuP = benchProdIn(st, 'gpu'), igpu = false;
   if (!gpuP) { // no dedicated GPU: fall back to the CPU's integrated graphics
-    const ig = cpuIgpuNameIn(st);
-    const e = ig ? Perf.igpuEntry(ig) : null;
-    if (e) { gpuP = { name: e[1], qty: 1, syntheticIgpu: true }; igpu = true; }
+    const info = cpuIgpuInfoIn(st);
+    if (info.has) {
+      const name = info.name || 'Integrated graphics';
+      const entry = Perf.igpuEntry(name);
+      gpuP = { name: entry ? entry[1] : name, qty: 1, syntheticIgpu: true };
+      igpu = true;
+    }
   }
   // stockage : total de tous les SSD/HDD internes ; le type = disque le plus rapide present
   const storParts = [];
@@ -5134,6 +5161,9 @@ function benchFactsFor(st) {
   const cpuEntry = cpuP ? Perf.matchCpu(cpuP.name) : null;
   let gpuEntry = gpuP ? Perf.matchGpu(gpuP.name) : null;
   if (!gpuEntry && igpu && gpuP) gpuEntry = Perf.igpuEntry(gpuP.name);
+  /* Unknown iGPU model: keep a conservative synthetic score so the rest of the
+     page can still render instead of claiming that a GPU is required. */
+  if (!gpuEntry && igpu && gpuP) gpuEntry = ['igpu', gpuP.name, 0, 900];
   const screenH = scrP ? Perf.screenH(scrP) : null;
   const panel = scrP ? Perf.screenPanel(scrP) : '';
   // defaut 1080p sans ecran ; sinon palier iobit le plus proche en dessous
@@ -5251,7 +5281,8 @@ function renderGaming(f) {
   host.innerHTML =
     `<div class="iobit-grid2"><div class="ditem"><span class="di-txt"><span class="di-name">${esc(gname)}</span><span class="di-sub">${esc(resLbl)} · High</span><span class="di-specs"><span>${esc(f.cpuEntry[1])}</span><span>${esc(f.gpuEntry[1])}</span></span></span><span class="di-price"><strong class="fps-${Perf.fpsColor(cur)}" style="font-size:1.3rem">${countNum(cur, 'num', 0, ' FPS')}</strong></span></div>`
     + btCard + `</div>`
-    + `<div class="iobit-grid3">` + row('1080p', r1080) + row('1440p', r1440) + row('4K', r4k) + `</div>`;
+    + `<div class="iobit-grid3">` + row('1080p', r1080) + row('1440p', r1440) + row('4K', r4k) + `</div>`
+    + (f.igpu ? `<p class="hint iobit-need-gpu"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(t('bench.dedicatedGpu'))}</p>` : '');
   // barres par preset @ resolution courante
   const quals = ['low', 'medium', 'high', 'ultra', 'max'];
   const vals = quals.map(q => gameFpsOf(f, q));
@@ -5265,13 +5296,16 @@ function renderGaming(f) {
   // iobit ne permet pas la preselection par URL : on copie les noms exacts
   // (CPU/GPU/jeu tels que reconnus) pour les coller dans ses champs, puis on ouvre.
   benchGameEntries = { cpu: f.cpuEntry[1], gpu: f.gpuEntry[1], game: gname };
-  if (!$('#gameBars').parentElement.querySelector('.iobit-open')) {
+  const iobitRow = $('#gameBars').parentElement.querySelector('.iobit-open');
+  if (f.igpu) {
+    if (iobitRow) iobitRow.remove();
+  } else if (!iobitRow) {
     $('#gameBars').insertAdjacentHTML('afterend', `<div class="btn-row iobit-open"><button class="btn" id="iobitGo"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.iobit'))}</button></div>`);
   } else {
-    const a = $('#gameBars').parentElement.querySelector('.iobit-open #iobitGo');
+    const a = iobitRow.querySelector('#iobitGo');
     if (a) a.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('bench.iobit'))}`;
   }
-  $('#iobitGo').onclick = () => {
+  if (!f.igpu && $('#iobitGo')) $('#iobitGo').onclick = () => {
     const txt = `CPU: ${benchGameEntries.cpu}\nGPU: ${benchGameEntries.gpu}\nGame: ${benchGameEntries.game}`;
     try { navigator.clipboard?.writeText(txt); } catch { /* ignore */ }
     toast(t('bench.copied'));
@@ -5354,7 +5388,7 @@ function renderGb() {
 /* ----- 3DMark ----- */
 async function loadBench3d(f) {
   const key = (f.cpuP ? f.cpuP.name : '') + '|' + (f.gpuP ? f.gpuP.name : ''), run = benchRun;
-  if (!f.cpuP || !f.gpuP) { $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.needBoth'))}</p>`; $('#tsScore').textContent = '—'; return; }
+  if (!f.cpuP || !f.gpuP || f.igpu) { $('#tsBody').innerHTML = `<p class="hint">${esc(t('bench.needBoth'))}</p>`; $('#tsScore').textContent = '—'; return; }
   if (key === bench3dKey && bench3d) { render3d(); return; }
   bench3dKey = key; bench3d = null;
   $('#tsBody').innerHTML = '<div class="skel"></div>';
@@ -5940,7 +5974,7 @@ function cmpGbCell(colId, f, e, kind) {
   return cmpScoreCell(e.gb[kind], e.gb.version || '');
 }
 function cmpTsCell(colId, f, e, kind) {
-  if (!f.cpuP || !f.gpuP) return cmpNeedCell(t('compare.needBoth'));
+  if (!f.cpuP || !f.gpuP || f.igpu) return cmpNeedCell(t('compare.needBoth'));
   if (e.b3dErr) return cmpRetryCell('ts', colId);
   if (!e.b3d) return cmpLoadingCell();
   const combo = e.b3d.combo || {};
@@ -6059,7 +6093,7 @@ function cmpLoadExtras(data) {
         cmpScheduleRender();
       });
     }
-    if (f.cpuP && f.gpuP && !e.b3d && !e.b3dBusy && !e.b3dErr) {
+    if (f.cpuP && f.gpuP && !f.igpu && !e.b3d && !e.b3dBusy && !e.b3dErr) {
       e.b3dBusy = true;
       (async () => {
         try {
@@ -6851,8 +6885,7 @@ function openWelcome() {
   };
   $('#wAiGo').onclick = () => {
     showAiPage();
-    const slide = $('#wSlide');
-    if (slide) { slide.classList.add('pre'); requestAnimationFrame(() => requestAnimationFrame(() => slide.classList.remove('pre'))); }
+    revealWelcomeSlide(true);
     renderAiSession();
   };
   $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); setWelcomeView('new'); };
@@ -6948,6 +6981,16 @@ function showAiPage() {
   if (ai) ai.classList.remove('hidden');
   refreshIcons();
 }
+/* The welcome slide starts at opacity 0 while the `.pre` class is present.
+   Reopening after the unsaved guard used to leave it in place, so the AI page
+   was populated but completely invisible. */
+function revealWelcomeSlide(animate) {
+  const slide = $('#wSlide');
+  if (!slide) return;
+  if (!animate) { slide.classList.remove('pre'); return; }
+  slide.classList.add('pre');
+  requestAnimationFrame(() => requestAnimationFrame(() => slide.classList.remove('pre')));
+}
 /* Re-render the welcome popup on the AI page after the unsaved guard
    replaced the modal, on reopen, or after coming back from the main page. */
 function reopenWelcomeAi(paste, budget, items) {
@@ -6955,6 +6998,9 @@ function reopenWelcomeAi(paste, budget, items) {
   openWelcome();
   showAiPage();
   renderAiSession();
+  revealWelcomeSlide();
+  const body = $('#modalBody');
+  if (body) body.scrollTop = 0;
   refreshIcons();
 }
 function aiAskSlot(host, it) {
@@ -7567,10 +7613,25 @@ const exportText = (en, fr) => (lang === 'en' ? en : fr);
 const exportPartText = p => (lang === 'en' ? p.en : p.fr);
 const exportPartHint = p => (lang === 'en' ? p.hintEn : p.hintFr);
 const exportAllPartIds = () => EXPORT_PARTS.map(p => p.id);
-function exportPresetParts(id) {
-  if (id === 'all') return exportAllPartIds();
-  const p = EXPORT_PRESETS.find(x => x.id === id);
-  return p && Array.isArray(p.parts) ? normalizeExportParts(p.parts) : null;
+const exportFormatOf = value => value === 'json' ? 'json' : 'pdf';
+const exportPartAllowed = (id, format) => {
+  if (format !== 'pdf') return true;
+  const part = EXPORT_PARTS.find(p => p.id === id);
+  return !!(part && part.pdf);
+};
+function exportPartsForFormat(list, format) {
+  const fmt = exportFormatOf(format);
+  const parts = normalizeExportParts(list);
+  return fmt === 'pdf' ? parts.filter(id => exportPartAllowed(id, fmt)) : parts;
+}
+function exportPresetParts(id, format) {
+  const fmt = format ? exportFormatOf(format) : '';
+  const raw = id === 'all'
+    ? exportAllPartIds()
+    : ((EXPORT_PRESETS.find(x => x.id === id) || {}).parts || null);
+  if (!raw) return null;
+  const parts = normalizeExportParts(raw);
+  return fmt ? exportPartsForFormat(parts, fmt) : parts;
 }
 function normalizeExportParts(list) {
   const valid = new Set(exportAllPartIds());
@@ -7578,42 +7639,50 @@ function normalizeExportParts(list) {
   if (!out.includes('config')) out.unshift('config');
   return out;
 }
-function exportPresetForParts(list) {
-  const set = new Set(normalizeExportParts(list));
-  if (set.size === EXPORT_PARTS.length) return 'all';
+function exportPresetForParts(list, format) {
+  const fmt = format ? exportFormatOf(format) : '';
+  const parts = fmt ? exportPartsForFormat(list, fmt) : normalizeExportParts(list);
+  const set = new Set(parts);
+  const all = fmt ? exportPartsForFormat(exportAllPartIds(), fmt) : exportAllPartIds();
+  if (set.size === all.length && all.every(id => set.has(id))) return 'all';
   for (const p of EXPORT_PRESETS) {
     if (!Array.isArray(p.parts)) continue;
-    const q = normalizeExportParts(p.parts);
+    const q = fmt ? exportPartsForFormat(p.parts, fmt) : normalizeExportParts(p.parts);
     if (q.length === set.size && q.every(id => set.has(id))) return p.id;
   }
   return 'custom';
 }
 function readExportSelection() {
   const saved = prefs && prefs.exportSelection;
-  const parts = normalizeExportParts(saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds());
-  return { preset: (saved && saved.preset) || exportPresetForParts(parts), parts };
+  const format = exportFormatOf(saved && saved.format);
+  const parts = exportPartsForFormat(saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds(), format);
+  return { preset: (saved && saved.preset) || exportPresetForParts(parts, format), parts, format };
 }
 function saveExportSelection(sel) {
-  const parts = normalizeExportParts(sel && sel.parts);
-  const preset = (sel && sel.preset && sel.preset !== 'custom') ? sel.preset : exportPresetForParts(parts);
-  prefs.exportSelection = { preset, parts };
+  const previous = (prefs && prefs.exportSelection) || {};
+  const format = exportFormatOf(sel && sel.format ? sel.format : previous.format);
+  const parts = exportPartsForFormat(sel && sel.parts, format);
+  const preset = (sel && sel.preset && sel.preset !== 'custom') ? sel.preset : exportPresetForParts(parts, format);
+  prefs.exportSelection = { preset, parts, format };
   try { save(LS.prefs, { ...load(LS.prefs, {}), exportSelection: prefs.exportSelection }); } catch { /* ignore */ }
-  return { preset, parts };
+  return { preset, parts, format };
 }
-function exportPickerHtml(sel, locked) {
-  const parts = locked ? exportAllPartIds() : normalizeExportParts(sel && sel.parts);
-  const active = locked ? 'all' : ((sel && sel.preset) || exportPresetForParts(parts));
+function exportPickerHtml(sel, locked, format) {
+  const fmt = exportFormatOf(format);
+  const parts = locked ? ['config'] : exportPartsForFormat(sel && sel.parts, fmt);
+  const active = locked ? 'config' : ((sel && sel.preset) || exportPresetForParts(parts, fmt));
   const presetBtn = p => `<button type="button" class="se-preset${active === p.id ? ' active' : ''}" data-export-preset="${p.id}" aria-pressed="${active === p.id}">${esc(exportText(p.en, p.fr))}</button>`;
   return `<div class="se-picker${locked ? ' locked' : ''}" data-export-picker>
     <div class="se-picker-head">
       <h4><i class="fa-solid ${locked ? 'fa-lock' : 'fa-list-check'}"></i> ${esc(exportText('Export contents', 'Contenu de l’export'))}</h4>
-      <span class="se-picker-state">${locked ? esc(exportText('Locked · everything', 'Verrouillé · tout')) : esc(exportText('Choose freely', 'Choix libre'))}</span>
+      <span class="se-picker-state">${locked ? esc(exportText('Locked · configuration only', 'Verrouillé · configuration seule')) : esc(exportText('Choose freely', 'Choix libre'))}</span>
     </div>
-    <p class="hint">${esc(locked ? exportText('Share view: every box is checked and locked. The generated link still only contains the configuration.', 'Vue Partager : toutes les cases sont cochées et verrouillées. Le lien généré ne contient toujours que la configuration.') : exportText('Pick a preset or tick the items to include. Configuration is always included so the JSON remains re-importable.', 'Choisissez un preset ou cochez les éléments à inclure. La configuration reste toujours incluse pour que le JSON soit réimportable.'))}</p>
+    <p class="hint">${esc(locked ? exportText('Share view: only the configuration is checked and locked. The generated link only contains the configuration.', 'Vue Partager : seule la configuration est cochée et verrouillée. Le lien généré ne contient que la configuration.') : exportText('Pick a preset or tick the items to include. Configuration is always included so the JSON remains re-importable.', 'Choisissez un preset ou cochez les éléments à inclure. La configuration reste toujours incluse pour que le JSON soit réimportable.'))}</p>
     ${locked ? '' : `<div class="se-presets">${EXPORT_PRESETS.map(presetBtn).join('')}${active === 'custom' ? `<span class="se-preset active">${esc(exportText('Custom', 'Personnalisé'))}</span>` : ''}</div>`}
     <div class="se-pick-list">${EXPORT_PARTS.map(p => {
       const on = parts.includes(p.id);
-      const ro = locked || p.id === 'config';
+      const unavailable = !locked && !exportPartAllowed(p.id, fmt);
+      const ro = locked || p.id === 'config' || unavailable;
       const tags = p.pdf && p.json ? exportText('PDF + JSON', 'PDF + JSON') : p.pdf ? 'PDF' : 'JSON';
       return `<label class="se-pick-row${on ? ' on' : ''}${ro ? ' locked' : ''}">
         <input type="checkbox" data-export-part="${p.id}"${on ? ' checked' : ''}${ro ? ' disabled' : ''}>
@@ -7622,7 +7691,7 @@ function exportPickerHtml(sel, locked) {
         <span class="se-pick-tag">${esc(tags)}</span>
       </label>`;
     }).join('')}</div>
-    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : exportText('Configuration is always included. Saved versions are JSON-only.', 'La configuration est toujours incluse. Les sauvegardes sont réservées au JSON.'))}</p>
+    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : fmt === 'pdf' ? exportText('Configuration is always included. Saved versions are excluded from PDF exports.', 'La configuration est toujours incluse. Les sauvegardes sont exclues des exports PDF.') : exportText('Configuration is always included. Saved versions are available in JSON.', 'La configuration est toujours incluse. Les sauvegardes sont disponibles dans le JSON.'))}</p>
   </div>`;
 }
 function openShareExport(pill) {
@@ -7638,14 +7707,17 @@ function openShareExport(pill) {
     <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
     <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
   const exportPane = `
-    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('The selection above drives both PDF and JSON. JSON is re-importable; PDF is a printable report.', 'La sélection ci-dessus pilote à la fois le PDF et le JSON. Le JSON est réimportable ; le PDF est un rapport imprimable.')}</p>
+    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('Choose PDF or JSON above. JSON is re-importable; PDF is a printable report and excludes saved versions.', 'Choisissez PDF ou JSON ci-dessus. Le JSON est réimportable ; le PDF est un rapport imprimable et exclut les sauvegardes.')}</p>
     <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs.')}</p>
-    <div class="btn-row"><button class="btn btn-primary" id="e_pdf"><i class="fa-solid fa-file-pdf"></i> ${T('Export PDF', 'Exporter en PDF')}</button>
-    <button class="btn" id="e_json"><i class="fa-solid fa-file-code"></i> ${T('Export JSON', 'Exporter en JSON')}</button></div>`;
+    <div class="btn-row"><button class="btn btn-primary" id="e_go"><i class="fa-solid fa-file-export"></i> ${T('Export', 'Exporter')}</button></div>`;
   openModal(T('Share / Export', 'Partager / Exporter'), `
     <div class="usage-tabs">
       <button type="button" class="usage-tab${pill === 'share' ? ' active' : ''}" data-tab="share">${T('Share', 'Partager')}</button>
       <button type="button" class="usage-tab${pill === 'export' ? ' active' : ''}" data-tab="export">${T('Export', 'Exporter')}</button>
+    </div>
+    <div class="usage-tabs se-format-tabs" id="seFormatTabs" style="${pill === 'export' ? '' : 'display:none'}">
+      <button type="button" class="usage-tab" data-export-format="pdf">PDF</button>
+      <button type="button" class="usage-tab" data-export-format="json">JSON</button>
     </div>
     <div id="sePickerSlot"></div>
     <div class="usage-pane" data-pane="share"${pill === 'share' ? '' : ' style="display:none"'}>${sharePane}</div>
@@ -7654,14 +7726,14 @@ function openShareExport(pill) {
   const renderPicker = () => {
     const slot = $('#sePickerSlot');
     if (!slot) return;
-    slot.innerHTML = exportPickerHtml(exportSel, currentTab === 'share');
+    slot.innerHTML = exportPickerHtml(exportSel, currentTab === 'share', exportSel.format);
     slot.querySelectorAll('[data-export-preset]').forEach(b => {
       b.onclick = () => {
         if (currentTab === 'share') return;
-        const next = exportPresetParts(b.dataset.exportPreset);
+        const next = exportPresetParts(b.dataset.exportPreset, exportSel.format);
         if (!next) return;
-        exportSel = saveExportSelection({ preset: b.dataset.exportPreset, parts: next });
-        renderPicker();
+        exportSel = saveExportSelection({ preset: b.dataset.exportPreset, parts: next, format: exportSel.format });
+        renderAll();
       };
     });
     slot.querySelectorAll('[data-export-part]').forEach(cb => {
@@ -7669,19 +7741,46 @@ function openShareExport(pill) {
         if (currentTab === 'share') return;
         const set = new Set(exportSel.parts);
         if (cb.checked) set.add(cb.dataset.exportPart); else set.delete(cb.dataset.exportPart);
-        const parts = normalizeExportParts([...set]);
-        exportSel = saveExportSelection({ preset: exportPresetForParts(parts), parts });
-        renderPicker();
+        const parts = exportPartsForFormat([...set], exportSel.format);
+        exportSel = saveExportSelection({ preset: exportPresetForParts(parts, exportSel.format), parts, format: exportSel.format });
+        renderAll();
         $('#sePickerSlot')?.querySelector(`[data-export-part="${cb.dataset.exportPart}"]`)?.focus();
       };
     });
   };
-  renderPicker();
-  host.querySelectorAll('.usage-tab').forEach(b => b.onclick = () => {
-    currentTab = b.dataset.tab;
-    host.querySelectorAll('.usage-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
-    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === currentTab ? '' : 'none'; });
+  const paintExportButton = () => {
+    const btn = $('#e_go');
+    if (!btn) return;
+    btn.innerHTML = exportSel.format === 'json'
+      ? `<i class="fa-solid fa-file-code"></i> ${T('Export JSON', 'Exporter en JSON')}`
+      : `<i class="fa-solid fa-file-pdf"></i> ${T('Export PDF', 'Exporter en PDF')}`;
+  };
+  const renderFormatTabs = () => {
+    const tabs = $('#seFormatTabs');
+    if (!tabs) return;
+    tabs.style.display = currentTab === 'export' ? '' : 'none';
+    tabs.querySelectorAll('[data-export-format]').forEach(b => {
+      const active = b.dataset.exportFormat === exportSel.format;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', active ? 'true' : 'false');
+      b.onclick = () => {
+        if (exportSel.format === b.dataset.exportFormat) return;
+        exportSel = saveExportSelection({ parts: exportSel.parts, format: b.dataset.exportFormat });
+        renderAll();
+      };
+    });
+  };
+  const renderAll = () => {
+    renderFormatTabs();
     renderPicker();
+    paintExportButton();
+  };
+  renderAll();
+  host.querySelectorAll('.usage-tab[data-tab]').forEach(b => b.onclick = () => {
+    currentTab = b.dataset.tab;
+    host.querySelectorAll('.usage-tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
+    host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === currentTab ? '' : 'none'; });
+    renderAll();
   });
   const qrEl = $('#s_qr');
   if (qrEl && typeof qrcode === 'function') {
@@ -7689,8 +7788,12 @@ function openShareExport(pill) {
     catch { qrEl.innerHTML = ''; }
   }
   $('#s_copy').onclick = () => { navigator.clipboard?.writeText(link); toast(T('Link copied', 'Lien copié')); };
-  $('#e_pdf').onclick = () => { exportSel = saveExportSelection(exportSel); closeModal(); exportPdf(exportSel.parts); };
-  $('#e_json').onclick = () => { exportSel = saveExportSelection(exportSel); exportConfigJson(exportSel.parts); };
+  $('#e_go').onclick = () => {
+    exportSel = saveExportSelection(exportSel);
+    const parts = exportPartsForFormat(exportSel.parts, exportSel.format);
+    if (exportSel.format === 'json') exportConfigJson(parts);
+    else { closeModal(); exportPdf(parts); }
+  };
 }
 /* ---------- Print / PDF report ----------
    The printed PDF is a dedicated report (name+budget, description, components
@@ -8021,7 +8124,7 @@ function prCleanup() {
 }
 let printSelection = null;
 function exportPdf(parts) {
-  printSelection = normalizeExportParts(parts && parts.length ? parts : readExportSelection().parts);
+  printSelection = exportPartsForFormat(parts && parts.length ? parts : readExportSelection().parts, 'pdf');
   try { showBench(); } catch { /* ignore */ } // refresh live scores first (sync part)
   try { renderBriefFacts(benchFacts()); } catch { /* ignore */ }
   try { buildPrintReport(printSelection); document.body.classList.add('printing'); } catch { /* fall back to on-screen print */ }
@@ -8030,7 +8133,7 @@ function exportPdf(parts) {
 window.addEventListener('beforeprint', () => {
   if (document.body.classList.contains('printing')) return;
   try {
-    printSelection = normalizeExportParts(readExportSelection().parts);
+    printSelection = exportPartsForFormat(readExportSelection().parts, 'pdf');
     buildPrintReport(printSelection);
     document.body.classList.add('printing');
   } catch { /* ignore */ }
@@ -8117,7 +8220,7 @@ function exportConfigJson(parts) {
   const obj = {
     app: 'ConfigMaker', version: APP_VERSION, kind: 'config',
     exportedAt: new Date().toISOString(),
-    selection: { preset: exportPresetForParts(selected), parts: selected },
+    selection: { preset: exportPresetForParts(selected, 'json'), parts: selected },
     config: state,
   };
   if (chosen.has('performances')) obj.performances = exportPerformanceData();

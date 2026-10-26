@@ -747,6 +747,8 @@ body.gallery-open{overflow:hidden}
 .usage-tab{border:none;background:transparent;padding:8px 16px;border-radius:var(--radius-pill);font-weight:800;color:var(--muted);cursor:pointer;font-size:.85rem;transition:background .2s ease,color .2s ease,transform .18s ease}
 .usage-tab.active{background:var(--active-bg);color:var(--active-fg)}
 /* share / export popup */
+.se-format-tabs{margin-top:-4px}
+.se-format-tabs .usage-tab{padding:6px 15px;font-size:.76rem}
 .se-picker{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--line);border-radius:16px;padding:12px 13px;margin:0 0 14px;box-shadow:var(--shadow-sm)}
 .se-picker.locked{border-color:color-mix(in srgb,var(--brand) 24%,var(--line));background:color-mix(in srgb,var(--brand) 4%,var(--glass-bg))}
 .se-picker-head{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
@@ -763,8 +765,11 @@ body.gallery-open{overflow:hidden}
 .se-pick-row:hover{background:color-mix(in srgb,var(--brand) 5%,transparent)}
 .se-pick-row.on{background:color-mix(in srgb,var(--brand) 5%,var(--surface));border-color:color-mix(in srgb,var(--brand) 18%,var(--line))}
 .se-pick-row.locked{cursor:default}
-.se-pick-row input{accent-color:var(--brand);width:15px;height:15px;margin:0;flex:0 0 auto}
-.se-pick-row.locked input{cursor:not-allowed}
+.se-pick-row input[type="checkbox"]{appearance:none;-webkit-appearance:none;display:grid;place-items:center;width:16px;height:16px;margin:0;flex:0 0 auto;border:1.5px solid var(--line-strong);border-radius:5px;background:var(--surface);cursor:pointer;transition:background .18s ease,border-color .18s ease,opacity .18s ease}
+.se-pick-row input[type="checkbox"]:checked{border-color:var(--brand);background:var(--brand) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px 12px no-repeat}
+.se-pick-row input[type="checkbox"]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.se-pick-row input[type="checkbox"]:disabled{opacity:.55;cursor:not-allowed}
+.se-pick-row input[type="checkbox"]:disabled:checked{opacity:1}
 .se-pick-ico{flex:0 0 22px;width:22px;height:22px;display:grid;place-items:center;border-radius:7px;background:var(--bg-soft);color:var(--brand-ink);font-size:.68rem}
 .se-pick-txt{display:flex;flex-direction:column;gap:0;min-width:0;flex:1}
 .se-pick-txt strong{font-size:.75rem;line-height:1.2}
@@ -1206,12 +1211,12 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
 .cmp-controls label{display:flex;align-items:center;gap:8px;font-size:.76rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);flex:1 1 220px;min-width:0}
 .cmp-controls .bench-select{flex:1;min-width:0;text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink)}
 .cmp-scroll{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
-.cmp-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
-.cmp-table col.cmp-colrow{width:210px}
+.cmp-table{--cmp-label-w:210px;--cmp-detail-gap:24px;width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+.cmp-table col.cmp-colrow{width:var(--cmp-label-w)}
 .cmp-table thead th{position:sticky;top:0;z-index:3;background:var(--surface);vertical-align:top}
 .cmp-table th,.cmp-table td{padding:9px 10px;border-top:1px solid var(--line);font-size:.82rem;text-align:left;vertical-align:middle;overflow-wrap:anywhere}
 .cmp-table thead th{border-top:none;border-bottom:1px solid var(--line-strong)}
-.cmp-rowhead{position:sticky;left:0;z-index:2;background:var(--surface);width:210px;font-size:.76rem;color:var(--ink-2);font-weight:800;padding:0!important}
+.cmp-rowhead{position:sticky;left:0;z-index:2;background:var(--surface);width:var(--cmp-label-w);font-size:.76rem;color:var(--ink-2);font-weight:800;padding:0!important}
 .cmp-rowhead-inner{display:flex;align-items:center;gap:6px;width:100%;min-width:0}
 .cmp-rowhead-inner .cmp-rowtoggle{flex:1;min-width:0}
 .cmp-rowhead-inner .cmp-rowcards{width:29px;height:27px;margin-right:8px;box-shadow:none}
@@ -1233,14 +1238,16 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
 /* Inline expanded datasheet: a narrower panel inside the comparison table so
    an open component is immediately visible as an inset dropdown. */
 .cmp-detail-shell>td{padding:0!important;border-top:0!important;background:transparent!important}
-.cmp-detail-panel{width:calc(100% - clamp(48px,6%,96px));margin:10px auto 14px;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm);overflow:hidden}
+/* Left-inset drawer. The reduced detail label width exactly compensates for
+   the inset, so its value columns stay aligned with the main comparison table. */
+.cmp-detail-panel{width:calc(100% - var(--cmp-detail-gap));margin:10px 0 14px var(--cmp-detail-gap);border:0;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line-strong),var(--shadow-sm);overflow:hidden}
 .cmp-detail-panel-head{display:flex;align-items:center;gap:7px;padding:9px 12px;background:color-mix(in srgb,var(--brand) 7%,var(--bg-soft));border-bottom:1px solid var(--line);color:var(--brand-ink);font-size:.76rem;font-weight:900;letter-spacing:.04em}
 .cmp-detail-panel-head i{font-size:.78rem}
-.cmp-detail-table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
+.cmp-detail-table-wrap{overflow:visible}
 .cmp-detail-table{width:100%;border-collapse:collapse;table-layout:fixed;background:var(--surface)}
 .cmp-detail-table th,.cmp-detail-table td{padding:8px 10px;border-top:1px solid var(--line);font-size:.76rem;text-align:left;vertical-align:middle;overflow-wrap:anywhere}
-.cmp-detail-table .cmp-detail-colrow{width:190px}
-.cmp-detail-table .cmp-detail-label{width:190px;color:var(--muted);font-size:.71rem;font-weight:700;background:color-mix(in srgb,var(--bg-soft) 28%,var(--surface))}
+.cmp-detail-table .cmp-detail-colrow{width:calc(var(--cmp-label-w) - var(--cmp-detail-gap))}
+.cmp-detail-table .cmp-detail-label{width:calc(var(--cmp-label-w) - var(--cmp-detail-gap));color:var(--muted);font-size:.71rem;font-weight:700;background:color-mix(in srgb,var(--bg-soft) 28%,var(--surface))}
 .cmp-detail-cat th{padding-top:9px;padding-bottom:6px;background:color-mix(in srgb,var(--brand) 6%,var(--bg-soft));color:var(--brand-ink);font-size:.66rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
 .cmp-detail-cat th span{display:inline-block;position:sticky;left:10px}
 .cmp-detail-table .cmp-cell{background:color-mix(in srgb,var(--bg-soft) 10%,var(--surface))}
@@ -1365,17 +1372,17 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   .cmp-modes button{flex:1}
   #cmpAdd{width:100%}
   .cmp-sec{padding:11px 10px;border-radius:16px}
-  .cmp-table col.cmp-colrow,.cmp-rowhead{width:164px}
+  .cmp-table{--cmp-label-w:164px;--cmp-detail-gap:12px}
   .cmp-table th,.cmp-table td{padding:8px 8px;font-size:.78rem}
   .cmp-colname{font-size:.76rem}
   .cmp-controls label{flex:1 1 100%}
   .cmp-detail-row .cmp-rowhead{font-size:.68rem}
   .cmp-detail-row .cmp-rowtoggle{padding-left:14px}
   .cmp-detail-row .cmp-cell{font-size:.72rem}
-  .cmp-detail-panel{width:calc(100% - 32px);margin:8px auto 12px;border-radius:12px}
+  .cmp-detail-panel{width:calc(100% - var(--cmp-detail-gap));margin:8px 0 12px var(--cmp-detail-gap);border-radius:12px}
   .cmp-detail-panel-head{padding:8px 9px;font-size:.7rem}
   .cmp-detail-table th,.cmp-detail-table td{padding:7px 6px;font-size:.7rem}
-  .cmp-detail-table .cmp-detail-colrow,.cmp-detail-table .cmp-detail-label{width:130px}
+  .cmp-detail-table .cmp-detail-colrow,.cmp-detail-table .cmp-detail-label{width:calc(var(--cmp-label-w) - var(--cmp-detail-gap))}
   .cmp-rowtoggle{padding:8px}
   .cmp-cards-open{width:26px;height:25px}
   .cmp-table .cmp-rowicon{display:none}
