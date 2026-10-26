@@ -1693,7 +1693,7 @@ const IDEALO_CATS = [
   { key: 'mb', label: 'Cartes mères', url: 'https://www.idealo.fr/cat/3018/cartes-meres.html' },
   { key: 'ram', label: 'Barrettes RAM', url: 'https://www.idealo.fr/cat/4552/barrettes-de-ram.html' },
   { key: 'cooler', label: 'Refroidissement', url: 'https://www.idealo.fr/cat/5156/ventilateurs-processeurs.html' },
-  { key: 'ssd', label: 'SSD', url: 'https://www.idealo.fr/cat/14613/ssd.html' },
+  { key: 'ssd', label: 'SSD', url: 'https://www.idealo.fr/cat/14613F1338462/ssd.html' },
   { key: 'gpu', label: 'Cartes graphiques', url: 'https://www.idealo.fr/cat/16073F1311515/cartes-graphiques.html' },
   { key: 'case', label: 'Boîtiers PC', url: 'https://www.idealo.fr/cat/3090/boitiers-pc.html' },
   { key: 'psu', label: 'Alimentations', url: 'https://www.idealo.fr/cat/5432F792071/alimentation-pc.html' },
@@ -1953,6 +1953,12 @@ const RAM_TYPE_CATS = {
   DDR4: 'https://www.idealo.fr/cat/4552F102193212/barrettes-de-ram.html',
 };
 function catUrl(key) { return (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url; }
+/* Older saved SSD listings predate the internal-drive facet; keep extra SSD slots on internal drives too. */
+function internalSsdUrl(url) {
+  const s = String(url || '');
+  if (!/\/cat\/14613(?:F[^/]*)?\/ssd\.html/i.test(s) || s.includes('/cat/14613F1338462') || s.includes('/cat/14613F1338461')) return s;
+  return s.replace('/cat/14613', '/cat/14613F1338462');
+}
 function applyCatUrl(key, url) {
   const c = IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0];
   currentCatKey = c.key;
@@ -2976,7 +2982,8 @@ function openPicker(id, mode = 'replace') {
   $('#idealoClear').classList.toggle('hidden', !$('#idealoQuery').value);
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const key = slotCatKey(id);
-  const remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
+  let remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
+  if (remembered && key === 'ssd') remembered = internalSsdUrl(remembered);
   const seq = ++pickerSeq;
   loadCategory(key);
   if (remembered) { // same Idealo page as the base slot (e.g. internal SSDs, not portable ones)
