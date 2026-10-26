@@ -319,13 +319,13 @@
     </div>
     <div class="review-actions">
       <a class="btn btn-primary" href="https://github.com/kevinjmt/configmaker" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> <span data-i18n="review.star">Mettre une étoile</span></a>
-      <a class="btn" id="reviewIssue" href="https://github.com/kevinjmt/configmaker/issues" target="_blank" rel="noopener"><i class="fa-solid fa-circle-exclamation"></i> <span data-i18n="review.issue">Ouvrir une issue</span></a>
+      <a class="btn" id="reviewIssue" href="https://github.com/kevinjmt/configmaker/issues" target="_blank" rel="noopener"><i class="fa-solid fa-circle-exclamation"></i> <span data-i18n="review.issue">Reporter un problème</span></a>
     </div>
   </section>
 
   <section class="glass panel partner-idealo" id="idealoLove" aria-labelledby="idealoLoveTitle">
     <div class="partner-copy">
-      <div class="partner-eyebrow"><span class="partner-wordmark" aria-hidden="true">idealo</span><span data-i18n="idealo.eyebrow">Merci pour les prix !</span></div>
+      <div class="partner-eyebrow"><img class="partner-logo" src="./assets/icons/idealo.png" alt="Idealo"><span data-i18n="idealo.eyebrow">Merci pour les prix !</span></div>
       <h2 id="idealoLoveTitle"><span data-i18n="idealo.title">Merci Idealo !</span></h2>
       <p class="hint" data-i18n="idealo.thanks">Les prix, les offres marchands et une grande partie des fiches techniques viennent d’Idealo. Sans ce service, ConfigMaker ne pourrait pas comparer les composants aussi précisément.</p>
       <div class="partner-features">
@@ -340,8 +340,15 @@
 
   <section class="glass panel ext-services" id="externalServices" aria-labelledby="externalServicesTitle">
     <div class="ext-head">
-      <h2 id="externalServicesTitle"><i class="fa-solid fa-plug-circle-check"></i> <span data-i18n="services.title">Services externes</span></h2>
+      <div class="ext-head-top">
+        <h2 id="externalServicesTitle"><i class="fa-solid fa-plug-circle-check"></i> <span data-i18n="services.title">Services externes</span></h2>
+        <div class="ext-nav">
+          <button type="button" class="icon-btn ext-nav-btn" id="extPrev" aria-label="Services précédents"><i class="fa-solid fa-chevron-left"></i></button>
+          <button type="button" class="icon-btn ext-nav-btn" id="extNext" aria-label="Services suivants"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
       <p class="hint" data-i18n="services.hint">ConfigMaker fonctionne en local, mais s’appuie sur ces services pour les prix, les benchmarks, les tutoriels, l’IA, les icônes et les polices. Chaque lien ouvre le site officiel dans un nouvel onglet.</p>
+      <p class="hint service-dependency"><i class="fa-solid fa-circle-info"></i> <span data-i18n="services.dependency">Idealo et Jina Reader peuvent limiter les requêtes en cas de forte affluence.</span></p>
     </div>
     <div id="externalServicesList" class="service-groups"></div>
   </section>

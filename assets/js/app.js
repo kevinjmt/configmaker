@@ -371,7 +371,7 @@ const I18N = {
     'prices.title': 'Historique des prix', 'prices.total': 'Total config', 'prices.per': 'Par composant', 'prices.power': 'Consommation', 'prices.perMonth': 'Prix / mois', 'prices.perYear': 'Prix / an', 'prices.hint': 'Un point est ajouté à chaque sauvegarde. Le budget est affiché en ligne pointillée (vue total). Survolez la courbe pour le détail par date.',
     'review.eyebrow': 'Projet open source', 'review.title': 'Soutenir ConfigMaker',
     'review.hint': 'ConfigMaker reste gratuit, local et sans publicité. Une étoile sur GitHub ou une issue bien décrite aide énormément le projet à progresser.',
-    'review.star': 'Mettre une étoile', 'review.issue': 'Ouvrir une issue',
+    'review.star': 'Mettre une étoile', 'review.issue': 'Reporter un problème',
     'idealo.eyebrow': 'Merci pour les prix !', 'idealo.title': 'Merci Idealo !',
     'idealo.thanks': 'Les prix, les offres marchands et une grande partie des fiches techniques viennent d’Idealo. Sans ce service, ConfigMaker ne pourrait pas comparer les composants aussi précisément.',
     'idealo.feat1': 'Prix et offres en direct', 'idealo.feat2': 'Fiches techniques détaillées', 'idealo.feat3': 'Comparaison de marchands',
@@ -556,7 +556,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', dsClean: false, dsManual: false, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '' }; }
+function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', dsClean: false, dsManual: false, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -1389,7 +1389,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${kjPillsHtml(stKj)}${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1398,7 +1398,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="addalt" title="${lang === 'en' ? 'Add alternative' : 'Ajouter une alternative'}"><span class="fa-layers-plus"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-plus"></i></span>${mlbl('Alternative', 'Alternative')}</button>
       <button class="mini-btn" data-act="store" ${hasIdealo ? `title="${lang === 'en' ? 'Change store' : 'Changer de boutique'}"` : `disabled title="${noStoreTip}"`}><i class="fa-solid fa-store"></i>${mlbl('Boutique', 'Store')}</button>
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i>${mlbl('Acheter', 'Buy')}</button>
-      ${['mb', 'ssd1', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i>${mlbl('PCIe', 'PCIe')}</button>` : ''}
+      ${['mb', 'ssd1', 'gpu', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i>${mlbl('PCIe', 'PCIe')}</button>` : ''}
       ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (tier list 2025)' : 'Qualité & fiabilité alim (tier list 2025)'}"><i class="fa-solid fa-ranking-star"></i>${mlbl('Qualité', 'Tier')}</button>` : ''}
       ${p && p.manual ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i>${mlbl('Manuel', 'Manual')}</button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
@@ -1596,13 +1596,13 @@ function openAddPopup(sec) {
   refreshIcons();
   $$('#modalBody .type-btn').forEach(b => b.onclick = () => { closeModal(); addSlotByDef(b.dataset.def); });
 }
-function addSlotByDef(defId) {
-  const d = SLOT_DEFS.find(x => x.id === defId); if (!d) return;
+function createSlotForDef(defId, opts = {}) {
+  const d = SLOT_DEFS.find(x => x.id === defId); if (!d) return null;
   const prefix = { ssd1: 'ssd', screen1: 'screen', os: 'pcx' }[defId] || (d.sec === 'others' ? 'opt' : defId);
   let n = 1;
   while (state.slots[`${prefix}_${n}`]) n++;
   const id = `${prefix}_${n}`;
-  state.slots[id] = { defId, customLabel: id, products: [], selectedId: null };
+  state.slots[id] = { defId, customLabel: opts.customLabel || id, products: [], selectedId: null };
   // insert below the concerned component type
   const ORDER = d.sec === 'pc' ? PC_ORDER : d.sec === 'setup' ? SETUP_ORDER : null;
   let anchorPos = -1;
@@ -1631,6 +1631,18 @@ function addSlotByDef(defId) {
       state.order.splice(state.order.indexOf(gids[gids.length - 1]) + 1, 0, id);
     }
   }
+  return id;
+}
+function discardEmptySlot(id) {
+  const s = id && state.slots[id];
+  if (!s || !id.includes('_') || (s.products || []).length) return false;
+  delete state.slots[id];
+  state.order = state.order.filter(x => x !== id);
+  return true;
+}
+function addSlotByDef(defId) {
+  const id = createSlotForDef(defId);
+  if (!id) return;
   persist(); refresh(); openPicker(id);
 }
 function removeSlot(slotId) {
@@ -2172,8 +2184,9 @@ function pdUnique(arr) { return [...new Set((arr || []).filter(Boolean))]; }
 function pdImagesFor(it, detail) {
   const out = [];
   if (detail && detail.images) out.push(...detail.images);
-  if (it && it.images) out.push(...it.images);
   if (it && it.img) out.push(it.img);
+  if (it && it.image) out.push(it.image);
+  if (it && it.images) out.push(...it.images);
   return pdUnique(out).slice(0, 12);
 }
 function datasheetTextFromDetails(detail) {
@@ -4060,6 +4073,7 @@ function openProductForm(slotId, p, opts = {}) {
   $('#f_save').onclick = () => {
     const v = id => $(id).value.trim();
     p.name = v('#f_name'); if (!p.name) { toast(lang === 'en' ? 'Name required' : 'Nom requis'); return; }
+    p.ai = false;
     p.image = v('#f_image'); p.vendor = v('#f_vendor');
     p.price = parseFloat(v('#f_price')) || 0; p.oldPrice = parseFloat(v('#f_old')) || 0;
     p.delivery = parseFloat(v('#f_del')) || 0; p.qty = parseInt(v('#f_qty')) || 1;
@@ -5998,7 +6012,8 @@ function cmpCardHtml(c, slotId, focusColId) {
   const isCurrent = c.source === 'current';
   const meta = cmpVersionLabel(c);
   const optCount = cmpOptionsCount(s, p);
-  const optBtn = p && optCount ? `<button type="button" class="cmp-card-opt" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.cardOptions'))}"><i class="fa-solid fa-list-ul"></i><span>${esc(t('compare.alts'))}</span><i class="fa-solid fa-chevron-down"></i></button>` : '';
+  const optDisabled = !p || !optCount;
+  const optBtn = `<button type="button" class="cmp-card-opt${optDisabled ? ' is-disabled' : ''}" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(optDisabled ? t('compare.noAlt') : t('compare.cardOptions'))}"${optDisabled ? ' disabled aria-disabled="true"' : ''}><i class="fa-solid fa-list-ul"></i><span>${esc(t('compare.alts'))}</span><i class="fa-solid fa-chevron-down"></i></button>`;
   const addBtn = p && !isCurrent
     ? (cmpAltExists(slotId, p)
       ? `<button type="button" class="cmp-card-add is-added" disabled><i class="fa-solid fa-check"></i><span>${esc(t('compare.addedAlt'))}</span></button>`
@@ -6015,9 +6030,9 @@ function cmpCardHtml(c, slotId, focusColId) {
           ${(Number(p.qty) || 1) > 1 ? `<div class="cmp-card-pmeta">${esc(t('compare.cardQty'))} ×${p.qty}</div>` : ''}
           ${p.specs ? `<p class="cmp-card-specs">${esc(p.specs)}</p>` : ''}
           ${cmpCardLinks(p)}
-        </div>
-        <div class="cmp-card-actions">${optBtn}${addBtn}</div>`
+        </div>`
       : `<div class="cmp-card-empty"><i class="fa-solid fa-circle-minus"></i><span>${esc(t('compare.emptySlot'))}</span></div>`}
+    <div class="cmp-card-actions">${optBtn}${addBtn}</div>
   </article>`;
 }
 function cmpCardsHtml(slotId, focusColId) {
@@ -6047,8 +6062,11 @@ function cmpApplyCardSizing(box) {
   if (!box) return;
   const count = Math.max(1, cmpState.cols.length);
   box.style.setProperty('--cmp-card-count', String(count));
-  if (window.innerWidth <= 960) box.style.setProperty('--cmp-card-w', 'calc(75vw - 10px)');
-  else box.style.setProperty('--cmp-card-w', Math.round(Math.max(200, window.innerWidth * (0.4 - Math.max(0, count - 2) * 0.1))) + 'px');
+  if (window.innerWidth <= 960) box.style.setProperty('--cmp-card-w', 'calc(60vw - 10px)');
+  else {
+    const avail = Math.min(window.innerWidth * 0.96, 1600) - 210;
+    box.style.setProperty('--cmp-card-w', Math.round(Math.max(180, Math.min(300, Math.floor(avail / count)))) + 'px');
+  }
 }
 function cmpOpenCards(slotId, focusColId) {
   if (!cmpState.cols.length) return;
@@ -6058,9 +6076,9 @@ function cmpOpenCards(slotId, focusColId) {
   const box = $('#modalBox');
   cmpApplyCardSizing(box);
   const body = $('#modalBody');
-  if (body) body.scrollTop = 0;
   refreshIcons(body);
   const wrap = body && body.querySelector('.cmp-cards-wrap');
+  if (wrap) wrap.scrollTop = 0;
   const focus = wrap && wrap.querySelector('.cmp-card.is-focus');
   if (focus && wrap.scrollWidth > wrap.clientWidth) {
     const rr = wrap.getBoundingClientRect(), fr = focus.getBoundingClientRect();
@@ -6077,12 +6095,11 @@ function cmpRefreshCards() {
   cmpApplyCardSizing(box);
   const oldWrap = body.querySelector('.cmp-cards-wrap');
   const left = oldWrap ? oldWrap.scrollLeft : 0;
-  const top = body.scrollTop;
+  const top = oldWrap ? oldWrap.scrollTop : 0;
   body.innerHTML = cmpCardsHtml(cmpCardsState.slotId, cmpCardsState.focusColId);
   refreshIcons(body);
   const wrap = body.querySelector('.cmp-cards-wrap');
-  if (wrap) wrap.scrollLeft = left;
-  body.scrollTop = top;
+  if (wrap) { wrap.scrollLeft = left; wrap.scrollTop = top; }
 }
 async function cmpSelectVariant(col, slotId, item, opts = {}) {
   const s = col.st.slots && col.st.slots[slotId];
@@ -6634,9 +6651,8 @@ function openWelcome() {
       resetDraftForBuild();
       if (bud > 0) state.budget = bud;
       // Après la garde "non sauvegardé", le modal a été remplacé : reconstruire
-      // la vue IA avec le texte et le budget saisis avant de lancer la boucle.
-      const activeAi = !$('#modalOverlay').classList.contains('hidden') && $('#wAi') && !$('#wAi').classList.contains('hidden') && $('#wBuild') && $('#wProgs');
-      if (!activeAi) reopenWelcomeAi(paste, bud);
+      // systématiquement la vue IA avant de lancer la boucle.
+      reopenWelcomeAi(paste, bud);
       aiBuild(items);
     };
     guardUnsaved(start, () => reopenWelcomeAi(paste, bud));
@@ -6692,28 +6708,45 @@ async function importAiProduct(slotId, it, link) {
   const np = blankProduct();
   np.name = it.name; np.image = it.img || ''; np.idealo = it.url || '';
   np.price = it.price || 0; np.specs = it.specs || ''; np.vendor = it.vendor || '';
-  np.delivery = it.delivery || 0; np.src = it.src || '';
+  np.delivery = it.delivery || 0; np.src = it.src || ''; np.ai = true;
   if (link && !/idealo\.fr/i.test(link)) np.store = link; // lien marchand fourni par l'IA
-  if (it.url) {
-    try {
-      const d = await Idealo.product(it.url);
-      if (d && !d.error) {
-        if (d.datasheet) { np.datasheet = sanitizeDs(d.datasheet); np.dsClean = false; }
-        if (d.specs && !np.specs) np.specs = d.specs;
-        if (d.name && !np.name) np.name = d.name;
-        if (d.image && !np.image) np.image = d.image;
-        if (d.price && !np.price) np.price = d.price;
-      }
-    } catch { /* ignore */ }
+  const idealoUrl = /idealo\./i.test(it.url || '');
+  let fetchedPrice = false;
+  if (idealoUrl && typeof Idealo !== 'undefined') {
+    const [prodRes, offersRes] = await Promise.allSettled([Idealo.product(it.url), Idealo.offers(it.url)]);
+    const d = prodRes.status === 'fulfilled' ? prodRes.value : null;
+    if (d && !d.error) {
+      if (d.datasheet) { np.datasheet = sanitizeDs(d.datasheet); np.dsClean = false; }
+      if (d.specs && !np.specs) np.specs = d.specs;
+      if (d.name && !np.name) np.name = d.name;
+      if (d.image && !np.image) np.image = d.image;
+      if (Number(d.price) > 0) { np.price = Number(d.price); fetchedPrice = true; }
+    }
+    const r = offersRes.status === 'fulfilled' ? offersRes.value : null;
+    if (r && !r.error && Array.isArray(r.offers) && r.offers.length) {
+      const offerTotal = o => (Number(o.delivered) > 0 ? Number(o.delivered) : Number(o.price) || 0);
+      const o = [...r.offers].sort((a, b) => offerTotal(a) - offerTotal(b))[0];
+      if (o.merchant) np.vendor = o.merchant;
+      if (Number(o.price) > 0) { np.price = Number(o.price); fetchedPrice = true; }
+      if (Number(o.delivered) > 0 && Number(o.price) > 0) np.delivery = Math.max(0, Math.round((Number(o.delivered) - Number(o.price)) * 100) / 100);
+      if (o.url) np.store = o.url;
+      if (o.promo) np.promo = true;
+    }
   }
+  if (idealoUrl && !fetchedPrice) return { ok: false, reason: 'price' };
   const s = state.slots[slotId];
-  if (!s) return false;
+  if (!s) return { ok: false, reason: 'slot' };
   s.products.push(np); s.selectedId = np.id;
-  return true;
+  return { ok: true, item: np };
 }
 let aiRunId = 0, aiBuilding = false;
 function aiSlotLabel(slot) { return (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slot; }
 function aiSlotIcon(slot) { const d = SLOT_DEFS.find(x => x.id === slot); return iconHtml(d ? d.icon : 'fa-solid fa-question'); }
+function aiDuplicateSlot(defId) {
+  const base = (SLOT_NAMES[lang] && SLOT_NAMES[lang][defId]) || SLOT_NAMES.fr[defId] || defId;
+  const count = state.order.filter(id => state.slots[id] && state.slots[id].defId === defId).length;
+  return createSlotForDef(defId, { customLabel: `${base} ${count + 1}` });
+}
 /* boutons composants a gauche (style slots non selectionnes, sans image ni specs) */
 function aiRenderComps(items, slots) {
   const host = $('#wAiComps'); if (!host) return [];
@@ -6749,7 +6782,6 @@ function aiSetProg(prog, st, it, label, count) {
   if (prog.tx) prog.tx.textContent = [label || '', (it && it.ref) || ''].filter(Boolean).join(' ');
   if (count && prog.count) prog.count.textContent = count;
 }
-function aiPhoto(comp, url) { const ic = comp && comp.querySelector('.wcomp-ic'); if (ic && url) ic.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy">`; }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
 function aiManualPick(slot, query, link) {
   return new Promise(async resolve => {
@@ -6764,7 +6796,7 @@ function aiManualPick(slot, query, link) {
     const items = (r && !r.error && r.items) || [];
     if (!items.length) {
       res.innerHTML = `<p class="hint">${esc(t('welcome.notFound'))} : ${esc(query)}</p><div class="btn-row"><button class="mini-btn" id="wSkip">${esc(t('welcome.skip'))}</button></div>`;
-      $('#wSkip').onclick = () => { aiRestoreRight(); resolve(null); };
+      $('#wSkip').onclick = () => { aiRestoreRight(); resolve(false); };
       return;
     }
     res.innerHTML = `<p class="hint">${esc(query)} — ${items.length} ${esc(t('welcome.results'))}</p>` +
@@ -6773,10 +6805,11 @@ function aiManualPick(slot, query, link) {
     res.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
       const it = items[Number(b.dataset.pick)];
       b.disabled = true;
-      await importAiProduct(slot, it, link);
-      aiRestoreRight(); resolve(it);
+      const added = await importAiProduct(slot, it, link);
+      if (!added.ok) toast(lang === 'en' ? 'Price unavailable — component skipped' : 'Prix indisponible — composant ignoré');
+      aiRestoreRight(); resolve(!!added.ok);
     });
-    $('#wSkip').onclick = () => { aiRestoreRight(); resolve(null); };
+    $('#wSkip').onclick = () => { aiRestoreRight(); resolve(false); };
   });
 }
 function aiRestoreRight() {
@@ -6800,6 +6833,13 @@ async function aiBuild(items) {
   aiSetProg(prog, 'queued', items[0], t('welcome.stepQueued'), `0/${items.length}`);
   const comps = aiRenderComps(items, slots);
   let ok = 0; const skipped = []; let stopped = false;
+  const usedSlots = new Set();
+  const paintCompSlot = (i, slot) => {
+    if (!slot || !comps[i]) return;
+    comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
+    comps[i].querySelector('.wcomp-tx strong').textContent = slotName(slot);
+    refreshIcons(comps[i]);
+  };
   for (let i = 0; i < items.length; i++) {
     if (my !== aiRunId) { stopped = true; break; }
     const it = items[i];
@@ -6811,27 +6851,42 @@ async function aiBuild(items) {
       slot = await aiAskSlot(host, it);
       if (my !== aiRunId) { stopped = true; break; }
       slots[i] = slot;
-      if (slot && comps[i]) {
-        comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
-        comps[i].querySelector('.wcomp-tx strong').textContent = aiSlotLabel(slot);
-        refreshIcons(comps[i]);
-      }
+      paintCompSlot(i, slot);
     }
     if (!slot) { aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); continue; }
+    let duplicate = false;
+    if (usedSlots.has(slot)) {
+      const defId = state.slots[slot] && state.slots[slot].defId;
+      const nextSlot = defId ? aiDuplicateSlot(defId) : null;
+      if (nextSlot) { slot = nextSlot; slots[i] = slot; duplicate = true; paintCompSlot(i, slot); }
+    }
     aiSetComp(comps[i], 'search'); aiSetProg(prog, 'search', it, t('welcome.stepSearch'), `${i + 1}/${items.length}`);
     const found = await aiFindRef(it);
     if (my !== aiRunId) { stopped = true; break; }
     if (!found) {
       aiSetProg(prog, 'manual', it, t('welcome.stepManual'), `${i + 1}/${items.length}`);
       const picked = await aiManualPick(slot, it.ref, it.link);
-      if (!picked) { aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); if (my !== aiRunId) { stopped = true; break; } continue; }
-      aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); aiPhoto(comps[i], (sel(state.slots[slot]) || {}).image); ok++;
+      if (!picked) {
+        if (duplicate) discardEmptySlot(slot);
+        aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
+        if (my !== aiRunId) { stopped = true; break; }
+        continue;
+      }
+      usedSlots.add(slot);
+      aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
       if (my !== aiRunId) { stopped = true; break; }
       continue;
     }
     aiSetComp(comps[i], 'import'); aiSetProg(prog, 'import', it, t('welcome.stepImport'), `${i + 1}/${items.length}`);
-    await importAiProduct(slot, found.item, found.link);
-    aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); aiPhoto(comps[i], found.item.img || (sel(state.slots[slot]) || {}).image || ''); ok++;
+    const added = await importAiProduct(slot, found.item, found.link);
+    if (!added.ok) {
+      if (duplicate) discardEmptySlot(slot);
+      aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
+      if (my !== aiRunId) { stopped = true; break; }
+      continue;
+    }
+    usedSlots.add(slot);
+    aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
     if (my !== aiRunId) { stopped = true; break; }
   }
   aiBuilding = false;
@@ -7948,6 +8003,22 @@ const EXTERNAL_SERVICES = [
   },
 ];
 function externalServiceDesc(item) { return lang === 'en' ? item.en : item.fr; }
+function syncExternalNav() {
+  const host = $('#externalServicesList');
+  if (!host) return;
+  const prev = $('#extPrev'), next = $('#extNext');
+  const overflow = host.scrollWidth > host.clientWidth + 2;
+  if (prev) prev.disabled = !overflow || host.scrollLeft <= 2;
+  if (next) next.disabled = !overflow || host.scrollLeft >= host.scrollWidth - host.clientWidth - 2;
+}
+function scrollExternalServices(dir) {
+  const host = $('#externalServicesList');
+  if (!host) return;
+  const card = host.querySelector('.service-group');
+  const step = (card ? card.getBoundingClientRect().width : host.clientWidth * .86) + 10;
+  host.scrollBy({ left: dir * step, behavior: 'smooth' });
+  setTimeout(syncExternalNav, 360);
+}
 function renderExternalServices() {
   const host = $('#externalServicesList');
   if (host) {
@@ -7958,8 +8029,14 @@ function renderExternalServices() {
         <span class="service-txt"><strong>${esc(it.name)}</strong><small>${esc(externalServiceDesc(it))}</small></span>
         <i class="fa-solid fa-arrow-up-right-from-square"></i>
       </a>`).join('')}</div>
-    </div>`).join('') + `<p class="hint service-dependency"><i class="fa-solid fa-circle-info"></i> ${esc(t('services.dependency'))}</p>`;
+    </div>`).join('');
     refreshIcons(host);
+    host.onscroll = syncExternalNav;
+    const prev = $('#extPrev'), next = $('#extNext');
+    if (prev) prev.onclick = () => scrollExternalServices(-1);
+    if (next) next.onclick = () => scrollExternalServices(1);
+    requestAnimationFrame(syncExternalNav);
+    window.addEventListener('resize', syncExternalNav);
   }
   const foot = $('#footerServiceLinks');
   if (foot) {
