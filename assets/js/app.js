@@ -776,9 +776,9 @@ function stampVersion(d = new Date()) {
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 2400); }
 
 /* ---------- Modal ---------- */
-const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards'];
-function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
-function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); box.style.removeProperty('--cmp-card-w'); } editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
+const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards', 'share-mode'];
+function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalBody').classList.remove('share-mode'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
+function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); box.style.removeProperty('--cmp-card-w'); } $('#modalBody').classList.remove('share-mode'); editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
 let editingPid = null;
 
 let pillSlideRaf = 0;
@@ -7684,7 +7684,7 @@ function exportPickerHtml(sel, locked, format) {
       const unavailable = !locked && !exportPartAllowed(p.id, fmt);
       const ro = locked || p.id === 'config' || unavailable;
       const tags = p.pdf && p.json ? exportText('PDF + JSON', 'PDF + JSON') : p.pdf ? 'PDF' : 'JSON';
-      return `<label class="se-pick-row${on ? ' on' : ''}${ro ? ' locked' : ''}">
+      return `<label class="se-pick-row${on ? ' on' : ''}${ro ? ' locked' : ''}${unavailable ? ' unavailable' : ''}">
         <input type="checkbox" data-export-part="${p.id}"${on ? ' checked' : ''}${ro ? ' disabled' : ''}>
         <span class="se-pick-ico"><i class="${p.icon}"></i></span>
         <span class="se-pick-txt"><strong>${esc(exportPartText(p))}</strong><small>${esc(exportPartHint(p))}</small></span>
@@ -7703,7 +7703,7 @@ function openShareExport(pill) {
   const sharePane = `
     <p class="hint">${T('Scan the QR code or copy the link to share this configuration.', 'Scannez le QR code ou copiez le lien pour partager cette configuration.')}</p>
     <p class="hint se-share-note"><i class="fa-solid fa-circle-info"></i> ${T('The link only carries the configuration (name, budget, components, prices and Idealo links).', 'Le lien ne transporte que la configuration (nom, budget, composants, prix et liens Idealo).')}</p>
-    <div class="qr-img" id="s_qr"></div>
+    <div class="qr-img" id="s_qr" role="button" tabindex="0" aria-label="${T('Enlarge QR code', 'Agrandir le QR code')}" title="${T('Enlarge QR code', 'Agrandir le QR code')}"></div>
     <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
     <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
   const exportPane = `
@@ -7723,6 +7723,13 @@ function openShareExport(pill) {
     <div class="usage-pane" data-pane="share"${pill === 'share' ? '' : ' style="display:none"'}>${sharePane}</div>
     <div class="usage-pane" data-pane="export"${pill === 'export' ? '' : ' style="display:none"'}>${exportPane}</div>`, 'modal-wide');
   const host = $('#modalBody');
+  const box = $('#modalBox');
+  const syncMode = () => {
+    const on = currentTab === 'share';
+    box?.classList.toggle('share-mode', on);
+    host?.classList.toggle('share-mode', on);
+  };
+  syncMode();
   const renderPicker = () => {
     const slot = $('#sePickerSlot');
     if (!slot) return;
@@ -7778,6 +7785,7 @@ function openShareExport(pill) {
   renderAll();
   host.querySelectorAll('.usage-tab[data-tab]').forEach(b => b.onclick = () => {
     currentTab = b.dataset.tab;
+    syncMode();
     host.querySelectorAll('.usage-tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === currentTab));
     host.querySelectorAll('.usage-pane').forEach(p => { p.style.display = p.dataset.pane === currentTab ? '' : 'none'; });
     renderAll();
@@ -7787,6 +7795,12 @@ function openShareExport(pill) {
     try { const q = qrcode(0, 'L'); q.addData(link); q.make(); qrEl.innerHTML = q.createSvgTag({ cellSize: 4, margin: 8, scalable: true }); }
     catch { qrEl.innerHTML = ''; }
   }
+  if (qrEl) {
+    qrEl.onclick = openQrViewer;
+    qrEl.onkeydown = e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openQrViewer(); }
+    };
+  }
   $('#s_copy').onclick = () => { navigator.clipboard?.writeText(link); toast(T('Link copied', 'Lien copié')); };
   $('#e_go').onclick = () => {
     exportSel = saveExportSelection(exportSel);
@@ -7794,6 +7808,24 @@ function openShareExport(pill) {
     if (exportSel.format === 'json') exportConfigJson(parts);
     else { closeModal(); exportPdf(parts); }
   };
+}
+function openQrViewer() {
+  const source = $('#s_qr')?.querySelector('svg');
+  const stage = $('#qrViewerStage');
+  const overlay = $('#qrOverlay');
+  if (!source || !stage || !overlay) return;
+  stage.innerHTML = source.outerHTML;
+  overlay.classList.remove('hidden');
+  document.body.classList.add('qr-open');
+  $('#qrClose')?.focus?.();
+}
+function closeQrViewer() {
+  const overlay = $('#qrOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  overlay.classList.add('hidden');
+  document.body.classList.remove('qr-open');
+  $('#qrViewerStage')?.replaceChildren();
+  $('#s_qr')?.focus?.();
 }
 /* ---------- Print / PDF report ----------
    The printed PDF is a dedicated report (name+budget, description, components
@@ -8753,6 +8785,9 @@ function bind() {
       if (th) galleryShow(Number(th.dataset.gi) || 0);
     });
   }
+  const qrClose = $('#qrClose'); if (qrClose) qrClose.onclick = closeQrViewer;
+  const qrOv = $('#qrOverlay');
+  if (qrOv) qrOv.addEventListener('click', e => { if (e.target === qrOv) closeQrViewer(); });
   document.addEventListener('keydown', e => {
     if (!$('#galleryOverlay') || $('#galleryOverlay').classList.contains('hidden')) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeGallery(); }
@@ -8900,6 +8935,7 @@ function bind() {
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (cmpCloseOptPop()) { e.preventDefault(); return; }
+    if ($('#qrOverlay') && !$('#qrOverlay').classList.contains('hidden')) { e.preventDefault(); closeQrViewer(); return; }
     if ($('#galleryOverlay') && !$('#galleryOverlay').classList.contains('hidden')) { closeGallery(); return; }
     if (!$('#editorPanel').classList.contains('hidden')) { closeEditorPanel(); return; }
     if (document.body.classList.contains('tutorial-sheet-open')) { closeTutorialVideo(); return; }

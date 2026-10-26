@@ -2,7 +2,7 @@
    Navigations (index.html) : network-first pour que chaque rechargement
    recupere les dernieres refs ?v= ; le reste (assets versionnes, immuables)
    reste en cache-first. Repli hors-ligne sur le cache. */
-const CACHE = 'configmaker-v148';
+const CACHE = 'configmaker-v151';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './assets/icons/favicon-64.png', './assets/icons/favicon-192.png', './assets/icons/favicon-512.png', './assets/icons/maskable-512.png', './assets/icons/apple-touch-icon.png', './assets/icons/configmakericon.png', './assets/css/app.css', './assets/js/store.js', './assets/js/app.js', './assets/js/compat.js', './assets/js/psudb.js', './assets/js/idealo.js', './assets/js/kj-picks.js', './assets/js/tube.js', './assets/js/ai.js', './assets/js/fpsdb.js', './assets/js/perf.js', './assets/js/pcie.js', './assets/js/pcie-catalog.js', './assets/js/qrcode.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

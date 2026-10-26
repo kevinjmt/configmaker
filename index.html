@@ -28,7 +28,7 @@
 <meta name="twitter:title" content="ConfigMaker by KJ">
 <meta name="twitter:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta name="twitter:image" content="https://kevinjmt.github.io/configmaker/assets/icons/favicon-512.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=149">
+<link rel="stylesheet" href="./assets/css/app.css?v=152">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -406,6 +406,12 @@
     <div id="galleryThumbs" class="gallery-thumbs"></div>
   </div>
 </div>
+<div id="qrOverlay" class="overlay qr-overlay hidden" role="dialog" aria-modal="true" aria-label="QR code">
+  <div class="qr-viewer glass">
+    <div class="qr-viewer-top"><span>QR code</span><button class="icon-btn" id="qrClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="qr-viewer-stage" id="qrViewerStage"></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div>
 <div id="pickerTip" class="picker-tip hidden" role="tooltip"></div>
 <div id="aiBubble" role="button" tabindex="0" aria-label="Ask Perplexity" title="Ask Perplexity"><span class="ai-qwrap"><i class="fa-solid fa-circle-question"></i><i class="fa-solid fa-star ai-star s1"></i><i class="fa-solid fa-star ai-star s2"></i><i class="fa-solid fa-star ai-star s3"></i></span></div>
@@ -428,7 +434,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=11"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=159"></script>
+<script src="./assets/js/app.js?v=161"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
