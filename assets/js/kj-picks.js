@@ -53,6 +53,10 @@ window.KJ_PICKS = {
         ],
         ram: [
             // { id: '', name: '', tags: ['recommended', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204101930/kingston-fury-beast-rgb-32gb-kit-ddr5-6000-cl30.html', name: 'Kingston FURY Beast RGB 32GB Kit DDR5-6000 CL30', tags: ['tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202345042/patriot-viper-venom-32-go-kit-ddr5-6400-cl32-pvv532g640c32k.html', name: 'Patriot Viper Venom 32 Go Kit DDR5-6400 CL32 (PVV532G640C32K)', tags: ['tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204432987/patriot-viper-venom-32gb-kit-ddr5-6000-cl30-pvv532g600c30k.html', name: 'Patriot Viper Venom 32GB Kit DDR5-6000 CL30 (PVV532G600C30K)', tags: ['tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202309678/adata-32-go-kit-ddr5-4800-ad5u480016g-dt.html', name: 'ADATA 32 Go Kit DDR5-4800 (AD5U480016G-DT)', tags: ['tested'], note: '' },
         ],
         cooler: [
             // { id: '', name: '', tags: ['top'], note: '' },
@@ -221,39 +225,72 @@ window.KJ_PICKS = {
         ],
         multiprise: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/206170606/belkin-bloc-multiprise-6-prises-parafoudre-blanc.html', name: 'Belkin Bloc multiprise 6 prises parafoudre blanc', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/210904125/legrand-multiprise-a-cabler-compacte-5-prises-blanc-49498.html', name: 'Legrand Multiprise à câbler compacte 5 prises, blanc (49498)', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/206168536/legrand-multiprise-3-prises-1-5-m-blanc-gris.html', name: 'Legrand Multiprise 3 prises 1,5 m blanc gris', tags: ['recommended'], note: '' },
         ],
         switch: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/209725975/tp-link-omada-es210x-m2.html', name: 'TP-Link Omada ES210X-M2', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/201492453/tp-link-5-port-10g-switch-tl-sx105.html', name: 'TP-Link 5-Port 10G Switch (TL-SX105)', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/93660/netgear-5-port-gigabit-switch-gs105.html', name: 'Netgear 5-Port Gigabit Switch (GS105)', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/3719122/tp-link-5-port-gigabit-switch-tl-sg105.html', name: 'TP-Link 5-Port Gigabit Switch (TL-SG105)', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/6382925/tp-link-16-port-gigabit-switch-tl-sg116.html', name: 'TP-Link 16-Port Gigabit Switch (TL-SG116)', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/5101348/tp-link-8-port-gigabit-poe-switch-tl-sg108pe.html', name: 'TP-Link 8-Port Gigabit PoE Switch (TL-SG108PE)', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/201376106/tp-link-8-port-2-5-gigabit-switch-tl-sg108-m2.html', name: 'TP-Link 8-Port 2.5 Gigabit Switch (TL-SG108-M2)', tags: ['recommended'], note: '' },
         ],
         router: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203696394/tp-link-deco-be65.html', name: 'TP-Link Deco BE65', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/201867314/tp-link-deco-x50.html', name: 'TP-Link Deco X50', tags: ['tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203061671/tp-link-deco-be85.html', name: 'TP-Link Deco BE85', tags: ['recommended'], note: '' },
         ],
         nas: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/205479293/ugreen-nasync-dxp4800-plus.html', name: 'Ugreen NASync DXP4800 Plus', tags: ['recommended'], note: '' },
         ],
         graphictab: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
         ],
         usbstick: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/4044592/sandisk-ultra-usb-3-0.html', name: 'SanDisk Ultra USB 3.0', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/200164723/sandisk-ultra-dual-drive-luxe-usb-type-c.html', name: 'SanDisk Ultra Dual Drive Luxe USB Type-C', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/200268120/sandisk-ultra-dual-drive-go-type-c.html', name: 'SanDisk Ultra Dual Drive Go Type-C', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202022117/kingston-datatraveler-exodia-m.html', name: 'Kingston DataTraveler Exodia M', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/5531908/sandisk-ultra-dual-drive-type-c.html', name: 'SanDisk Ultra Dual Drive Type C', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/205818976/sandisk-extreme-pro-dual-drive.html', name: 'SanDisk Extreme PRO Dual Drive', tags: ['recommended'], note: '' },
         ],
         memcard: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202042702/sandisk-extreme-pro-a2-200-mb-s-microsd.html', name: 'SanDisk Extreme PRO A2 200 MB/s microSD', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202162811/sandisk-ultra-a1-microsd-sdsquac-gn6ma.html', name: 'SanDisk Ultra A1 microSD (SDSQUAC-GN6MA)', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202043553/sandisk-extreme-a2-u3-v30-190-mb-s-microsd.html', name: 'SanDisk Extreme A2 U3 V30 190 MB/s microSD', tags: ['recommended'], note: '' },
         ],
         dock: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/214193627/belkin-connect-thunderbolt-5-station-d-accueil-14-en-1-140w-inc031kqsgy.html', name: 'Belkin Connect Thunderbolt 5 Station d\'Accueil 14-en-1 140W (INC031KQSGY)', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203331788/ugreen-5-in-1-usb-c-dock-15495.html', name: 'Ugreen 5-in-1 USB-C Dock 15495', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/211096906/ugreen-85489.html', name: 'UGREEN Revodok Pro USB C Hub 14 in 1 Docking Station Triple Screen', tags: ['recommended'], note: '' },
         ],
         printer: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
         ],
         extstorage: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/6821213/western-digital-elements-desktop-wdbwlg.html', name: 'Western Digital Elements Desktop (WDBWLG)', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/6317664/lacie-rugged-usb-c.html', name: 'LaCie Rugged USB-C', tags: ['top'], note: '' },
         ],
         extssd: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/201922831/samsung-portable-ssd-t7-shield.html', name: 'Samsung Portable SSD T7 Shield', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/200269051/samsung-portable-ssd-t7.html', name: 'Samsung Portable SSD T7', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/201030165/sandisk-extreme-portable-ssd-v2.html', name: 'SanDisk Extreme Portable SSD V2', tags: ['top', 'tested'], note: '' },
         ],
         speakers: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/5765593/logitech-z207.html', name: 'Logitech Z207', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/4141468/logitech-z150.html', name: 'Logitech Z150', tags: ['tested', 'recommended'], note: '' },
         ],
         webcam: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
@@ -268,6 +305,10 @@ window.KJ_PICKS = {
         ],
         capture: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/7031855/blackmagic-decklink-quad-hdmi-recorder.html', name: 'Blackmagic DeckLink Quad HDMI Recorder', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204267074/elgato-4k-x.html', name: 'Elgato 4K X', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203823162/elgato-4k-pro.html', name: 'Elgato 4K PRO', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/211487364/ugreen-carte-de-capture-video-hdmi-vers-usb-c-entree-4k-1080p-60fps-25854.html', name: 'Ugreen Carte de Capture Vidéo HDMI vers USB-C, entrée 4K, 1080P 60FPS (25854)', tags: ['recommended'], note: '' },
         ],
         monitorarm: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
