@@ -187,6 +187,28 @@ const Compat = (() => {
     return dsHeuristicSplit(line);
   }
 
+  /* Keep the datasheet's section headings (Processeur, Mémoire, …) while still
+     exposing parsed label/value rows for the inline comparison panel. */
+  function datasheetSections(dsText) {
+    const raw = sanitizeDatasheet(dsText).split('\n');
+    const chunks = [{ title: '', lines: [] }];
+    raw.forEach(line => {
+      const txt = String(line || '').trim();
+      if (!txt) return;
+      if (dsIsGroup(txt)) {
+        const title = dsRowLabel(txt);
+        const cur = chunks[chunks.length - 1];
+        if (cur.title || cur.lines.some(x => String(x || '').trim())) chunks.push({ title, lines: [] });
+        else cur.title = title;
+        return;
+      }
+      chunks[chunks.length - 1].lines.push(line);
+    });
+    return chunks
+      .map(g => ({ title: g.title, rows: datasheetRows(g.lines.join('\n')) }))
+      .filter(g => g.rows.length);
+  }
+
   /* Generic label/value datasheet rows for the fiche editor, compatibility
      display and the configuration comparer. Unlike parseDatasheet(), this
      keeps unknown labels and their source order, and understands both
@@ -1820,6 +1842,6 @@ const Compat = (() => {
     return { capW: m ? parseInt(m[1], 10) : 0 };
   }
 
-  return { check, parseDatasheet, datasheetRows, sanitizeDatasheet, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
+  return { check, parseDatasheet, datasheetRows, datasheetSections, sanitizeDatasheet, parse, powerBreakdown, OK, WARN, ERR, NA, CHECKED, KWH_PRICE, HOURS_DAY };
 })();
 try { module.exports = Compat; } catch { /* browser */ }

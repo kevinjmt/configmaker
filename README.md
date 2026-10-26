@@ -191,7 +191,7 @@ Merci à **Idealo** pour les prix et les fiches, à **Jina Reader** pour la lect
 Les rapports de bugs, idées et pull requests sont les bienvenus.
 
 - ⭐ [Mettre une étoile au projet](https://github.com/kevinjmt/configmaker)
-- 🐛 [Ouvrir une issue](https://github.com/kevinjmt/configmaker/issues)
+- 🐛 [Reporter un problème](https://github.com/kevinjmt/configmaker/issues)
 - 🔗 [Ouvrir ConfigMaker](https://kevinjmt.github.io/configmaker)
 
 ---

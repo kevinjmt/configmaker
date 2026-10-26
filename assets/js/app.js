@@ -372,10 +372,9 @@ const I18N = {
     'review.eyebrow': 'Projet open source', 'review.title': 'Soutenir ConfigMaker',
     'review.hint': 'ConfigMaker reste gratuit, local et sans publicité. Une étoile sur GitHub ou une issue bien décrite aide énormément le projet à progresser.',
     'review.star': 'Mettre une étoile', 'review.issue': 'Reporter un problème',
-    'idealo.eyebrow': 'Merci pour les prix !', 'idealo.title': 'Merci Idealo !',
+    'idealo.title': 'Merci Idealo !',
     'idealo.thanks': 'Les prix, les offres marchands et une grande partie des fiches techniques viennent d’Idealo. Sans ce service, ConfigMaker ne pourrait pas comparer les composants aussi précisément.',
     'idealo.feat1': 'Prix et offres en direct', 'idealo.feat2': 'Fiches techniques détaillées', 'idealo.feat3': 'Comparaison de marchands',
-    'idealo.dependency': 'Dépendance assumée : la recherche Idealo passe par Jina Reader et peut être limitée en cas de forte affluence.',
     'idealo.cta': 'Découvrir Idealo',
     'services.title': 'Services externes', 'services.hint': 'ConfigMaker fonctionne en local, mais s’appuie sur ces services pour les prix, les benchmarks, les tutoriels, l’IA, les icônes et les polices. Chaque lien ouvre le site officiel dans un nouvel onglet.',
     'services.footerTitle': 'Services utilisés', 'services.prices': 'Prix & fiches', 'services.bench': 'Benchmarks & tutoriels',
@@ -517,10 +516,9 @@ const I18N = {
     'review.eyebrow': 'Open-source project', 'review.title': 'Support ConfigMaker',
     'review.hint': 'ConfigMaker stays free, local and ad-free. A GitHub star or a clear issue helps the project a lot.',
     'review.star': 'Star on GitHub', 'review.issue': 'Open an issue',
-    'idealo.eyebrow': 'Thanks for the prices!', 'idealo.title': 'Thank you Idealo!',
+    'idealo.title': 'Thank you Idealo!',
     'idealo.thanks': 'Prices, merchant offers and much of the datasheet data come from Idealo. Without this service, ConfigMaker could not compare components this precisely.',
     'idealo.feat1': 'Live prices and offers', 'idealo.feat2': 'Detailed datasheets', 'idealo.feat3': 'Merchant comparison',
-    'idealo.dependency': 'Acknowledged dependency: Idealo search goes through Jina Reader and may be rate-limited during heavy use.',
     'idealo.cta': 'Discover Idealo',
     'services.title': 'External services', 'services.hint': 'ConfigMaker runs locally, but relies on these services for prices, benchmarks, tutorials, AI, icons and fonts. Each link opens the official site in a new tab.',
     'services.footerTitle': 'Services used', 'services.prices': 'Prices & specs', 'services.bench': 'Benchmarks & tutorials',
@@ -556,7 +554,7 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', image: '', specs: '', datasheet: '', dsClean: false, dsManual: false, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false }; }
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false }; }
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
@@ -1175,6 +1173,23 @@ function buyUrlFor(p) {
 }
 /* ---------- Idealo variants on slot cards ---------- */
 const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+/* The raw name stays the real model/variant name (used by compatibility/bench
+   matching); only the cards show the parent component name in front of it. */
+function productDisplayName(p) {
+  if (!p) return '';
+  const name = String(p.name || '').trim();
+  const base = String(p.baseName || '').trim();
+  const variant = String(p.variantName || '').trim();
+  if (!base || !variant) return name;
+  if (normTxt(variant) === normTxt(base)) return variant;
+  return `${base} - ${variant}`;
+}
+function itemIdealoUrl(it) {
+  return String((it && (it.idealo || it.url)) || '').trim();
+}
+function isIdealoProductUrl(url) {
+  return /https?:\/\/(?:[^/]+\.)?idealo\.[a-z.]+\/prix\//i.test(String(url || ''));
+}
 /* Variant attribute equality (delegates to Idealo.variantNorm when available). */
 function variantAttrEq(a, b) {
   if (typeof Idealo !== 'undefined' && Idealo.variantNorm) {
@@ -1269,11 +1284,19 @@ async function selectVariant(slotId, url, cardPrice) {
     const [d, r] = await Promise.all([Idealo.product(url), Idealo.offers(url)]);
     const cur = s.products.find(x => x.id === p.id);
     if (!cur) return;
+    const baseName = String(cur.baseName || cur.name || '').trim();
+    const variantItem = ((cur.variants && cur.variants.items) || []).find(it => pdUrlKey(it.url) === pdUrlKey(url));
     if (d && !d.error) {
-      if (d.name) cur.name = d.name;
+      const variantName = String(d.name || (variantItem && variantItem.name) || '').trim();
+      if (variantName) {
+        cur.baseName = baseName;
+        cur.variantName = variantName;
+        cur.name = variantName;
+      }
       if (d.img) cur.image = d.img;
+      if (d.images && d.images.length) cur.images = pdUnique([...(cur.images || []), ...d.images, cur.image]).slice(0, 12);
       if (d.specs) cur.specs = d.specs;
-      if (d.datasheet) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; cur.dsManual = false; }
+      if (d.datasheet) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; cur.dsManual = false; cur.dsSections = null; }
       if (d.variants && d.variants.items && d.variants.items.length) cur.variants = d.variants;
     }
     cur.idealo = url;
@@ -1354,7 +1377,7 @@ function slotCard(id) {
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
   if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
-  const title = p ? esc(p.name) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
+  const title = p ? esc(productDisplayName(p)) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
   const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
   const mlbl = (fr, en) => `<span class="mini-lbl">${esc(lang === 'en' ? en : fr)}</span>`;
   let priceDiv = `<div class="slot-price">—</div>`, vendorDiv = `<div class="slot-vendor">${esc(slotName(id))}</div>`, delivDiv = '';
@@ -1447,7 +1470,7 @@ function renderAlts(host, s, slotId) {
     const row = document.createElement('div');
     const rowSpin = refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
     row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
-    row.innerHTML = `<span class="grow"><strong>${esc(p.name)}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
+    row.innerHTML = `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
     row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
     const acts = document.createElement('div');
@@ -2160,38 +2183,145 @@ function pickerItemDescription(it, detailed = false) {
   if (!txt) txt = it && it.offers ? `${it.offers} ${t('picker.offers')}` : '';
   return detailed ? txt : txt.replace(/\s+/g, ' ').trim();
 }
+function pickerItemImages(it) {
+  const list = pdUnique([
+    ...((it && it.images) || []),
+    it && it.image,
+    it && it.img,
+  ].filter(src => typeof src === 'string' && src.trim()));
+  return list.slice(0, 12);
+}
 function pickerItemProduct(it) {
+  it = it || {};
   const np = blankProduct();
+  const images = pickerItemImages(it);
   np.name = it.name || '';
-  np.image = it.img || '';
-  np.idealo = it.url || '';
+  np.baseName = it.baseName || '';
+  np.variantName = it.variantName || '';
+  np.image = it.image || it.img || images[0] || '';
+  np.images = pdUnique([np.image, ...images].filter(Boolean)).slice(0, 12);
+  np.idealo = itemIdealoUrl(it);
   np.price = Number(it.price) || 0;
+  np.oldPrice = Number(it.oldPrice) || 0;
+  np.qty = Math.max(1, Number(it.qty) || 1);
   np.specs = it.specs || '';
   np.vendor = it.vendor || '';
   np.delivery = Number(it.delivery) || 0;
   np.src = it.src || '';
   np.store = it.store || '';
+  np.manual = it.manual || '';
+  np.watts = Number(it.watts) || 0;
+  np.capW = Number(it.capW) || 0;
   np.promo = !!it.promo;
   np.isBest = !!it.isBest;
+  np.best = it.best == null ? null : it.best;
   np.dsClean = !!it.dsClean;
   np.dsManual = !!it.dsManual;
+  np.ai = !!it.ai;
   if (it.datasheet) np.datasheet = sanitizeDs(it.datasheet);
+  if (Array.isArray(it.dsSections)) np.dsSections = JSON.parse(JSON.stringify(it.dsSections));
   if (it.variants && it.variants.items && it.variants.items.length) np.variants = it.variants;
+  if (Array.isArray(it.verified)) np.verified = [...it.verified];
   return np;
+}
+function productUrlKey(url) { return normTxt(url || '').replace(/\/+$/, '').trim(); }
+function sameProductUrl(a, b) {
+  const ka = productUrlKey(a), kb = productUrlKey(b);
+  return !!ka && ka === kb;
+}
+function findExistingProduct(s, it) {
+  if (!s || !it) return null;
+  if (it.id) {
+    const byId = (s.products || []).find(p => p.id === it.id);
+    if (byId) return byId;
+  }
+  const url = itemIdealoUrl(it);
+  if (url) return (s.products || []).find(p => sameProductUrl(itemIdealoUrl(p), url)) || null;
+  return null;
+}
+/* Shared enrichment for manual picks and AI imports. The full mode applies
+   every fetched field (used before an AI product is inserted); the missing-only
+   mode is the background/manual behaviour that never overwrites user edits. */
+function mergeProductData(p, d, opts = {}) {
+  if (!p || !d || d.error) return false;
+  const missing = !!opts.onlyMissing;
+  let changed = false;
+  if (d.name && (!missing || !p.name)) { p.name = d.name; changed = true; }
+  if (d.img && (!missing || !p.image)) { p.image = d.img; changed = true; }
+  if (d.images && d.images.length) {
+    if (!p.image) { p.image = d.images[0]; changed = true; }
+    const next = pdUnique([...(p.images || []), p.image, ...d.images].filter(Boolean)).slice(0, 12);
+    if (JSON.stringify(next) !== JSON.stringify(p.images || [])) { p.images = next; changed = true; }
+  }
+  if (d.specs && (!missing || !p.specs)) { p.specs = d.specs; changed = true; }
+  if (d.summary && (!missing || !p.summary)) { p.summary = d.summary; changed = true; }
+  if (d.datasheet && !p.dsManual && (!missing || !p.datasheet || !p.dsClean)) {
+    const ds = sanitizeDs(d.datasheet);
+    if (ds && ds !== p.datasheet) { p.datasheet = ds; changed = true; }
+    if (!opts.keepClean && p.dsClean) { p.dsClean = false; changed = true; }
+  }
+  if (d.variants && d.variants.items && d.variants.items.length && (!missing || !p.variants)) {
+    p.variants = d.variants; changed = true;
+  }
+  if (Number(d.price) > 0 && (!missing || !Number(p.price))) { p.price = Number(d.price); changed = true; }
+  if (d.vendor && (!missing || !p.vendor)) { p.vendor = d.vendor; changed = true; }
+  return changed;
+}
+function offerTotalFor(o) {
+  const price = Number(o && o.price) || 0;
+  const delivered = Number(o && o.delivered) || 0;
+  return delivered > 0 ? delivered : price;
+}
+function chooseOffer(offers) {
+  const sorted = [...(offers || [])].filter(Boolean).sort((a, b) => offerTotalFor(a) - offerTotalFor(b));
+  return sorted.find(o => o.merchant) || sorted[0] || null;
+}
+function mergeOfferData(p, o, opts = {}) {
+  if (!p || !o) return false;
+  const missing = !!opts.onlyMissing;
+  const same = key => !missing || !p[key] || String(p[key]) === String(opts.base && opts.base[key]);
+  let changed = false;
+  if (o.merchant && same('vendor')) { p.vendor = o.merchant; changed = true; }
+  if (Number(o.price) > 0 && same('price')) { p.price = Number(o.price); changed = true; }
+  if (Number(o.delivered) > 0 && Number(o.price) > 0 && same('delivery')) {
+    p.delivery = Math.max(0, Math.round((Number(o.delivered) - Number(o.price)) * 100) / 100);
+    changed = true;
+  }
+  if (o.url && same('store')) { p.store = o.url; changed = true; }
+  if (o.promo && !p.promo) { p.promo = true; changed = true; }
+  if (o.price) p.isBest = Number(o.price) <= Number(opts.itemPrice || o.price) || !!p.isBest;
+  return changed;
 }
 function pdTxt(fr, en) { return lang === 'en' ? en : fr; }
 function pdUnique(arr) { return [...new Set((arr || []).filter(Boolean))]; }
 function pdImagesFor(it, detail) {
   const out = [];
   if (detail && detail.images) out.push(...detail.images);
-  if (it && it.img) out.push(it.img);
   if (it && it.image) out.push(it.image);
+  if (it && it.img) out.push(it.img);
   if (it && it.images) out.push(...it.images);
-  return pdUnique(out).slice(0, 12);
+  return pdUnique(out.filter(src => typeof src === 'string' && src.trim())).slice(0, 12);
+}
+function pdMediaCandidates(it, detail) {
+  return pdUnique([it && it.img, it && it.image, ...pdImagesFor(it, detail)].filter(src => typeof src === 'string' && src.trim()));
+}
+function pdImageError(img) {
+  if (!img) return;
+  const list = pdState ? pdMediaCandidates(pdState.item, pdState.details) : [];
+  const cur = img.getAttribute('src') || '';
+  const idx = list.findIndex(src => src === cur);
+  const next = list.slice(Math.max(0, idx + 1)).find(src => src && src !== cur);
+  if (next) { img.src = next; return; }
+  const parent = img.parentElement;
+  img.remove();
+  const fallback = parent && parent.querySelector('.pd-media-fallback');
+  if (fallback) fallback.hidden = false;
 }
 function datasheetTextFromDetails(detail) {
   const lines = [];
   ((detail && detail.sections) || []).forEach(g => {
+    const title = String((g && g.title) || '').trim();
+    if (title) lines.push(title);
     (g.rows || []).forEach(r => {
       const label = String((r && r[0]) || '').trim();
       const value = String((r && r[1]) || '').trim();
@@ -2199,6 +2329,15 @@ function datasheetTextFromDetails(detail) {
     });
   });
   return lines.join('\n').slice(0, 30000).trim();
+}
+function dsSectionsFromDetail(detail) {
+  return ((detail && detail.sections) || []).map(g => ({
+    title: String((g && g.title) || '').trim(),
+    rows: ((g && g.rows) || []).map(r => [
+      String((r && r[0]) || '').trim(),
+      String((r && r[1]) || '').trim()
+    ]).filter(r => r[0] && r[1])
+  })).filter(g => g.rows.length);
 }
 function pdDatasheetRows(it) {
   if (!it || !it.datasheet || typeof Compat === 'undefined' || !Compat.datasheetRows) return [];
@@ -2219,6 +2358,8 @@ function pdSyncDatasheetToState(url, ds, opts = {}) {
   const key = pdUrlKey(url);
   const clean = sanitizeDs(ds);
   if (!key || !clean) return false;
+  const sections = Array.isArray(opts.sections) ? opts.sections : null;
+  const sectionsJson = sections && sections.length ? JSON.stringify(sections) : '';
   let changed = false;
   for (const sid of state.order) {
     const s = state.slots[sid];
@@ -2226,17 +2367,16 @@ function pdSyncDatasheetToState(url, ds, opts = {}) {
     (s.products || []).forEach(p => {
       if (p.dsManual || pdUrlKey(p.idealo) !== key) return;
       /* Never downgrade an exact HTML datasheet with the raw reader text. */
-      if (p.dsClean && !opts.force) return;
+      if (p.dsClean && !opts.force) {
+        if (sectionsJson && JSON.stringify(p.dsSections || null) !== sectionsJson) { p.dsSections = sections; changed = true; }
+        return;
+      }
       const cur = p.datasheet || '';
       const better = opts.force || !cur || dsRowCount(clean) > dsRowCount(cur);
       if (!better) return;
-      if (cur === clean) {
-        if (opts.clean && !p.dsClean) { p.dsClean = true; changed = true; }
-        return;
-      }
-      p.datasheet = clean;
-      if (opts.clean) p.dsClean = true;
-      changed = true;
+      if (cur !== clean) { p.datasheet = clean; changed = true; }
+      if (opts.clean && !p.dsClean) { p.dsClean = true; changed = true; }
+      if (sectionsJson && JSON.stringify(p.dsSections || null) !== sectionsJson) { p.dsSections = sections; changed = true; }
     });
   }
   if (changed) { persist(); compatCache = null; }
@@ -2260,10 +2400,13 @@ async function upgradeDatasheetFromIdealo(p) {
   if (!ds) return false;
   const clean = sanitizeDs(ds);
   if (!clean) return false;
+  const sections = dsSectionsFromDetail(det);
+  const sectionsJson = JSON.stringify(sections);
   let changed = false;
   /* New fiches are not in state yet: update the object passed to the editor. */
   if (!p.dsManual) {
     if (p.datasheet !== clean) { p.datasheet = clean; changed = true; }
+    if (sections.length && JSON.stringify(p.dsSections || null) !== sectionsJson) { p.dsSections = sections; changed = true; }
     if (!p.dsClean) { p.dsClean = true; changed = true; }
   }
   for (const sid of state.order) {
@@ -2272,11 +2415,15 @@ async function upgradeDatasheetFromIdealo(p) {
     (s.products || []).forEach(cur => {
       if (!cur || cur.dsManual) return;
       if (cur.id !== p.id && pdUrlKey(cur.idealo) !== key) return;
-      if (cur.dsClean && cur.datasheet === clean) return;
+      if (cur.dsClean && cur.datasheet === clean && (!sections.length || JSON.stringify(cur.dsSections || null) === sectionsJson)) return;
       /* The HTML table is authoritative for labels/values; replace raw text
          even when the line count is close. */
       if (cur.datasheet !== clean) {
         cur.datasheet = clean;
+        changed = true;
+      }
+      if (sections.length && JSON.stringify(cur.dsSections || null) !== sectionsJson) {
+        cur.dsSections = sections;
         changed = true;
       }
       if (!cur.dsClean) { cur.dsClean = true; changed = true; }
@@ -2431,15 +2578,18 @@ function renderPickerDetail(resetScroll) {
     fav.setAttribute('aria-pressed', String(on));
     fav.title = pdTxt(on ? 'Retirer des favoris' : 'Ajouter aux favoris', on ? 'Remove from favourites' : 'Add to favourites');
   }
+  const mediaSrc = pdMediaCandidates(it, st.details)[0] || '';
   const media = `<button class="pd-media${imgs.length > 1 ? ' has-gallery' : ''}" data-pd-act="media" title="${pdTxt('Agrandir la photo', 'Open the photo gallery')}" aria-label="${pdTxt('Agrandir la photo', 'Open the photo gallery')}">
-      ${it.img || imgs[0] ? `<img src="${esc(it.img || imgs[0])}" alt="" onerror="this.remove()">` : fallback}
+      ${mediaSrc ? `<img src="${esc(mediaSrc)}" alt="" onerror="pdImageError(this)">` : ''}
+      <span class="pd-media-fallback"${mediaSrc ? ' hidden' : ''}>${fallback}</span>
       ${imgs.length > 1 ? `<span class="pd-media-count"><i class="fa-regular fa-images"></i> ${imgs.length}</span>` : ''}
       ${st.loading ? `<span class="pd-media-loading"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''}</button>`;
   const storeBtn = store
     ? `<a class="mini-btn pd-store" href="${esc(store)}" target="_blank" rel="noopener" title="${pdTxt('Ouvrir la page dans cette boutique', 'Open the page in this store')}" aria-label="${pdTxt('Ouvrir la page dans cette boutique', 'Open the page in this store')}"><i class="fa-solid fa-store"></i><i class="fa-solid fa-arrow-up-right-from-square pd-store-ext"></i></a>`
     : `<button class="mini-btn pd-store" disabled title="${pdTxt('Boutique indisponible', 'Store unavailable')}" aria-label="${pdTxt('Boutique indisponible', 'Store unavailable')}"><i class="fa-solid fa-store"></i><i class="fa-solid fa-arrow-up-right-from-square pd-store-ext"></i></button>`;
-  const openBtn = it.url
-    ? `<a class="btn" id="pdOpen" href="${esc(it.url)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</a>`
+  const openUrl = itemIdealoUrl(it);
+  const openBtn = openUrl
+    ? `<a class="btn" id="pdOpen" href="${esc(openUrl)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</a>`
     : `<button class="btn" disabled title="${esc(pdTxt('Aucune page Idealo pour cet élément', 'No Idealo page for this item'))}"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('picker.openIdealo'))}</button>`;
   const offerPrices = (st.offers || []).map(o => Number(o.price) || 0).filter(Boolean);
   const offerFrom = offerPrices.length ? Math.min(...offerPrices) : (Number(it.price) || 0);
@@ -2458,7 +2608,7 @@ function renderPickerDetail(resetScroll) {
   body.className = 'pd-body' + (stKj.tags.length ? ' detail-kj' : '');
   body.innerHTML = `<div class="pd-hero${stKj.tags.length ? ' has-kj' : ''}">
       ${media}
-      <div class="pd-info"><h3 class="pd-name">${esc(it.name || '—')}</h3>
+      <div class="pd-info"><h3 class="pd-name">${esc(productDisplayName(it) || '—')}</h3>
         ${kjPills ? `<div class="pd-kj-pills">${kjPills}</div>` : ''}
         <div class="pd-price-row"><span class="pd-price">${it.price ? countNum(it.price, 'eur') : '—'}</span>${storeBtn}</div>
         <div class="pd-buyrow"><button class="pd-offers-link" data-pd-act="offers" aria-expanded="${st.offersOpen ? 'true' : 'false'}"${st.loading && !st.offers ? ' disabled' : ''}><i class="fa-solid fa-tags"></i><span>${offersLabel}</span><span class="pd-offers-toggle">${offersAction}</span></button>${meta ? `<span class="pd-meta">${esc(meta)}</span>` : ''}</div>
@@ -2492,8 +2642,14 @@ function openPickerDetail(it, opts = {}) {
   if (!activeSlot || !it) return;
   pdSeq++;
   pickerDetailItem = it;
+  const item = { ...it };
+  /* Existing products use idealo/image; picker listings use url/img. Keep both
+     shapes on the detail copy so loading, links and committing work the same. */
+  if (!item.url && item.idealo) item.url = item.idealo;
+  if (!item.idealo && item.url) item.idealo = item.url;
+  if (!item.img && item.image) item.img = item.image;
   pdState = {
-    item: { ...it }, productLoaded: !!it._productLoaded, loading: false, loaded: false,
+    item, productLoaded: !!it._productLoaded, loading: false, loaded: false,
     details: null, offers: null, offersOpen: false, offersError: '', scrollOffers: false, filters: {}, error: '', scrollTop: 0, animateKj: true,
   };
   const panel = $('#pickerPanel'), detail = $('#pickerDetail');
@@ -2530,11 +2686,14 @@ function closePickerDetail() {
 function applyDetailProduct(st, d) {
   if (!st || !d || d.error) return;
   const it = st.item;
-  if (d.name) it.name = d.name;
+  if (d.name) {
+    it.name = d.name;
+    if (it.baseName && it.variantName) it.variantName = d.name;
+  }
   if (d.img) it.img = d.img;
   if (d.specs) it.specs = d.specs;
   if (d.summary) it.summary = d.summary;
-  if (d.images && d.images.length) it.images = d.images;
+  if (d.images && d.images.length) it.images = pdUnique([...(it.images || []), it.img, it.image, ...d.images].filter(Boolean)).slice(0, 12);
   if (d.datasheet && !it.dsManual && (!it.datasheet || !it.dsClean)) {
     /* Raw product text is only a fallback; the exact HTML table is preferred. */
     if (!it.datasheet) { it.datasheet = sanitizeDs(d.datasheet); it.dsClean = false; }
@@ -2587,17 +2746,19 @@ async function loadPickerDetailData() {
     if (det && !det.error) {
       st.details = det;
       st.loaded = true;
-      if (det.images && det.images.length) st.item.images = det.images;
+      const sections = dsSectionsFromDetail(det);
+      if (det.images && det.images.length) st.item.images = pdUnique([...(st.item.images || []), st.item.image, ...det.images].filter(Boolean)).slice(0, 12);
       if (det.summary) st.item.summary = det.summary;
       const ds = datasheetTextFromDetails(det);
       if (ds && !st.item.dsManual && (!st.item.datasheet || !st.item.dsClean || dsRowCount(ds) >= dsRowCount(st.item.datasheet))) {
         st.item.datasheet = sanitizeDs(ds);
         st.item.dsClean = true;
       }
+      if (sections.length && !st.item.dsManual) st.item.dsSections = sections;
     } else {
       st.error = (det && det.error) ? det.error : pdTxt('Fiche indisponible pour le moment.', 'Datasheet unavailable right now.');
     }
-    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet, { clean: !!st.item.dsClean, force: !!st.item.dsClean });
+    if (st.item.datasheet) pdSyncDatasheetToState(url, st.item.datasheet, { clean: !!st.item.dsClean, force: !!st.item.dsClean, sections: st.item.dsSections });
   } catch (e) {
     if (pdState === st && seq === pdSeq) st.error = String((e && e.message) || e);
   } finally {
@@ -2682,7 +2843,7 @@ function onPickerDetailClick(e) {
     }
     case 'media': {
       const imgs = pdImagesFor(st.item, st.details);
-      const cur = st.item.img || imgs[0];
+      const cur = st.item.img || st.item.image || imgs[0];
       openGallery(imgs, Math.max(0, imgs.indexOf(cur)));
       break;
     }
@@ -2703,8 +2864,9 @@ function onPickerDetailClick(e) {
       break;
   }
 }
-function enrichPickerItem(it, np, slotId) {
-  if (!it || !it.url || !/idealo\.fr\/prix\//i.test(it.url)) return;
+function enrichPickerItem(it, np, slotId, pre = {}) {
+  const url = itemIdealoUrl(it);
+  if (!url || !isIdealoProductUrl(url)) return;
   const base = { name: np.name, image: np.image, price: np.price, specs: np.specs, vendor: np.vendor, delivery: np.delivery, store: np.store };
   const same = (cur, key) => !cur[key] || String(cur[key]) === String(base[key]);
   const current = () => {
@@ -2712,26 +2874,28 @@ function enrichPickerItem(it, np, slotId) {
     return s && s.products.find(x => x.id === np.id);
   };
   dsFetchStart(np); idealoAttempted.add(np.id);
-  const productFetch = Idealo.product(it.url).then(d => {
+  const productJob = pre.product ? Promise.resolve(pre.product) : Idealo.product(url);
+  const offersJob = pre.offers ? Promise.resolve(pre.offers) : Idealo.offers(url);
+  const productFetch = productJob.then(d => {
     if (!d || d.error || editingPid === np.id) return;
     const cur = current(); if (!cur) return;
     if (d.specs && same(cur, 'specs')) cur.specs = d.specs;
+    if (d.summary && same(cur, 'summary')) cur.summary = d.summary;
     if (d.datasheet && !cur.dsManual && (!cur.datasheet || !cur.dsClean)) { cur.datasheet = sanitizeDs(d.datasheet); cur.dsClean = false; }
+    if (d.images && d.images.length) cur.images = pdUnique([...(cur.images || []), cur.image, ...d.images].filter(Boolean)).slice(0, 12);
     if (d.variants && d.variants.items && d.variants.items.length && !cur.variants) cur.variants = d.variants;
     if (d.price && !cur.price) cur.price = d.price;
     if (d.img && same(cur, 'image')) cur.image = d.img;
-    if (d.name && same(cur, 'name')) cur.name = d.name;
+    else if (d.images && d.images.length && !cur.image) cur.image = d.images[0];
+    if (d.name && same(cur, 'name')) {
+      cur.name = d.name;
+      if (cur.baseName && cur.variantName) cur.variantName = d.name;
+    }
   }).catch(() => {});
-  const offersFetch = Idealo.offers(it.url).then(r => {
-    if (!r || r.error || !r.offers.length || editingPid === np.id) return;
+  const offersFetch = offersJob.then(r => {
+    if (!r || r.error || !r.offers || !r.offers.length || editingPid === np.id) return;
     const cur = current(); if (!cur) return;
-    const o = r.offers[0];
-    if (o.merchant && same(cur, 'vendor')) cur.vendor = o.merchant;
-    if (o.price && same(cur, 'price')) cur.price = o.price;
-    if (o.delivered > 0 && o.price && same(cur, 'delivery')) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
-    if (o.url && same(cur, 'store')) cur.store = o.url;
-    if (o.promo) cur.promo = true;
-    if (o.price) cur.isBest = o.price <= (it.price || o.price);
+    mergeOfferData(cur, chooseOffer(r.offers), { onlyMissing: true, base, itemPrice: it.price });
   }).catch(() => {});
   /* Load the exact datasheet in the background at the same time. */
   const dsUpgrade = upgradeDatasheetFromIdealo(np).catch(() => false);
@@ -2747,6 +2911,22 @@ function commitPickerItem(it) {
   const slotId = activeSlot;
   const s = state.slots[slotId]; if (!s) return;
   const addOnly = pickerMode === 'add';
+  const existing = findExistingProduct(s, it);
+  if (existing) {
+    let changed = false;
+    if (!addOnly && s.selectedId !== existing.id) { s.selectedId = existing.id; changed = true; }
+    closePickerDetail();
+    closePicker();
+    if (changed) {
+      compatCache = null;
+      persist();
+      refresh();
+      toast(lang === 'en' ? 'Existing component selected' : 'Composant existant sélectionné');
+    } else {
+      toast(lang === 'en' ? 'Already selected — nothing changed' : 'Déjà sélectionné — aucun changement');
+    }
+    return;
+  }
   const prevSelected = s.selectedId;
   const np = pickerItemProduct(it);
   /* The detail panel usually has the exact HTML table already: keep it. */
@@ -4072,7 +4252,9 @@ function openProductForm(slotId, p, opts = {}) {
   } catch { /* ignore */ }
   $('#f_save').onclick = () => {
     const v = id => $(id).value.trim();
-    p.name = v('#f_name'); if (!p.name) { toast(lang === 'en' ? 'Name required' : 'Nom requis'); return; }
+    const nextName = v('#f_name'); if (!nextName) { toast(lang === 'en' ? 'Name required' : 'Nom requis'); return; }
+    if (nextName !== p.name) { p.baseName = ''; p.variantName = ''; }
+    p.name = nextName;
     p.ai = false;
     p.image = v('#f_image'); p.vendor = v('#f_vendor');
     p.price = parseFloat(v('#f_price')) || 0; p.oldPrice = parseFloat(v('#f_old')) || 0;
@@ -4087,6 +4269,7 @@ function openProductForm(slotId, p, opts = {}) {
       p.datasheet = typedDs;
       p.dsManual = true;
       p.dsClean = false;
+      p.dsSections = null;
       p.verified = [];
     } else {
       p.datasheet = beforeDs || typedDs;
@@ -5531,41 +5714,106 @@ function cmpDsCell(value, rankable) {
   const n = rankable ? cmpMetricValue(txt) : null;
   return cmpCell(`<span class="cmp-val">${esc(txt)}</span>`, normTxt(txt).replace(/\s+/g, ' ').trim(), n, 0, { rankVal: n, rankable });
 }
+function cmpDsSectionsFor(p) {
+  if (!p) return [];
+  let sections = [];
+  if (!p.dsManual && Array.isArray(p.dsSections) && p.dsSections.length) {
+    sections = p.dsSections.map(g => ({
+      title: String((g && g.title) || '').trim(),
+      rows: ((g && g.rows) || []).map(r => Array.isArray(r)
+        ? { label: String(r[0] || '').trim(), value: String(r[1] || '').trim() }
+        : { label: String((r && r.label) || '').trim(), value: String((r && r.value) || '').trim() })
+    }));
+  } else if (p.datasheet && typeof Compat !== 'undefined') {
+    try {
+      sections = Compat.datasheetSections
+        ? Compat.datasheetSections(p.datasheet)
+        : [{ title: '', rows: Compat.datasheetRows ? Compat.datasheetRows(p.datasheet) : [] }];
+    } catch { sections = []; }
+  }
+  return sections.filter(g => g.rows && g.rows.length);
+}
 function cmpDsRows(label, prods) {
-  const parsed = prods.map(p => {
-    if (!p || !p.datasheet || typeof Compat === 'undefined' || !Compat.datasheetRows) return [];
-    try { return Compat.datasheetRows(p.datasheet); } catch { return []; }
+  const parsed = prods.map(p => cmpDsSectionsFor(p));
+  const groups = [], groupMap = new Map();
+  parsed.forEach((sections, pi) => {
+    sections.forEach(sec => {
+      const title = String(sec.title || '').trim();
+      const gkey = normTxt(title) || '__datasheet__';
+      let group = groupMap.get(gkey);
+      if (!group) {
+        group = { title: title || t('compare.datasheet'), labels: [], byKey: new Map() };
+        groupMap.set(gkey, group);
+        groups.push(group);
+      }
+      (sec.rows || []).forEach(r => {
+        const lbl = String(r.label || '').trim();
+        const value = String(r.value || '').trim();
+        const key = cmpDsLabelKey(lbl);
+        if (!key) return;
+        let item = group.byKey.get(key);
+        if (!item) {
+          item = { label: lbl, values: Array(prods.length).fill('') };
+          group.byKey.set(key, item);
+          group.labels.push(item);
+        }
+        if (value && !item.values[pi].split(' · ').includes(value)) {
+          item.values[pi] = item.values[pi] ? item.values[pi] + ' · ' + value : value;
+        }
+      });
+    });
   });
-  const order = [], seen = new Set();
-  parsed.forEach(rows => rows.forEach(r => {
-    const key = cmpDsLabelKey(r.label);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    order.push({ key, label: r.label });
-  }));
-  const out = [{ detailGroup: `${label} · ${t('compare.datasheet')}` }];
-  order.forEach(item => {
-    const matches = parsed.map(rows => rows.filter(r => cmpDsLabelKey(r.label) === item.key).map(r => r.value));
-    const values = matches.map(v => v.join(' · '));
-    if (!values.some(Boolean)) return;
-    const units = [...new Set(values.map(cmpMetricUnit).filter(Boolean))];
-    /* Composite/range values ("8 / 16", "2 x HDMI", "4,2-5,0 GHz") are shown
-       but never ranked: a single best number would be meaningless. */
-    const multiValue = v => /\d[^0-9,.]*[/+·;x×]\s*\d/i.test(v) || /\d\s*[-–—]\s*\d/.test(v);
-    const compound = matches.some(v => v.length > 1) || values.some(v => v.includes(' · ') || multiValue(v));
-    const rankable = !compound && cmpDsRankable(item.label) && units.length <= 1;
-    out.push({ label: item.label, cells: values.map(v => cmpDsCell(v, rankable)), detail: true, dir: cmpDsDirection(item.label) });
-  });
-  const fallback = prods.map((p, i) => (!parsed[i].length && p && p.specs)
-    ? String(p.specs).split(/\n| {2,}/).map(x => x.trim()).filter(Boolean).join(' · ')
-    : '');
-  if (fallback.some(Boolean)) {
-    out.push({ label: t('compare.quickSpecs'), cells: fallback.map(v => cmpDsCell(v, false)), detail: true });
+  const outGroups = groups
+    .map(g => ({ title: g.title, labels: g.labels.filter(x => x.values.some(Boolean)) }))
+    .filter(g => g.labels.length);
+  if (!outGroups.length) {
+    const fallback = prods.map(p => (p && p.specs)
+      ? String(p.specs).split(/\n| {2,}/).map(x => x.trim()).filter(Boolean).join(' · ')
+      : '');
+    if (fallback.some(Boolean)) outGroups.push({ title: t('compare.quickSpecs'), labels: [{ label: t('compare.quickSpecs'), values: fallback }] });
   }
-  if (out.length === 1) {
-    out.push({ label: t('compare.noDatasheet'), cells: prods.map(p => cmpNoneCell(p ? t('compare.noDatasheet') : t('compare.emptySlot'))), detail: true });
+  if (!outGroups.length) {
+    outGroups.push({
+      title: t('compare.datasheet'),
+      labels: [{ label: t('compare.noDatasheet'), values: prods.map(p => p ? t('compare.noDatasheet') : t('compare.emptySlot')) }]
+    });
   }
-  return out;
+  return {
+    title: `${label} · ${t('compare.datasheet')}`,
+    groups: outGroups.map(g => ({
+      title: g.title,
+      rows: g.labels.map(item => {
+        const values = item.values;
+        const units = [...new Set(values.map(cmpMetricUnit).filter(Boolean))];
+        /* Composite/range values ("8 / 16", "2 x HDMI", "4,2-5,0 GHz") are shown
+           but never ranked: a single best number would be meaningless. */
+        const multiValue = v => /\d[^0-9,.]*[/+·;x×]\s*\d/i.test(v) || /\d\s*[-–—]\s*\d/.test(v);
+        const compound = values.some(v => v.includes(' · ') || multiValue(v));
+        const rankable = !compound && cmpDsRankable(item.label) && units.length <= 1;
+        return { label: item.label, cells: values.map(v => cmpDsCell(v, rankable)), dir: cmpDsDirection(item.label) };
+      })
+    }))
+  };
+}
+function cmpDetailBlockHtml(block, cols) {
+  const colSpan = cols.length + 1;
+  const body = (block.groups || []).map(g => {
+    const cat = g.title ? `<tr class="cmp-detail-cat"><th colspan="${colSpan}"><span>${esc(g.title)}</span></th></tr>` : '';
+    const rows = (g.rows || []).map(row => {
+      const cells = row.cells || [];
+      const first = cells[0] || cmpCell('', '', null, 0);
+      const ranks = cmpRank(cells, cols.length, row.dir || 'high');
+      return `<tr class="cmp-detail-row">
+        <th scope="row" class="cmp-detail-label">${esc(row.label || '')}</th>
+        ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}${ranks[i] ? ' cmp-' + ranks[i] : ''}"${ranks[i] ? ` title="${esc(t('compare.' + ranks[i]))}"` : ''}>${c.html}</td>`).join('')}
+      </tr>`;
+    }).join('');
+    return cat + rows;
+  }).join('');
+  return `<tr class="cmp-detail-shell"><td colspan="${colSpan}"><div class="cmp-detail-panel">
+    <div class="cmp-detail-panel-head"><i class="fa-solid fa-table-list"></i><span>${esc(block.title || '')}</span></div>
+    <div class="cmp-detail-table-wrap"><table class="cmp-detail-table"><colgroup><col class="cmp-detail-colrow">${cols.map(() => '<col>').join('')}</colgroup><tbody>${body}</tbody></table></div>
+  </div></td></tr>`;
 }
 function cmpSection(title, icon, rows, cols, opts = {}) {
   const full = !!opts.full;
@@ -5586,10 +5834,11 @@ function cmpSection(title, icon, rows, cols, opts = {}) {
     const cardsBtn = row.cardsKey && cols.length > 1
       ? `<button type="button" class="cmp-cards-open cmp-rowcards" data-cmp-cards="${esc(row.cardsKey)}" data-cmp-col="${esc(currentId)}" title="${esc(t('compare.cardExpand'))}" aria-label="${esc(t('compare.cardExpand'))}" aria-haspopup="dialog"><i class="fa-solid fa-up-right-and-down-left-from-center"></i></button>`
       : '';
-    return `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}${row.expandOpen ? ' cmp-open' : ''}${row.total ? ' cmp-total-row' : ''}">
+    const main = `<tr class="cmp-row${row.detail ? ' cmp-detail-row' : ''}${diff ? ' cmp-diff-row' : ''}${row.expandOpen ? ' cmp-open' : ''}${row.total ? ' cmp-total-row' : ''}">
       <th scope="row" class="cmp-rowhead${row.detail ? ' cmp-detail-label' : ''}${row.expandKey ? ' has-toggle' : ''}" title="${esc(row.label || '')}"><span class="cmp-rowhead-inner">${rowHead}${cardsBtn}</span></th>
       ${cells.map((c, i) => `<td class="cmp-cell${i > 0 && !cmpSame(first, c) ? ' cmp-changed' : ''}${ranks[i] ? ' cmp-' + ranks[i] : ''}"${ranks[i] ? ` title="${esc(t('compare.' + ranks[i]))}"` : ''}>${c.html}</td>`).join('')}
     </tr>`;
+    return main + (row.detailBlock ? cmpDetailBlockHtml(row.detailBlock, cols) : '');
   }).join('');
   return `<section class="cmp-sec${full ? ' cmp-sec-main' : ''}" aria-labelledby="${sid}">
     <div class="cmp-sec-head" id="${sid}"><i class="${icon}"></i><span>${esc(title)}</span>${opts.badge ? `<span class="cmp-sec-badge">${opts.badge}</span>` : ''}</div>
@@ -5622,14 +5871,15 @@ function cmpSpecRows(data) {
         const swap = hasOpts
           ? `<button class="cmp-cards-open cmp-swap" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(id)}" title="${esc(t('compare.cardOptions'))}" aria-label="${esc(t('compare.cardOptions'))}"><span class="cmp-swap-ico"><i class="fa-solid fa-layer-group"></i><i class="fa-solid fa-right-left"></i></span></button>`
           : '';
-        return cmpCell(`<div class="cmp-product"><div class="cmp-prow"><div class="cmp-pname">${esc(p.name || '—')}</div>${swap}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>`, (p.name || '') + '|' + price.toFixed(2), null, 0);
+        return cmpCell(`<div class="cmp-product"><div class="cmp-prow"><div class="cmp-pname">${esc(productDisplayName(p) || '—')}</div>${swap}</div><div class="cmp-pmeta">${(p.qty || 1) > 1 ? `×${p.qty} · ` : ''}${eur(price)}</div></div>`, (productDisplayName(p) || '') + '|' + price.toFixed(2), null, 0);
       });
       const hasAny = prods.some(Boolean);
       /* Only show the chevron when there is something to expand. */
-      const canExpand = hasAny && prods.some(p => p && (p.datasheet || p.specs));
+      const canExpand = hasAny && prods.some(p => p && (p.datasheet || p.specs || (p.dsSections && p.dsSections.length)));
       const open = !!cmpState.openSpecs[id] && canExpand;
-      rows.push({ label, icon: iconHtml(defOf(sl).icon), cells, expandKey: canExpand ? id : null, expandOpen: open, cardsKey: data.cols.length > 1 ? id : null });
-      if (canExpand && open) cmpDsRows(label, prods).forEach(r => rows.push(r));
+      const row = { label, icon: iconHtml(defOf(sl).icon), cells, expandKey: canExpand ? id : null, expandOpen: open, cardsKey: data.cols.length > 1 ? id : null };
+      if (canExpand && open) row.detailBlock = cmpDsRows(label, prods);
+      rows.push(row);
     });
   });
   if (!rows.length) return [];
@@ -5865,7 +6115,7 @@ function cmpOptionsHtml(colId, slotId) {
   if (!col || !s) return `<p class="hint">${esc(t('compare.noAlt'))}</p>`;
   const sorted = products.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
   const curUrl = cmpNormUrl(p && p.idealo);
-  const altHtml = sorted.map(x => `<button class="cmp-opt-row${x.id === s.selectedId ? ' current' : ''}" data-cmp-pickprod="${esc(x.id)}"${x.id === s.selectedId ? ' aria-current="true"' : ''}><span class="cmp-opt-main"><strong>${esc(x.name || '—')}</strong><small>${x.idealo ? 'Idealo' : (lang === 'en' ? 'Manual entry' : 'Fiche manuelle')}</small></span><span class="cmp-opt-price">${eur(x.price)}</span></button>`).join('') || `<p class="hint">${esc(t('compare.noAlt'))}</p>`;
+  const altHtml = sorted.map(x => `<button class="cmp-opt-row${x.id === s.selectedId ? ' current' : ''}" data-cmp-pickprod="${esc(x.id)}"${x.id === s.selectedId ? ' aria-current="true"' : ''}><span class="cmp-opt-main"><strong>${esc(productDisplayName(x) || '—')}</strong><small>${x.idealo ? 'Idealo' : (lang === 'en' ? 'Manual entry' : 'Fiche manuelle')}</small></span><span class="cmp-opt-price">${eur(x.price)}</span></button>`).join('') || `<p class="hint">${esc(t('compare.noAlt'))}</p>`;
   const varHtml = variants.map((it, i) => {
     const cur = curUrl && cmpNormUrl(it.url) === curUrl;
     return `<button class="cmp-opt-row${cur ? ' current' : ''}" data-cmp-pickvar="${i}"${cur ? ' aria-current="true"' : ''}><span class="cmp-opt-main"><strong>${esc(it.name || '—')}</strong><small>${cur ? (lang === 'en' ? 'Current variant' : 'Variante actuelle') : (lang === 'en' ? 'Variant' : 'Variante')}</small></span><span class="cmp-opt-price">${eur(it.price)}</span></button>`;
@@ -6013,18 +6263,18 @@ function cmpCardHtml(c, slotId, focusColId) {
   const meta = cmpVersionLabel(c);
   const optCount = cmpOptionsCount(s, p);
   const optDisabled = !p || !optCount;
-  const optBtn = `<button type="button" class="cmp-card-opt${optDisabled ? ' is-disabled' : ''}" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(optDisabled ? t('compare.noAlt') : t('compare.cardOptions'))}"${optDisabled ? ' disabled aria-disabled="true"' : ''}><i class="fa-solid fa-list-ul"></i><span>${esc(t('compare.alts'))}</span><i class="fa-solid fa-chevron-down"></i></button>`;
+  const optIcon = `<button type="button" class="cmp-card-opt-ico${optDisabled ? ' is-disabled' : ''}" data-cmp-cardopts="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(optDisabled ? t('compare.noAlt') : t('compare.cardOptions'))}" aria-label="${esc(optDisabled ? t('compare.noAlt') : t('compare.cardOptions'))}" aria-haspopup="dialog"${optDisabled ? ' disabled aria-disabled="true"' : ''}><i class="fa-solid fa-list-ul"></i></button>`;
   const addBtn = p && !isCurrent
     ? (cmpAltExists(slotId, p)
       ? `<button type="button" class="cmp-card-add is-added" disabled><i class="fa-solid fa-check"></i><span>${esc(t('compare.addedAlt'))}</span></button>`
       : `<button type="button" class="cmp-card-add" data-cmp-addalt="${esc(c.id)}" data-cmp-slot="${esc(slotId)}" title="${esc(t('compare.addAltTitle'))}"><i class="fa-solid fa-plus"></i><span>${esc(t('compare.addAlt'))}</span></button>`)
-    : '';
+    : `<span class="cmp-card-add is-placeholder" aria-hidden="true"><i class="fa-solid fa-plus"></i><span>${esc(t('compare.addAlt'))}</span></span>`;
   return `<article class="cmp-card${c.id === focusColId ? ' is-focus' : ''}" style="--cmp-accent:${accent}">
-    <div class="cmp-card-top"><span class="cmp-card-badge">${esc(isCurrent ? t('compare.cardCurrent') : meta)}</span><span class="cmp-card-col" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span></div>
+    <div class="cmp-card-top"><span class="cmp-card-badge">${esc(isCurrent ? t('compare.cardCurrent') : meta)}</span><span class="cmp-card-col" title="${esc(c.name || '')}">${esc(c.name || 'Ma Config')}</span>${optIcon}</div>
     ${p
       ? `${p.image ? `<img class="cmp-card-img" src="${esc(p.image)}" alt="" loading="lazy">` : `<div class="cmp-card-img cmp-card-noimg">${iconHtml(defOf(s).icon)}</div>`}
         <div class="cmp-card-body">
-          <h3 class="cmp-card-name">${esc(p.name || '—')}</h3>
+          <h3 class="cmp-card-name">${esc(productDisplayName(p) || '—')}</h3>
           ${p.vendor ? `<div class="cmp-card-vendor">${esc(p.vendor)}</div>` : ''}
           <div class="cmp-card-price">${eur(unitTotal(p))}${Number(p.delivery) > 0 ? ` <small>${esc(t('compare.cardDelivery'))}</small>` : ''}</div>
           ${(Number(p.qty) || 1) > 1 ? `<div class="cmp-card-pmeta">${esc(t('compare.cardQty'))} ×${p.qty}</div>` : ''}
@@ -6032,7 +6282,7 @@ function cmpCardHtml(c, slotId, focusColId) {
           ${cmpCardLinks(p)}
         </div>`
       : `<div class="cmp-card-empty"><i class="fa-solid fa-circle-minus"></i><span>${esc(t('compare.emptySlot'))}</span></div>`}
-    <div class="cmp-card-actions">${optBtn}${addBtn}</div>
+    <div class="cmp-card-actions">${addBtn}</div>
   </article>`;
 }
 function cmpCardsHtml(slotId, focusColId) {
@@ -6062,11 +6312,17 @@ function cmpApplyCardSizing(box) {
   if (!box) return;
   const count = Math.max(1, cmpState.cols.length);
   box.style.setProperty('--cmp-card-count', String(count));
-  if (window.innerWidth <= 960) box.style.setProperty('--cmp-card-w', 'calc(60vw - 10px)');
+  if (window.innerWidth <= 960) box.style.setProperty('--cmp-card-w', 'min(60vw, 240px)');
   else {
     const avail = Math.min(window.innerWidth * 0.96, 1600) - 210;
-    box.style.setProperty('--cmp-card-w', Math.round(Math.max(180, Math.min(300, Math.floor(avail / count)))) + 'px');
+    box.style.setProperty('--cmp-card-w', Math.round(Math.max(180, Math.min(240, Math.floor(avail / count)))) + 'px');
   }
+}
+function cmpBindCardsScroll(body) {
+  const wrap = body && body.querySelector('.cmp-cards-wrap');
+  if (!wrap || wrap.dataset.cmpOptBound) return;
+  wrap.dataset.cmpOptBound = '1';
+  wrap.addEventListener('scroll', cmpCloseOptPop, { passive: true });
 }
 function cmpOpenCards(slotId, focusColId) {
   if (!cmpState.cols.length) return;
@@ -6077,14 +6333,15 @@ function cmpOpenCards(slotId, focusColId) {
   cmpApplyCardSizing(box);
   const body = $('#modalBody');
   refreshIcons(body);
-  const wrap = body && body.querySelector('.cmp-cards-wrap');
-  if (wrap) wrap.scrollTop = 0;
-  const focus = wrap && wrap.querySelector('.cmp-card.is-focus');
-  if (focus && wrap.scrollWidth > wrap.clientWidth) {
-    const rr = wrap.getBoundingClientRect(), fr = focus.getBoundingClientRect();
-    const label = wrap.querySelector('.cmp-cards-corner') || wrap.querySelector('.cmp-cards-dslabel');
+  cmpBindCardsScroll(body);
+  const scroller = (body && body.querySelector('.cmp-cards-wrap')) || body;
+  if (scroller) scroller.scrollTop = 0;
+  const focus = body && body.querySelector('.cmp-card.is-focus');
+  if (focus && scroller && scroller.scrollWidth > scroller.clientWidth) {
+    const rr = scroller.getBoundingClientRect(), fr = focus.getBoundingClientRect();
+    const label = scroller.querySelector('.cmp-cards-corner') || scroller.querySelector('.cmp-cards-dslabel');
     const labelW = label ? label.getBoundingClientRect().width : 0;
-    wrap.scrollLeft = Math.max(0, wrap.scrollLeft + (fr.left - rr.left) - labelW);
+    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + (fr.left - rr.left) - labelW);
   }
 }
 function cmpRefreshCards() {
@@ -6093,13 +6350,14 @@ function cmpRefreshCards() {
   const body = $('#modalBody');
   const box = $('#modalBox');
   cmpApplyCardSizing(box);
-  const oldWrap = body.querySelector('.cmp-cards-wrap');
-  const left = oldWrap ? oldWrap.scrollLeft : 0;
-  const top = oldWrap ? oldWrap.scrollTop : 0;
+  const oldScroller = body.querySelector('.cmp-cards-wrap');
+  const left = oldScroller ? oldScroller.scrollLeft : 0;
+  const top = oldScroller ? oldScroller.scrollTop : 0;
   body.innerHTML = cmpCardsHtml(cmpCardsState.slotId, cmpCardsState.focusColId);
   refreshIcons(body);
-  const wrap = body.querySelector('.cmp-cards-wrap');
-  if (wrap) { wrap.scrollLeft = left; wrap.scrollTop = top; }
+  cmpBindCardsScroll(body);
+  const scroller = body.querySelector('.cmp-cards-wrap');
+  if (scroller) { scroller.scrollLeft = left; scroller.scrollTop = top; }
 }
 async function cmpSelectVariant(col, slotId, item, opts = {}) {
   const s = col.st.slots && col.st.slots[slotId];
@@ -6126,14 +6384,20 @@ async function cmpSelectVariant(col, slotId, item, opts = {}) {
   } catch { /* fall back to card data */ }
   try {
     if (!cmpState.cols.includes(col)) return;
+    const current = s.products.find(x => x.id === s.selectedId) || null;
     const np = blankProduct();
     np.idealo = item.url;
     np.name = (d && !d.error && d.name) || item.name || '';
     if (!np.name) { toast(t('compare.variantErr')); return; }
+    if (current) {
+      np.baseName = current.baseName || current.name || '';
+      np.variantName = np.name;
+    }
     np.image = (d && !d.error && d.img) || item.img || '';
+    if (d && !d.error && d.images && d.images.length) np.images = pdUnique([np.image, ...d.images].filter(Boolean)).slice(0, 12);
     np.specs = (d && !d.error && d.specs) || '';
     np.datasheet = (d && !d.error && d.datasheet) ? sanitizeDs(d.datasheet) : '';
-    np.variants = (d && !d.error && d.variants) || (s.products.find(x => x.id === s.selectedId)?.variants) || null;
+    np.variants = (d && !d.error && d.variants) || (current && current.variants) || null;
     np.price = Number(item.price) || Number(d && d.price) || 0;
     if (r && !r.error && r.offers && r.offers.length) {
       const o = r.offers[0];
@@ -6586,12 +6850,10 @@ function openWelcome() {
     });
   };
   $('#wAiGo').onclick = () => {
-    $('#wMain').classList.add('hidden');
-    const ai = $('#wAi');
-    ai.classList.remove('hidden');
+    showAiPage();
     const slide = $('#wSlide');
     if (slide) { slide.classList.add('pre'); requestAnimationFrame(() => requestAnimationFrame(() => slide.classList.remove('pre'))); }
-    refreshIcons();
+    renderAiSession();
   };
   $('#wBack').onclick = () => { $('#wAi').classList.add('hidden'); $('#wMain').classList.remove('hidden'); setWelcomeView('new'); };
   $('#wAiBudget').onchange = e => { const v = parseFloat(e.target.value) || 0; if (v > 0) { state.budget = v; persist(); refresh(); } };
@@ -6641,35 +6903,63 @@ function openWelcome() {
     toast(t('welcome.sentHint'));
   };
   $('#wBuild').onclick = () => {
-    if (aiBuilding) { aiRunId++; return; } // stop : la boucle s'arrete apres l'item en cours
+    if (aiBuilding) {
+      aiRunId++;
+      if (aiSession) {
+        aiSession.running = false;
+        aiSession.stopped = true;
+        aiSession.progress = { state: 'warn', label: t('welcome.stopped'), ref: '', count: aiSession.progress ? aiSession.progress.count : '' };
+        aiPaintProgress();
+        aiPaintBuildButton();
+      }
+      return;
+    }
     const paste = $('#wPaste').value;
     const items = AiParse.parseResponse(paste);
     if (!items.length) { toast(t('welcome.noParse')); return; }
     const bud = $('#wAiBudget') ? parseFloat($('#wAiBudget').value) || 0 : 0;
+    /* Keep the parsed build outside the modal DOM: the unsaved guard replaces
+       it, and the AI page may be closed/reopened while the loop is running. */
+    aiSession = aiNewSession(paste, bud, items);
     // "Creer avec IA" construit une NOUVELLE config : sauvegarder/abandonner le brouillon d'abord.
     const start = () => {
       resetDraftForBuild();
       if (bud > 0) state.budget = bud;
-      // Après la garde "non sauvegardé", le modal a été remplacé : reconstruire
-      // systématiquement la vue IA avant de lancer la boucle.
-      reopenWelcomeAi(paste, bud);
-      aiBuild(items);
+      reopenWelcomeAi();
+      aiBuild(aiSession);
     };
-    guardUnsaved(start, () => reopenWelcomeAi(paste, bud));
+    guardUnsaved(start, () => reopenWelcomeAi());
   };
 }
-/* Re-rend le popup de bienvenue sur la page IA (apres un passsage par la garde "non sauvegarde"). */
-function reopenWelcomeAi(paste, budget) {
-  openWelcome();
+function aiNewSession(paste, budget, items) {
+  return {
+    paste: paste || '',
+    budget: Number(budget) || 0,
+    items: items || [],
+    slots: (items || []).map(it => AiParse.typeToSlot(it.type)),
+    statuses: (items || []).map(() => ({ state: 'queued', vendor: '' })),
+    progress: { state: 'queued', label: t('welcome.stepQueued'), ref: (items && items[0] && items[0].ref) || '', count: `0/${(items || []).length}` },
+    running: false, finished: false, stopped: false, ok: 0, skipped: [], runId: 0
+  };
+}
+function showAiPage() {
   const main = $('#wMain'), ai = $('#wAi');
   if (main) main.classList.add('hidden');
   if (ai) ai.classList.remove('hidden');
-  const p = $('#wPaste'); if (p) p.value = paste || '';
-  const b = $('#wAiBudget'); if (b && budget > 0) b.value = String(budget);
+  refreshIcons();
+}
+/* Re-render the welcome popup on the AI page after the unsaved guard
+   replaced the modal, on reopen, or after coming back from the main page. */
+function reopenWelcomeAi(paste, budget, items) {
+  if (!aiSession && items && items.length) aiSession = aiNewSession(paste, budget, items);
+  openWelcome();
+  showAiPage();
+  renderAiSession();
   refreshIcons();
 }
 function aiAskSlot(host, it) {
   return new Promise(resolve => {
+    if (!host) { resolve(null); return; }
     const row = document.createElement('div');
     row.className = 'wrow wrow-ask';
     row.innerHTML = `<span class="grow"><strong>${esc(it.type)} : ${esc(it.ref)}</strong><br><small>${esc(t('welcome.askSlot'))}</small></span>
@@ -6705,43 +6995,107 @@ async function aiFindRef(it) {
   return null;
 }
 async function importAiProduct(slotId, it, link) {
-  const np = blankProduct();
-  np.name = it.name; np.image = it.img || ''; np.idealo = it.url || '';
-  np.price = it.price || 0; np.specs = it.specs || ''; np.vendor = it.vendor || '';
-  np.delivery = it.delivery || 0; np.src = it.src || ''; np.ai = true;
-  if (link && !/idealo\.fr/i.test(link)) np.store = link; // lien marchand fourni par l'IA
-  const idealoUrl = /idealo\./i.test(it.url || '');
+  const sourceUrl = itemIdealoUrl(it);
+  const np = pickerItemProduct(it);
+  np.ai = true;
+  np.src = it.src || np.src;
+  const idealoPage = isIdealoProductUrl(sourceUrl);
+  if (link && !isIdealoProductUrl(link)) np.store = link; // lien marchand fourni par l'IA
   let fetchedPrice = false;
-  if (idealoUrl && typeof Idealo !== 'undefined') {
-    const [prodRes, offersRes] = await Promise.allSettled([Idealo.product(it.url), Idealo.offers(it.url)]);
-    const d = prodRes.status === 'fulfilled' ? prodRes.value : null;
-    if (d && !d.error) {
-      if (d.datasheet) { np.datasheet = sanitizeDs(d.datasheet); np.dsClean = false; }
-      if (d.specs && !np.specs) np.specs = d.specs;
-      if (d.name && !np.name) np.name = d.name;
-      if (d.image && !np.image) np.image = d.image;
-      if (Number(d.price) > 0) { np.price = Number(d.price); fetchedPrice = true; }
-    }
-    const r = offersRes.status === 'fulfilled' ? offersRes.value : null;
-    if (r && !r.error && Array.isArray(r.offers) && r.offers.length) {
-      const offerTotal = o => (Number(o.delivered) > 0 ? Number(o.delivered) : Number(o.price) || 0);
-      const o = [...r.offers].sort((a, b) => offerTotal(a) - offerTotal(b))[0];
-      if (o.merchant) np.vendor = o.merchant;
-      if (Number(o.price) > 0) { np.price = Number(o.price); fetchedPrice = true; }
-      if (Number(o.delivered) > 0 && Number(o.price) > 0) np.delivery = Math.max(0, Math.round((Number(o.delivered) - Number(o.price)) * 100) / 100);
-      if (o.url) np.store = o.url;
-      if (o.promo) np.promo = true;
+  let productData = null;
+  let offersData = null;
+  if (idealoPage && typeof Idealo !== 'undefined') {
+    const [prodRes, offersRes] = await Promise.allSettled([Idealo.product(sourceUrl), Idealo.offers(sourceUrl)]);
+    productData = prodRes.status === 'fulfilled' ? prodRes.value : null;
+    offersData = offersRes.status === 'fulfilled' ? offersRes.value : null;
+    mergeProductData(np, productData);
+    if (productData && !productData.error && Number(productData.price) > 0) fetchedPrice = true;
+    if (offersData && !offersData.error && Array.isArray(offersData.offers) && offersData.offers.length) {
+      /* Always prefer a real merchant name, even if its total is a few cents
+         higher: the imported slot must show where the part comes from. */
+      const o = chooseOffer(offersData.offers);
+      mergeOfferData(np, o);
+      if (o && Number(o.price) > 0) fetchedPrice = true;
     }
   }
-  if (idealoUrl && !fetchedPrice) return { ok: false, reason: 'price' };
+  if (idealoPage && !fetchedPrice) return { ok: false, reason: 'price' };
+  if (!(Number(np.price) > 0)) return { ok: false, reason: 'price' };
   const s = state.slots[slotId];
   if (!s) return { ok: false, reason: 'slot' };
+  const existing = findExistingProduct(s, np);
+  if (existing) {
+    s.selectedId = existing.id;
+    return { ok: true, item: existing, existing: true };
+  }
   s.products.push(np); s.selectedId = np.id;
+  /* Finish exactly like a manual pick: same fields, same background datasheet
+     upgrade and same alternative enrichment, without refetching the two
+     responses we already have for the price gate. */
+  enrichPickerItem({ ...it, name: np.name, url: sourceUrl, idealo: sourceUrl, img: np.image, images: np.images }, np, slotId, {
+    product: productData,
+    offers: offersData,
+  });
+  queueAlternativeData(slotId);
   return { ok: true, item: np };
 }
 let aiRunId = 0, aiBuilding = false;
-function aiSlotLabel(slot) { return (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slot; }
-function aiSlotIcon(slot) { const d = SLOT_DEFS.find(x => x.id === slot); return iconHtml(d ? d.icon : 'fa-solid fa-question'); }
+let aiSession = null;
+function aiCompAt(i) {
+  return document.querySelector(`#wAiComps .wcomp[data-ai-idx="${Number(i)}"]`);
+}
+function aiPaintBuildButton() {
+  const btn = $('#wBuild'); if (!btn) return;
+  if (aiSession && aiSession.running) {
+    const p = aiSession.progress || {};
+    btn.innerHTML = `<i class="fa-solid fa-stop"></i> ${esc(p.button || t('welcome.stop'))}`;
+  } else {
+    btn.innerHTML = `<i class="fa-solid fa-gears"></i> ${esc(t('welcome.build'))}`;
+  }
+}
+function aiPaintProgress() {
+  const host = $('#wProgs'); if (!host) return;
+  const s = aiSession;
+  if (!s) { host.innerHTML = ''; return; }
+  if (!s.running && !s.finished && !s.progress) { host.innerHTML = ''; return; }
+  const p = s.progress || { state: 'queued', label: t('welcome.stepQueued'), ref: (s.items[0] && s.items[0].ref) || '', count: `0/${s.items.length}` };
+  const icons = { queued: 'fa-circle', search: 'fa-magnifying-glass', import: 'fa-download', manual: 'fa-hand-pointer', done: 'fa-check', warn: 'fa-forward' };
+  let html = `<div id="wProg" class="wprog st-${esc(p.state || 'queued')}" aria-live="polite"><span class="wprog-ic"><i class="fa-solid ${icons[p.state] || 'fa-circle'}"></i></span><span class="wprog-tx">${esc([p.label || '', p.ref || ''].filter(Boolean).join(' '))}</span><span class="wprog-st">${esc(p.count || '')}</span></div>`;
+  if (s.finished) {
+    const skipped = s.skipped || [];
+    html += `<p class="hint">${s.ok} ✓${s.stopped ? ' · ' + esc(t('welcome.stopped')) : ''}${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(x => x.type + ' : ' + x.ref).join(' | '))}` : ''}</p>
+      <div class="btn-row"><button class="btn btn-primary" id="wOpen"><i class="fa-solid fa-computer"></i> ${esc(t('welcome.openConfig'))}</button></div>`;
+  }
+  host.innerHTML = html;
+  const go = $('#wOpen');
+  if (go) go.onclick = () => { closeModal(); showPage('config'); refresh(); };
+  refreshIcons(host);
+}
+function renderAiSession() {
+  const ai = $('#wAi');
+  if (!ai || ai.classList.contains('hidden')) return;
+  const s = aiSession;
+  const form = $('#wAiForm'), comps = $('#wAiComps'), progs = $('#wProgs');
+  if (!s) {
+    if (comps) { comps.classList.add('hidden'); comps.innerHTML = ''; }
+    if (form) form.classList.remove('hidden');
+    if (progs) progs.innerHTML = '';
+    aiPaintBuildButton();
+    return;
+  }
+  const p = $('#wPaste'); if (p) p.value = s.paste || '';
+  const b = $('#wAiBudget'); if (b && s.budget > 0) b.value = String(s.budget);
+  const list = aiRenderComps(s.items, s.slots);
+  s.statuses.forEach((st, i) => aiSetComp(list[i], st.state, st.vendor));
+  aiPaintProgress();
+  aiPaintBuildButton();
+  refreshIcons(ai);
+}
+function aiSlotLabel(slot) { return (SLOT_NAMES[lang] && SLOT_NAMES[lang][slot]) || SLOT_NAMES.fr[slot] || slotName(slot); }
+function aiSlotIcon(slot) {
+  const s = state.slots[slot];
+  const d = s ? defOf(s) : SLOT_DEFS.find(x => x.id === slot);
+  return iconHtml(d ? d.icon : 'fa-solid fa-question');
+}
 function aiDuplicateSlot(defId) {
   const base = (SLOT_NAMES[lang] && SLOT_NAMES[lang][defId]) || SLOT_NAMES.fr[defId] || defId;
   const count = state.order.filter(id => state.slots[id] && state.slots[id].defId === defId).length;
@@ -6757,30 +7111,38 @@ function aiRenderComps(items, slots) {
     const slot = slots[i];
     const d = document.createElement('div');
     d.className = 'wcomp';
-    d.innerHTML = `<span class="wcomp-ic">${slot ? aiSlotIcon(slot) : '<i class="fa-solid fa-question"></i>'}</span><span class="wcomp-tx"><strong>${esc(slot ? aiSlotLabel(slot) : it.type)}</strong>${esc(it.ref)}</span><span class="wcomp-st"><i class="fa-solid fa-circle"></i></span>`;
+    d.dataset.aiIdx = String(i);
+    d.innerHTML = `<span class="wcomp-ic">${slot ? aiSlotIcon(slot) : '<i class="fa-solid fa-question"></i>'}</span><span class="wcomp-tx"><strong>${esc(slot ? aiSlotLabel(slot) : it.type)}</strong><span class="wcomp-ref">${esc(it.ref)}</span><small class="wcomp-vendor hidden"></small></span><span class="wcomp-st"><i class="fa-solid fa-circle"></i></span>`;
     host.appendChild(d);
     return d;
   });
   refreshIcons(host); // lucide/bi injectes dynamiquement sinon invisibles
   return list;
 }
-function aiSetComp(comp, st) {
+function aiSetComp(comp, st, vendor) {
   if (!comp) return;
   comp.classList.remove('st-search', 'st-import', 'st-done', 'st-warn');
   const ic = comp.querySelector('.wcomp-st i');
   if (st === 'search') { comp.classList.add('st-search'); if (ic) ic.className = 'fa-solid fa-magnifying-glass'; }
   else if (st === 'import') { comp.classList.add('st-import'); if (ic) ic.className = 'fa-solid fa-download'; }
   else if (st === 'done') { comp.classList.add('st-done'); if (ic) ic.className = 'fa-solid fa-check'; }
+  else if (st === 'warn') { comp.classList.add('st-warn'); if (ic) ic.className = 'fa-solid fa-forward'; }
+  else if (ic) ic.className = 'fa-solid fa-circle';
+  if (vendor !== undefined) {
+    const v = comp.querySelector('.wcomp-vendor');
+    if (v) { v.textContent = vendor || ''; v.classList.toggle('hidden', !vendor); }
+  }
 }
-function aiSetProg(prog, st, it, label, count) {
-  if (!prog || !prog.el) return;
-  prog.el.classList.remove('st-queued', 'st-search', 'st-import', 'st-manual', 'st-done', 'st-warn');
-  prog.el.classList.add('st-' + st);
-  prog.el.dataset.state = st;
-  const icon = { queued: 'fa-circle', search: 'fa-magnifying-glass', import: 'fa-download', manual: 'fa-hand-pointer', done: 'fa-check', warn: 'fa-forward' }[st] || 'fa-circle';
-  if (prog.ic) prog.ic.className = 'fa-solid ' + icon;
-  if (prog.tx) prog.tx.textContent = [label || '', (it && it.ref) || ''].filter(Boolean).join(' ');
-  if (count && prog.count) prog.count.textContent = count;
+function aiSetProg(st, it, label, count) {
+  if (!aiSession) return;
+  aiSession.progress = { state: st, label: label || '', ref: (it && it.ref) || '', count: count || '' };
+  aiPaintProgress();
+}
+function aiSetCompAt(i, st, vendor) {
+  if (aiSession && aiSession.statuses[i]) {
+    aiSession.statuses[i] = { state: st, vendor: vendor === undefined ? (aiSession.statuses[i].vendor || '') : vendor };
+  }
+  aiSetComp(aiCompAt(i), st, vendor);
 }
 /* resultats Idealo complets dans le panneau droit (choix manuel) */
 function aiManualPick(slot, query, link) {
@@ -6807,7 +7169,7 @@ function aiManualPick(slot, query, link) {
       b.disabled = true;
       const added = await importAiProduct(slot, it, link);
       if (!added.ok) toast(lang === 'en' ? 'Price unavailable — component skipped' : 'Prix indisponible — composant ignoré');
-      aiRestoreRight(); resolve(!!added.ok);
+      aiRestoreRight(); resolve(added.ok ? added : false);
     });
     $('#wSkip').onclick = () => { aiRestoreRight(); resolve(false); };
   });
@@ -6817,86 +7179,95 @@ function aiRestoreRight() {
   const paste = $('#wPasteWrap'); if (paste) paste.classList.remove('hidden');
   const brow = $('#wBuildRow'); if (brow) brow.classList.remove('hidden');
 }
-async function aiBuild(items) {
-  const host = $('#wProgs'); if (!host) return;
-  host.innerHTML = '';
-  const btn = $('#wBuild');
-  const baseLbl = btn.innerHTML;
+async function aiBuild(session) {
+  if (!session) return;
+  session = session || aiSession;
+  const items = session.items || [];
+  const slots = session.slots || [];
   const my = ++aiRunId;
+  session.runId = my;
+  session.running = true; session.finished = false; session.stopped = false; session.ok = 0; session.skipped = [];
   aiBuilding = true;
-  const stopLbl = `<i class="fa-solid fa-stop"></i> ${esc(t('welcome.stop'))}`;
-  btn.innerHTML = stopLbl;
-  // pre-mapping connue + boutons a gauche
-  const slots = items.map(it => AiParse.typeToSlot(it.type));
-  host.innerHTML = `<div id="wProg" class="wprog st-queued" aria-live="polite"><span class="wprog-ic"><i class="fa-solid fa-circle"></i></span><span class="wprog-tx"></span><span class="wprog-st">0/${items.length}</span></div>`;
-  const prog = { el: $('#wProg'), ic: $('#wProg .wprog-ic i'), tx: $('#wProg .wprog-tx'), count: $('#wProg .wprog-st') };
-  aiSetProg(prog, 'queued', items[0], t('welcome.stepQueued'), `0/${items.length}`);
-  const comps = aiRenderComps(items, slots);
+  aiPaintBuildButton();
+  if (!$('#wAiComps .wcomp')) {
+    const list = aiRenderComps(items, slots);
+    session.statuses.forEach((st, i) => aiSetComp(list[i], st.state, st.vendor));
+  }
+  aiSetProg('queued', items[0], t('welcome.stepQueued'), `0/${items.length}`);
   let ok = 0; const skipped = []; let stopped = false;
   const usedSlots = new Set();
   const paintCompSlot = (i, slot) => {
-    if (!slot || !comps[i]) return;
-    comps[i].querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
-    comps[i].querySelector('.wcomp-tx strong').textContent = slotName(slot);
-    refreshIcons(comps[i]);
+    if (!slot) return;
+    slots[i] = slot;
+    const comp = aiCompAt(i);
+    if (!comp) return;
+    comp.querySelector('.wcomp-ic').innerHTML = aiSlotIcon(slot);
+    comp.querySelector('.wcomp-tx strong').textContent = slotName(slot);
+    refreshIcons(comp);
   };
+  const running = () => my === aiRunId && aiSession === session;
   for (let i = 0; i < items.length; i++) {
-    if (my !== aiRunId) { stopped = true; break; }
+    if (!running()) { stopped = true; break; }
     const it = items[i];
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 24))} · ${esc(t('welcome.stop'))}`;
-    aiSetProg(prog, 'queued', it, t('welcome.stepQueued'), `${i + 1}/${items.length}`);
+    const btn = $('#wBuild');
+    if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${i + 1}/${items.length} — ${esc(it.ref.slice(0, 24))} · ${esc(t('welcome.stop'))}`;
+    aiSetProg('queued', it, t('welcome.stepQueued'), `${i + 1}/${items.length}`);
     let slot = slots[i];
     if (!slot) {
-      aiSetProg(prog, 'manual', it, t('welcome.stepAsk'), `${i + 1}/${items.length}`);
-      slot = await aiAskSlot(host, it);
-      if (my !== aiRunId) { stopped = true; break; }
+      aiSetProg('manual', it, t('welcome.stepAsk'), `${i + 1}/${items.length}`);
+      slot = await aiAskSlot($('#wProgs'), it);
+      if (!running()) { stopped = true; break; }
       slots[i] = slot;
       paintCompSlot(i, slot);
     }
-    if (!slot) { aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); continue; }
+    if (!slot) { aiSetCompAt(i, 'warn'); aiSetProg('warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it); continue; }
     let duplicate = false;
-    if (usedSlots.has(slot)) {
+    const existingProducts = state.slots[slot] && (state.slots[slot].products || []).length;
+    if (usedSlots.has(slot) || existingProducts) {
       const defId = state.slots[slot] && state.slots[slot].defId;
       const nextSlot = defId ? aiDuplicateSlot(defId) : null;
       if (nextSlot) { slot = nextSlot; slots[i] = slot; duplicate = true; paintCompSlot(i, slot); }
     }
-    aiSetComp(comps[i], 'search'); aiSetProg(prog, 'search', it, t('welcome.stepSearch'), `${i + 1}/${items.length}`);
+    aiSetCompAt(i, 'search'); aiSetProg('search', it, t('welcome.stepSearch'), `${i + 1}/${items.length}`);
     const found = await aiFindRef(it);
-    if (my !== aiRunId) { stopped = true; break; }
+    if (!running()) { stopped = true; break; }
     if (!found) {
-      aiSetProg(prog, 'manual', it, t('welcome.stepManual'), `${i + 1}/${items.length}`);
+      aiSetProg('manual', it, t('welcome.stepManual'), `${i + 1}/${items.length}`);
       const picked = await aiManualPick(slot, it.ref, it.link);
       if (!picked) {
         if (duplicate) discardEmptySlot(slot);
-        aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
-        if (my !== aiRunId) { stopped = true; break; }
+        aiSetCompAt(i, 'warn'); aiSetProg('warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
+        if (!running()) { stopped = true; break; }
         continue;
       }
       usedSlots.add(slot);
-      aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
-      if (my !== aiRunId) { stopped = true; break; }
+      aiSetCompAt(i, 'done', picked.item && picked.item.vendor); aiSetProg('done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
+      if (!running()) { stopped = true; break; }
       continue;
     }
-    aiSetComp(comps[i], 'import'); aiSetProg(prog, 'import', it, t('welcome.stepImport'), `${i + 1}/${items.length}`);
+    aiSetCompAt(i, 'import'); aiSetProg('import', it, t('welcome.stepImport'), `${i + 1}/${items.length}`);
     const added = await importAiProduct(slot, found.item, found.link);
     if (!added.ok) {
       if (duplicate) discardEmptySlot(slot);
-      aiSetComp(comps[i], 'warn'); aiSetProg(prog, 'warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
-      if (my !== aiRunId) { stopped = true; break; }
+      aiSetCompAt(i, 'warn'); aiSetProg('warn', it, t('welcome.stepSkipped'), `${i + 1}/${items.length}`); skipped.push(it);
+      if (!running()) { stopped = true; break; }
       continue;
     }
     usedSlots.add(slot);
-    aiSetComp(comps[i], 'done'); aiSetProg(prog, 'done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
-    if (my !== aiRunId) { stopped = true; break; }
+    aiSetCompAt(i, 'done', added.item && added.item.vendor); aiSetProg('done', it, t('welcome.stepDone'), `${i + 1}/${items.length}`); ok++;
+    if (!running()) { stopped = true; break; }
   }
   aiBuilding = false;
-  aiSetProg(prog, stopped ? 'warn' : 'done', null, stopped ? t('welcome.stopped') : t('welcome.stepDone'), `${ok}/${items.length}`);
+  if (aiSession !== session) return;
+  session.running = false;
+  session.finished = true;
+  session.stopped = stopped;
+  session.ok = ok;
+  session.skipped = skipped;
+  session.progress = { state: stopped ? 'warn' : 'done', label: stopped ? t('welcome.stopped') : t('welcome.stepDone'), ref: '', count: `${ok}/${items.length}` };
   persist(); refresh();
-  host.insertAdjacentHTML('beforeend', `<p class="hint">${ok} ✓${stopped ? ' · ' + esc(t('welcome.stopped')) : ''}${skipped.length ? ` · ${skipped.length} ${esc(t('welcome.skippedN'))} : ${esc(skipped.map(s => s.type + ' : ' + s.ref).join(' | '))}` : ''}</p>
-    <div class="btn-row"><button class="btn btn-primary" id="wOpen"><i class="fa-solid fa-computer"></i> ${esc(t('welcome.openConfig'))}</button></div>`);
-  btn.innerHTML = baseLbl;
-  const go = $('#wOpen');
-  if (go) go.onclick = () => { closeModal(); showPage('config'); refresh(); };
+  aiPaintProgress();
+  aiPaintBuildButton();
 }
 function maybeWelcome() {
   try {
