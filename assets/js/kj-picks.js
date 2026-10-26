@@ -116,6 +116,14 @@ window.KJ_PICKS = {
         ],
         fans: [
             // { id: '', name: '', tags: ['recommended', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/6552437/arctic-p12-120-mm.html', name: 'ARCTIC P12 120 mm', tags: ['recommended', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/207232547/arctic-p12-pro-a-rgb.html', name: 'ARCTIC P12 Pro A-RGB', tags: ['recommended', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/210584954/arctic-p12-pro-pst-ln.html', name: 'ARCTIC P12 Pro PST LN', tags: ['top'], note: '' },
+            { id: 'https://www.idealo.fr/prix/207231145/arctic-p12-pro-pst.html', name: 'ARCTIC P12 Pro PST', tags: ['top'], note: '' },
+            { id: 'https://www.idealo.fr/prix/207231134/arctic-p14-pro-pst.html', name: 'ARCTIC P14 Pro PST', tags: ['top'], note: '' },
+            { id: 'https://www.idealo.fr/prix/208708415/arctic-p12-pro-reverse-120mm-3-pack.html', name: 'ARCTIC P12 Pro Reverse 120mm 3-pack', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203639067/be-quiet-pure-wings-3-pwm-120mm.html', name: 'be quiet! Pure Wings 3 PWM 120mm', tags: ['recommended', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/203710067/thermalright-tl-c12c-s-argb-120mm.html', name: 'Thermalright TL-C12C-S ARGB 120mm', tags: ['recommended'], note: '' },
         ],
         psucables: [
             // { id: '', name: '', tags: ['recommended'], note: '' },
