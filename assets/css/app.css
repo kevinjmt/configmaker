@@ -1602,7 +1602,6 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerToolsPanel,
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerFilters,
   #pickerPanel:not(.picker-tools-open) .picker-tools>.picker-quickrow{display:none!important}
-  #pickerPanel.picker-tools-open .picker-list{display:none!important}
   .picker-foot{position:static;bottom:auto;flex:0 0 auto;margin:10px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-radius:25px}
   #summaryPanel.hidden,#pickerPanel.hidden,#editorPanel.hidden,#tutorialVideoPanel.hidden{display:none!important}
   body.summary-sheet-open #summaryPanel,body.picker-sheet-open #pickerPanel,body.editor-sheet-open #editorPanel,body.tutorial-sheet-open #tutorialVideoPanel{visibility:visible;opacity:1;transform:none}

@@ -3023,6 +3023,10 @@ function setPickerToolsOpen(open) {
   const panel = $('#pickerPanel');
   if (!panel) return;
   panel.classList.toggle('picker-tools-open', !!open);
+  if (isMobileView()) {
+    pickerMoreOpen = !!open;
+    renderPickerFilters();
+  }
   const btn = $('#pickerToolsBtn');
   if (btn) {
     btn.classList.toggle('active', !!open);
