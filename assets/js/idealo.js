@@ -1,0 +1,881 @@
+/* ConfigMaker — Idealo listing fetcher.
+   Source: idealo.fr pages via Jina Reader (anonymous, ~20 req/min shared).
+   Cached 6h in localStorage. list() resolves {items,next,cached} or {error}.
+   Handles 3 layouts: linked cards (search), unlinked blocks (categories),
+   suggestion links (search fallback). Sort variants via ?sortKey=minPrice|maxPrice. */
+'use strict';
+const Idealo = (() => {
+  const READER = 'https://r.jina.ai/';
+  const LS_KEY = 'cmv2.idealo';
+  const TTL = 6 * 3600 * 1000;
+  const GAP_MS = 3000;
+  const TIMEOUT_MS = 30000;
+  let lastT = 0, chain = Promise.resolve();
+
+  const SORTS = [
+    { key: 'rel', param: '' },
+    { key: 'asc', param: '?sortKey=minPrice' },
+    { key: 'desc', param: '?sortKey=maxPrice' },
+  ];
+  function sortUrl(base, key) {
+    if (!key || key === 'rel') return base;
+    const s = SORTS.find(x => x.key === key);
+    if (!s) return base;
+    return base + (base.includes('?') ? '&' : '?') + s.param.slice(1);
+  }
+
+  const lsGet = k => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); } catch { return null; } };
+  const lsSet = (k, v) => { try { return (typeof StoreDB !== 'undefined' ? StoreDB.putRaw(k, v) : (localStorage.setItem(k, v), true)); } catch { return false; } };
+  const cache = (() => { try { return JSON.parse(lsGet(LS_KEY)) || {}; } catch { return {}; } })();
+  function persist() {
+    if (lsSet(LS_KEY, JSON.stringify(cache)) === true) return;
+    try { const ks = Object.keys(cache); if (ks.length) { delete cache[ks[0]]; lsSet(LS_KEY, JSON.stringify(cache)); } } catch { /* ignore */ }
+  }
+  /* Drop oldest cached pages, keep newest N (called when storage quota bites). */
+  function pruneCache(keep = 3) {
+    try {
+      const ks = Object.keys(cache).sort((a, b) => ((cache[a] && cache[a].t) || 0) - ((cache[b] && cache[b].t) || 0));
+      while (ks.length > keep) { const k = ks.shift(); delete cache[k]; }
+      persist();
+    } catch { /* ignore */ }
+  }
+
+  function parsePrice(s) {
+    if (!s) return 0;
+    const n = parseFloat(String(s).replace(/[\s]+/g, '').replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+  }
+  function imgProductId(img) {
+    let m = String(img || '').match(/\/folder\/Product\/\d+\/\d+\/(\d+)\//);
+    if (m) return m[1];
+    m = String(img || '').match(/\/images\/product\/(\d+)\//);
+    return m ? m[1] : '';
+  }
+  function imgSlug(img) {
+    const m = String(img || '').match(/\/([^/]+)\.(?:jpg|jpeg|png|webp)(?:[?#]|$)/i);
+    if (!m) return '';
+    const s = m[1].trim();
+    return (/[a-zA-Z]/.test(s) && !/^\d+$/.test(s)) ? s : '';
+  }
+  function listingUrl(img) {
+    const id = imgProductId(img);
+    if (!id) return '';
+    const slug = imgSlug(img);
+    return `https://www.idealo.fr/prix/${id}/${slug ? slug + '.html' : ''}`;
+  }
+  function prettify(s) {
+    return String(s || '').split(/[-_\s]+/).map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ').replace(/\s+/g, ' ').trim();
+  }
+  function cleanSpecs(lines, altName) {
+    const out = [];
+    for (let ln of lines) {
+      ln = ln.trim();
+      if (!ln) { if (out.length) break; else continue; }
+      if (/^(note\s*∅|détails du produit|d'occasion|n°\d|…|\.\.\.)/i.test(ln)) break;
+      if (/^\d+\s+offres?\s*$/i.test(ln)) break;
+      if (/^[\d\s]+[.,]\d{2}\s*€\s*$/.test(ln)) break;
+      if (/^à partir de\b/i.test(ln)) break;
+      if (/^\d+$/.test(ln)) continue;
+      if (altName && altName.length > 3) ln = ln.split(altName).join(' ').split(altName.toLowerCase()).join(' ');
+      ln = ln.replace(/\s+/g, ' ').trim();
+      if (!ln) continue;
+      out.push(ln);
+      if (out.join(' ').length > 140) break;
+    }
+    return out.join(' ').replace(/\]\([^)]*\)/g, '').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  }
+
+  /* Split markdown on product images; parse each following text block. */
+  function parseBlocks(md) {
+    const items = [];
+    const parts = String(md || '').split(/!\[Image \d+: ([^\]]*)\]\(([^)]+)\)/);
+    // parts: [pre, alt1, img1, text1, alt2, img2, text2, ...]
+    for (let i = 1; i + 2 < parts.length + 1 && i + 1 < parts.length; i += 3) {
+      const alt = (parts[i] || '').trim();
+      const img = (parts[i + 1] || '').trim();
+      const text = parts[i + 2] || '';
+      if (!img || !/cdn\.idealo\.com/i.test(img)) continue;
+      if (/app_icon|design-system/i.test(img)) continue;
+      const id = imgProductId(img);
+      if (!id) continue;
+      if (items.some(x => x.pid === id)) continue;
+      if (/\d+\s+produits\b/i.test(text)) continue; // filter card, not a product
+      const lines = text.split('\n');
+      let offers = 0, price = 0;
+      const mp = text.match(/à partir de\s+([\d\s]+[.,]\d{2})\s*€/i);
+      let money = null;
+      if (mp) { price = parsePrice(mp[1]); }
+      else {
+        const all = [...text.matchAll(/([\d\s]+[.,]\d{2})\s*€/g)];
+        if (all.length) { money = all[all.length - 1]; price = parsePrice(money[1]); }
+      }
+      let pre = money ? text.slice(0, money.index) : (mp ? text.slice(0, mp.index) : text);
+      const mo = pre.match(/(\d+)\s+offres?\s*$/i);
+      if (mo) offers = parseInt(mo[1], 10) || 0;
+      if (!price && !offers) continue; // no usable listing data
+      const specs = cleanSpecs(lines, alt);
+      const slug = imgSlug(img);
+      items.push({
+        pid: id,
+        name: alt || prettify(slug),
+        img, specs, offers, price,
+        url: `https://www.idealo.fr/prix/${id}/${slug ? slug + '.html' : ''}`,
+      });
+    }
+    return items;
+  }
+
+  function cleanBody(b, alt) {
+    let s = String(b || ' ').replace(/\s+/g, ' ').trim();
+    s = s.replace(/\d+\s+Note\s*\u2205\s*\d+\/20/gi, '')
+      .replace(/(\d+)\s+offres?\b.*/i, '')
+      .replace(/(\d+)\s+à partir de/i, 'à partir de')
+      .replace(/à partir de\s+.*/i, '')
+      .replace(/[\d\s]+[.,]\d{2}\s*€\s*$/i, '')
+      .replace(/\.{3}plus.*/i, '')
+      .replace(/\]\([^)]*\)/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\s+/g, ' ').trim();
+    if (alt && alt.length > 3) s = s.split(alt).join(' ').split(alt.toLowerCase()).join(' ');
+    s = s.replace(/\s+/g, ' ').replace(/^[·,;:\-–\s]+/, '').trim();
+    return s.slice(0, 160);
+  }
+
+  /* Linked cards: [![Image N: ALT](IMG) BODY](https://www.idealo.fr/prix/…) */
+  function parseLinked(md) {
+    const items = [];
+    const re = /\[!\[Image \d+: ([^\]]*)\]\(([^)]+)\)((?:(?!\]\(|\!\[Image)[\s\S])*?)\]\((https:\/\/www\.idealo\.fr\/prix\/[^)\s]+)\)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const alt = m[1].trim(), img = m[2].trim(), body = m[3], url = m[4];
+      if (items.some(x => x.url === url)) continue;
+      const idm = url.match(/\/prix\/(\d+)/);
+      const slug = (url.split('?')[0].split('/').filter(Boolean).pop() || '').replace(/\.html?$/i, '');
+      let b = body.replace(/\s+/g, ' ').trim();
+      let offers = 0, price = 0;
+      const mp = b.match(/à partir de\s+([\d\s]+[.,]\d{2})\s*€/i);
+      if (mp) price = parsePrice(mp[1]);
+      const mo = b.match(/(\d+)\s+offres?\b/i);
+      if (mo) offers = parseInt(mo[1], 10) || 0;
+      const nm = alt.includes(' ') ? alt : (prettify(slug) || alt);
+      items.push({ pid: idm ? idm[1] : '', name: nm, img, specs: cleanBody(body, nm), offers, price, url });
+    }
+    return items;
+  }
+
+  /* Search suggestions: [NAME-dans CAT](https://www.idealo.fr/prix/…) */
+  function parseSuggestions(md) {
+    const items = [];
+    const re = /\[([^\]\n]{2,120})-dans ([^\]\n]{2,60})\]\((https:\/\/www\.idealo\.fr\/prix\/[^)\s]+)[^)]*\)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const name = m[1].trim(), cat = m[2].trim(), url = m[3];
+      if (/^rech/i.test(name)) continue;
+      if (items.some(x => x.url === url)) continue;
+      const idm = url.match(/\/prix\/(\d+)/);
+      items.push({ pid: idm ? idm[1] : '', name, img: '', specs: cat, offers: 0, price: 0, url });
+    }
+    return items;
+  }
+
+  /* /liste/ pages, product-link variant:
+     ![Image N: ALT](IMG) \n\n [NAME](/prix/…) \n\n specs… \n\n N offres \n\n à partir de X € */
+  function parseListeProducts(md) {
+    const items = [];
+    const re = /!\[Image \d+: ([^\]]*)\]\(([^)]+)\)\s*\n\n\[([^\]\n]{2,150})\]\((https:\/\/www\.idealo\.fr\/prix\/[^)\s]+)\)([\s\S]*?)(?=\n!\[Image |\n\[[^\]\n]+\]\(https:\/\/www\.idealo\.fr\/prix\/|$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const alt = m[1].trim(), img = m[2].trim(), name = m[3].trim(), url = m[4], body = m[5] || '';
+      if (items.some(x => x.url === url)) continue;
+      const idm = url.match(/\/prix\/(\d+)/);
+      const b = body.replace(/\s+/g, ' ').trim();
+      let offers = 0, price = 0;
+      const mp = b.match(/à partir de\s+([\d\s]+[.,]\d{2})\s*€/i);
+      if (mp) price = parsePrice(mp[1]);
+      const mo = b.match(/(\d+)\s+offres?\b/i);
+      if (mo) offers = parseInt(mo[1], 10) || 0;
+      const nm = name.includes(' ') ? name : (alt.includes(' ') ? alt : name);
+      items.push({ pid: idm ? idm[1] : '', name: nm, img, specs: cleanBody(b, nm), offers, price, url });
+    }
+    return items;
+  }
+
+  /* /liste/ pages, direct-offer variant (no product links).
+     Image + optional title line(s), then "Vendu par : SHOP", delivery info,
+     shipping ("Frais de port : X €" | "Livraison gratuite"), then "PRICE €TVA…".
+     NOTE: the trailing "Nouveau / populaires / Plus de résultats" carousels
+     (unrelated products) are cut off by parseMarkdown before calling parsers. */
+  function cleanVendor(v) {
+    return String(v || '').replace(/^(www\.|fr\.)/i, '').trim();
+  }
+  function parseListeOffers(md) {
+    const items = [];
+    const re = /!\[Image \d+: ([^\]]{2,250})\]\(([^)]+)\)([\s\S]{0,600}?)\nVendu par\s*:\s*([^\n]+)\s*\n\n([\s\S]*?)(?=\n!\[Image |\s*$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const alt = m[1].trim(), img = m[2].trim(), gap = m[3] || '';
+      if (gap.includes('![Image')) continue;
+      const vendor = cleanVendor(m[4]);
+      const body = m[5] || '';
+      const titleLn = gap.split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('!['))[0] || '';
+      const name = titleLn.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim() || alt;
+      if (items.some(x => x.img === img)) continue;
+      let delivery = 0;
+      if (/Livraison gratuite/i.test(body)) delivery = 0;
+      else {
+        const dm = body.match(/Frais de port\s*:\s*([\d\s]+[.,]\d{2})\s*€/i);
+        if (dm) delivery = parsePrice(dm[1]);
+      }
+      const all = [...body.matchAll(/([\d\s]+[.,]\d{2})\s*€/g)];
+      const price = all.length ? parsePrice(all[all.length - 1][1]) : 0;
+      if (!price) continue;
+      items.push({ pid: '', name, img, specs: '', offers: 0, price, delivery, vendor, url: '' });
+    }
+    return items;
+  }
+
+  function parseMarkdown(md, baseUrl) {
+    md = String(md || '');
+    // cut off trailing "new / popular / more results" carousels (unrelated products);
+    // pagination discovery below still uses the full document.
+    const cutAt = [
+      md.search(/^## Ces résultats de recherche.*$/m),
+      md.search(/^### Nouveau dans.*$/m),
+      md.search(/^### Produits les plus populaires.*$/m),
+      md.search(/^### Plus de résultats.*$/m),
+    ].filter(i => i > 0);
+    const mainMd = cutAt.length ? md.slice(0, Math.min(...cutAt)) : md;
+    const linked = parseLinked(mainMd);
+    const byPid = {};
+    linked.forEach(l => { if (l.pid) byPid[l.pid] = l; });
+    const listeP = parseListeProducts(mainMd).filter(x => ![...linked].some(y => y.url === x.url));
+    const listePids = new Set(listeP.map(x => x.pid).filter(Boolean));
+    const blocks = parseBlocks(mainMd).filter(b => {
+      if (b.pid && listePids.has(b.pid)) return false; // cleaner liste version wins
+      const l = b.pid && byPid[b.pid];
+      if (l && (!l.price || !l.specs)) { // enrich thin linked cards
+        if (!l.price && b.price) l.price = b.price;
+        if (!l.specs && b.specs) l.specs = b.specs;
+        if (!l.offers && b.offers) l.offers = b.offers;
+        if (!l.img && b.img) l.img = b.img;
+      }
+      return !l;
+    });
+    const listeO = parseListeOffers(mainMd).filter(x => ![...linked, ...blocks, ...listeP].some(y => (y.img && y.img === x.img) || (y.url && x.url && y.url === x.url)));
+    listeO.forEach(x => { x.src = baseUrl; });
+    const sugg = parseSuggestions(mainMd).filter(s => ![...linked, ...blocks, ...listeP].some(x => x.url === s.url));
+    const items = [...linked, ...blocks, ...listeP, ...listeO, ...sugg];
+    let next = null;
+    const isList = u => /\/cat\/|prechcat|liste\//i.test(u);
+    const seen = [];
+    const lr = /\[([^\]]{0,40})\]\((https:\/\/www\.idealo\.fr[^)\s]+)\)/g;
+    let l;
+    while ((l = lr.exec(md)) !== null) seen.push({ txt: l[1].trim(), u: l[2] });
+    const fwd = seen.find(x => /^(suivant|next|suiv\.?|»|>)$/i.test(x.txt) && isList(x.u) && x.u !== baseUrl);
+    if (fwd) next = fwd.u;
+    return { items, next };
+  }
+
+  function queued(fn) {
+    const p = chain.catch(() => {}).then(fn);
+    chain = p.catch(() => {});
+    return p;
+  }
+
+  async function fetchMd(url) {
+    const wait = Math.max(0, GAP_MS - (Date.now() - lastT));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastT = Date.now();
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(READER + url, { signal: ctl.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    } finally { clearTimeout(to); }
+  }
+
+  /* Raw HTML (used by offer tokens and the facet model below). */
+  async function fetchHtml(url) {
+    const wait = Math.max(0, GAP_MS - (Date.now() - lastT));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastT = Date.now();
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), TIMEOUT_MS * 2);
+    try {
+      const res = await fetch(READER + url, { signal: ctl.signal, headers: { 'X-Respond-With': 'html' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    } finally { clearTimeout(to); }
+  }
+
+  /* ---- Facet filters (Idealo filter box) ---------------------------------
+     Idealo embeds the whole facet model as base64 JSON in
+     window.csr.initialData['searchResult']. Parsing that is far more robust
+     than scraping hashed class names and yields every group, facet id, hit
+     count, prices and preselected filters. Cached 24h per category. */
+  const FILTERS_KEY = 'cmv2.ifilters';
+  const FT_TTL = 24 * 3600 * 1000;
+  const fcache = (() => { try { return JSON.parse(lsGet(FILTERS_KEY)) || {}; } catch { return {}; } })();
+  function fPersist() {
+    if (lsSet(FILTERS_KEY, JSON.stringify(fcache)) === true) return;
+    try { const ks = Object.keys(fcache); if (ks.length) { delete fcache[ks[0]]; lsSet(FILTERS_KEY, JSON.stringify(fcache)); } } catch { /* ignore */ }
+  }
+  function b64utf8(b64) {
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch { return ''; }
+  }
+  /* /cat/<catId>[F<facet>…]/<slug>.html → the parts needed to rebuild a URL. */
+  function parseCatUrl(u) {
+    const m = String(u || '').match(/^(https?:\/\/[^/]+)\/cat\/(\d+)((?:F\d+)*)\/([^/?#]+\.html)/);
+    if (!m) return null;
+    return { origin: m[1], catId: m[2], facets: (m[3].match(/F\d+/g) || []).map(s => s.slice(1)), slug: m[4] };
+  }
+  function parseFilters(html) {
+    const m = String(html || '').match(/window\.csr\.initialData\['searchResult'\]\s*=\s*"([^"]+)"/);
+    if (!m) return null;
+    let j; try { j = JSON.parse(b64utf8(m[1])); } catch { return null; }
+    const groups = [];
+    const seen = new Set();
+    const addGroups = arr => (arr || []).forEach(g => {
+      if (!g || !g.id || seen.has(String(g.id))) return;
+      const options = (g.filters || []).map(o => ({ id: String(o.id), name: o.name, hits: o.hits || 0 }));
+      if (!options.length) return;
+      seen.add(String(g.id));
+      groups.push({ id: String(g.id), name: g.name, options });
+    });
+    addGroups(j.filterGroups);
+    addGroups(j.sizeFilterGroups);
+    const quick = (j.quickFilters || []).map(q => ({ id: String(q.id), name: q.name, hits: q.count || 0 }));
+    const pr = j.priceRanges || {}, dr = pr.dynamicRange || {};
+    const price = {
+      min: (dr.fromPrice != null ? dr.fromPrice : null),
+      max: (dr.toPrice != null ? dr.toPrice : null),
+      ranges: (pr.ranges || []).map(r => ({ from: r.fromPrice, to: r.toPrice, hits: r.hits || 0 })),
+    };
+    const byFacet = {};
+    groups.forEach(g => g.options.forEach(o => { byFacet[o.id] = g.id; }));
+    const selected = {};
+    (j.selectedFilters || []).forEach(f => { const g = byFacet[String(f.id)]; if (g) (selected[g] = selected[g] || []).push(String(f.id)); });
+    return { groups, quick, price, byFacet, selected };
+  }
+  function filterCacheKey(url) {
+    const p = parseCatUrl(url);
+    return p ? ('cat:' + p.catId + ':' + p.slug) : ('url:' + String(url || ''));
+  }
+  async function filters(url, force) {
+    const key = filterCacheKey(url);
+    if (!force) {
+      const c = fcache[key];
+      if (c && c.data && (Date.now() - c.t) < FT_TTL) return { ...c.data, cached: true };
+    }
+    try {
+      const html = await queued(() => fetchHtml(url));
+      const data = parseFilters(html);
+      if (!data || (!data.groups.length && !data.quick.length)) throw new Error('nofilters');
+      fcache[key] = { t: Date.now(), data };
+      fPersist();
+      return { ...data, cached: false };
+    } catch (e) {
+      const c = fcache[key];
+      if (c && c.data) return { ...c.data, cached: true, stale: true };
+      return { groups: [], quick: [], price: { min: null, max: null, ranges: [] }, byFacet: {}, selected: {}, error: String((e && e.message) || e) };
+    }
+  }
+  /* Rebuild a faceted category URL: keep the base's own facets, replace any
+     group the user filtered, OR within a group / AND across groups. Price is
+     passed as ?priceFrom/&priceTo (honoured by Idealo in a real browser). */
+  function composeUrl(baseUrl, opts = {}) {
+    const p = parseCatUrl(baseUrl);
+    if (!p) return baseUrl;
+    const sel = opts.selected || {};
+    const byFacet = opts.byFacet || {};
+    const selIds = [];
+    const selGroups = new Set();
+    Object.keys(sel).forEach(g => {
+      const ids = (sel[g] || []).map(String);
+      if (ids.length) { selGroups.add(g); ids.forEach(id => selIds.push(id)); }
+    });
+    const keep = p.facets.filter(id => { const g = byFacet[id]; return !(g && selGroups.has(g)); });
+    const ids = [...keep, ...selIds];
+    let url = `${p.origin}/cat/${p.catId}${ids.map(i => 'F' + i).join('')}/${p.slug}`;
+    const qs = [];
+    if (opts.priceFrom != null && opts.priceFrom !== '') qs.push('priceFrom=' + encodeURIComponent(opts.priceFrom));
+    if (opts.priceTo != null && opts.priceTo !== '') qs.push('priceTo=' + encodeURIComponent(opts.priceTo));
+    if (opts.discountFrom != null && opts.discountFrom !== '') qs.push('discountFrom=' + encodeURIComponent(opts.discountFrom));
+    if (qs.length) url += '?' + qs.join('&');
+    return url;
+  }
+
+  /* Normalized attribute comparison for variant filtering ("2.970 MHz" === "2 970 MHz"). */
+  function variantNorm(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s.,]/g, '');
+  }
+  /* Read variant-filter attributes from a variant's own datasheet: for each filter
+     dimension of the parent page, take the value of the datasheet line starting
+     with that label ("Couleur Blanc", "Fréquence du chip boost 3 010 MHz").
+     Returns {label: rawValue} (only dimensions found). */
+  function matchVariantAttrs(dsText, filters) {
+    const out = {};
+    const lines = String(dsText || '').split('\n').map(ln => {
+      let s = String(ln || '').trim();
+      if (/^\|.*\|$/.test(s)) s = s.replace(/^\||\|$/g, '').split('|').map(x => x.trim()).filter(Boolean).join(' ');
+      return s.replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+    (filters || []).forEach(f => {
+      const lab = String(f.label || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+      if (!lab) return;
+      for (const ln of lines) {
+        const l = ln.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+        if (l === lab || l.startsWith(lab + ' ') || l.startsWith(lab + ':')) {
+          const val = ln.slice(f.label.length).replace(/^[\s:|\-–]+/, '').trim().slice(0, 80);
+          if (val) out[f.label] = val;
+          return;
+        }
+      }
+    });
+    return out;
+  }
+
+  /* Variants ("## 5 Variantes à partir de 858,00€"): filter dimensions
+     (**Label:** + value lines) and model cards, each with its own /prix/ page.
+     Returns null when the page has no variant section. */
+  function parseVariants(md) {
+    md = String(md || '');
+    const mh = md.match(/^##\s*(?:(\d+)\s*)?Variantes?\s*:?\s*(?:à partir de\s*([\d\s]+[.,]\d{2})\s*€)?/mi);
+    if (!mh) return null;
+    const start = mh.index;
+    const rest = md.slice(start);
+    const mend = rest.search(/\n## (?!.*Variantes)/);
+    const sec = mend > 0 ? rest.slice(0, mend) : rest;
+    const filters = [];
+    const fre = /\*\*(.+?):\*\*/g;
+    let fm, lastIdx = -1, lastLabel = null;
+    const flush = (label, body) => {
+      const vals = body.split('\n').map(s => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim())
+        .filter(s => s && !/^(filtrer|toutes?\b)/i.test(s) && !s.startsWith('!') && !s.startsWith('[') && !/à partir de|^\d[\d\s]*[.,]\d{2}\s*€/.test(s));
+      if (label && vals.length) filters.push({ label, values: vals.slice(0, 12) });
+    };
+    while ((fm = fre.exec(sec)) !== null) {
+      if (lastLabel !== null) flush(lastLabel, sec.slice(lastIdx, fm.index));
+      lastLabel = fm[1].trim(); lastIdx = fm.index + fm[0].length;
+    }
+    if (lastLabel !== null) {
+      const cardStart = sec.slice(lastIdx).search(/!\[/);
+      flush(lastLabel, cardStart >= 0 ? sec.slice(lastIdx, lastIdx + cardStart) : sec.slice(lastIdx));
+    }
+    const items = [];
+    const cre = /\[([^\]]+)\]\((https:\/\/www\.idealo\.fr\/prix\/[^)]+)\)\s*\n\s*!\[Image[^:]*: ([^\]]*)\]\(([^)]+)\)[\s\S]{0,600}?à partir de\s*\n?\s*([\d\s]+[.,]\d{2})\s*€/g;
+    let cm;
+    while ((cm = cre.exec(sec)) !== null && items.length < 12) {
+      const name = (cm[1] || cm[3] || '').trim();
+      const url = cm[2].trim();
+      if (!name || !url) continue;
+      if (items.some(it => it.url === url)) continue;
+      items.push({ name, url, img: (cm[4] || '').trim(), price: parsePrice(cm[5]) });
+    }
+    if (!items.length) return null;
+    let fromPrice = 0;
+    if (mh[2]) fromPrice = parsePrice(mh[2]);
+    return { count: parseInt(mh[1], 10) || items.length, fromPrice, filters, items };
+  }
+
+  /* Full product fiche from a /prix/ page: the text next to "Aperçu du produit". */
+  function parseProduct(md, url) {
+    md = String(md || '');
+    const out = { name: '', img: '', specs: '', offers: 0, price: 0, url };
+    const mh = md.match(/^# (.+)$/m) || md.match(/^Title: (.+?)(?: au meilleur prix| [|│]|\s*$)/m);
+    if (mh) out.name = mh[1].trim();
+    const mi = md.match(/!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_gross[^)]*)\)/i)
+      || md.match(/!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_mittelgross[^)]*)\)/i);
+    if (mi) out.img = mi[1];
+    const mp = md.match(/à partir de\s*([\d\s]+[.,]\d{2})\s*€/i);
+    if (mp) out.price = parsePrice(mp[1]);
+    const mo = md.match(/Comparez\s*(\d+)\s*offres/i) || md.match(/(\d+)\s+offres?\b/i);
+    if (mo) out.offers = parseInt(mo[1].replace(/\s/g, ''), 10) || 0;
+    let sec = '';
+    const ma = md.match(/Aperçu du produit\s*:?\s*([\s\S]*?)(?:\[Détails du produit\]|## |\*\*Produits similaires)/);
+    if (ma) sec = ma[1];
+    else {
+      const md2 = md.match(/## Détails du produit\s*([\s\S]*?)(?:## |\n\*   )/);
+      if (md2) sec = md2[1];
+    }
+    const lines = sec
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .split(/\n| {2,}/).map(s => s.replace(/^[\*_\-–:·\s]+/, '').trim())
+      .filter(s => s && !/^(variante|neuf\b|d'occasion)/i.test(s));
+    out.specs = lines.slice(0, 40).join('\n');
+    const msum = md.match(/\*\*Aperçu du produit\s*:?\*\*\s*([^\n\[]+)/i);
+    if (msum) out.summary = msum[1].replace(/\s+/g, ' ').trim().slice(0, 300);
+    /* Gallery: product images in the hero area, before the variant block. */
+    const hero = md.split(/^##\s*(?:\d+\s*)?Variantes?/mi)[0];
+    const images = [];
+    const ire = /!\[[^\]]*\]\((https:\/\/cdn\.idealo\.com\/[^)]*produktbild_(?:mittelgross|gross)[^)]*)\)/gi;
+    let im;
+    while ((im = ire.exec(hero)) !== null) {
+      const u = im[1].trim();
+      if (u && !images.includes(u)) images.push(u);
+      if (images.length >= 10) break;
+    }
+    if (out.img && !images.includes(out.img)) images.unshift(out.img);
+    out.images = images;
+    /* Raw "## Détails du produit" datasheet section (source of truth for Compat). */
+    const mds = md.match(/## Détails du produit\s*([\s\S]*?)(?:\n## |\n\*\*Produits similaires|\n\*   \[)/);
+    if (mds) out.datasheet = mds[1]
+      /* Remove image markdown first: stripping links alone leaves the leading
+         "!" behind, producing a useless "!Image 27: …" first datasheet line. */
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/^\s*!Image\b.*$/gmi, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/^\s*Image\s+\d+:\s*.*$/gmi, ' ')
+      .replace(/^\s*(?:afficher|voir|show|view)\b.*?(?:d[ée]tails|caract[ée]ristiques|more|less)\b.*$/gmi, ' ')
+      .trim().slice(0, 30000);
+    out.variants = parseVariants(md);
+    return out;
+  }
+
+  /* HTML details: quick summary (Idealo productSummary spans), gallery and the
+     full datasheet table. Kept in memory only (the HTML page is large). */
+  const detailsCache = new Map();
+  const productHtmlCache = new Map();
+  function getProductHtml(url, force) {
+    const c = productHtmlCache.get(url);
+    if (!force && c && (Date.now() - c.t) < TTL && c.p) return c.p;
+    const p = queued(() => fetchHtml(url)).then(html => {
+      if (!html || html.length < 500) throw new Error('empty');
+      productHtmlCache.set(url, { t: Date.now(), p: Promise.resolve(html) });
+      while (productHtmlCache.size > 4) productHtmlCache.delete(productHtmlCache.keys().next().value);
+      return html;
+    });
+    productHtmlCache.set(url, { t: Date.now(), p });
+    p.catch(() => { const cur = productHtmlCache.get(url); if (cur && cur.p === p) productHtmlCache.delete(url); });
+    return p;
+  }
+  function htmlText(v) {
+    return String(v || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ' '; } })
+      .replace(/&#(\d+);/g, (_, n) => { try { return String.fromCodePoint(parseInt(n, 10)); } catch { return ' '; } })
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function parseDetailsHtml(html) {
+    html = String(html || '');
+    const out = { summary: '', summaryParts: [], images: [], sections: [] };
+    /* New offerpage class first, then the older oopStage block. The requested
+       mainDetails wrapper contains the two spans (one may be sr-desktopOnly). */
+    const md = html.match(/<(span|div)[^>]+class="[^"]*(?:sr-productSummary__mainDetails|productSummary__mainDetails)[^"]*"[^>]*>([\s\S]{0,3000}?)<\/\1>/i);
+    if (md) {
+      const spans = [...md[2].matchAll(/<span[^>]*>([\s\S]*?)<\/span>/gi)].map(x => htmlText(x[1])).filter(Boolean);
+      out.summaryParts = [...new Set(spans)];
+      out.summary = out.summaryParts.join(' ');
+    }
+    if (!out.summary) {
+      const at = html.indexOf('Aperçu du produit');
+      if (at >= 0) {
+        const block = html.slice(at, at + 5000);
+        const spans = [...block.matchAll(/<span([^>]*)>([\s\S]*?)<\/span>/gi)]
+          .filter(x => /\b(?:oopStage-productInfoTopItem|productSummary)\b/.test((x[1].match(/class="([^"]*)"/) || [])[1] || ''))
+          .map(x => htmlText(x[2])).filter(Boolean);
+        out.summaryParts = [...new Set(spans)];
+        out.summary = out.summaryParts.join(' ');
+      }
+    }
+    /* Gallery images from the hero collage; fall back to the first product images. */
+    const gs = html.indexOf('oopStage-wrapper-gallery');
+    if (gs >= 0) {
+      const chunk = html.slice(gs, gs + 50000);
+      const imgs = [...chunk.matchAll(/<img[^>]+(?:class="[^"]*oopStage-galleryCollageImage[^"]*"[^>]*src="([^"]+)"|src="([^"]+)"[^>]*class="[^"]*oopStage-galleryCollageImage[^"]*")/gi)]
+        .map(x => x[1] || x[2]).filter(Boolean);
+      for (const raw of imgs) {
+        const u = String(raw).replace(/^\/\//, 'https://');
+        if (!out.images.includes(u)) out.images.push(u);
+      }
+    }
+    if (!out.images.length) {
+      const imgs = [...html.matchAll(/<img[^>]+src="([^"]*produktbild_(?:mittelgross|gross)[^"]*)"/gi)].map(x => x[1].replace(/^\/\//, 'https://'));
+      for (const u of imgs) if (!out.images.includes(u)) out.images.push(u);
+      out.images = out.images.slice(0, 10);
+    }
+    /* Datasheet table: each <tr> is either a <th> category or two <td> values. */
+    const ds = html.search(/<section[^>]*id="datasheet"/i);
+    if (ds >= 0) {
+      let end = html.indexOf('</section>', ds);
+      if (end < 0) end = Math.min(html.length, ds + 120000);
+      const sec = html.slice(ds, end);
+      let title = '';
+      const re = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let m;
+      while ((m = re.exec(sec)) !== null) {
+        const row = m[1];
+        if (/<th\b/i.test(row)) {
+          title = htmlText(row);
+          continue;
+        }
+        const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(x => htmlText(x[1]));
+        if (tds.length < 2 || !tds[0]) continue;
+        let group = out.sections[out.sections.length - 1];
+        if (!group || group.title !== title) { group = { title, rows: [] }; out.sections.push(group); }
+        group.rows.push([tds[0], tds[1]]);
+      }
+    }
+    return out;
+  }
+  async function details(url) {
+    const c = detailsCache.get(url);
+    if (c && (Date.now() - c.t) < TTL) {
+      if (c.html && !productHtmlCache.has(url)) productHtmlCache.set(url, { t: c.t, p: Promise.resolve(c.html) });
+      return { ...c.data, cached: true };
+    }
+    try {
+      const html = await getProductHtml(url);
+      const data = parseDetailsHtml(html);
+      if (!data.summary && !data.sections.length) throw new Error('empty');
+      detailsCache.set(url, { t: Date.now(), data, html });
+      while (detailsCache.size > 6) detailsCache.delete(detailsCache.keys().next().value);
+      return { ...data, cached: false };
+    } catch (e) {
+      return { summary: '', summaryParts: [], images: [], sections: [], error: String((e && e.message) || e) };
+    }
+  }
+
+  async function cachedMd(url, force) {
+    if (!force) {
+      const c = cache[url];
+      if (c && (Date.now() - c.t) < TTL && c.md) return { md: c.md, cached: true };
+    }
+    const md = await queued(() => fetchMd(url));
+    if (!md || md.length < 500) throw new Error('empty');
+    cache[url] = { t: Date.now(), md: md.slice(0, 400000) };
+    persist();
+    return { md, cached: false };
+  }
+
+  async function list(url, force) {
+    try {
+      const { md, cached } = await cachedMd(url, force);
+      const p = parseMarkdown(md, url);
+      return { items: p.items, next: p.next, cached };
+    } catch (e) {
+      return { items: [], next: null, cached: false, error: String((e && e.message) || e) };
+    }
+  }
+
+  /* Merchant offers from a /prix/ page ("Comparer les prix" table).
+     Row: * [TITLE](relocator…) [PRIX€](relocator…) […livraison incl.](…)[Livraison: …]…/marchand/<sid>/<slug>.html… */
+  function absUrl(u) {
+    if (!u) return '';
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith('/')) return 'https://www.idealo.fr' + u;
+    return u;
+  }
+  function merchantName(slug) {
+    return String(slug || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
+  }
+  function parseOffers(md) {
+    const offers = [];
+    const re = /\n\* +\[([^\]\n]{2,200})\]\(((?:https:\/\/www\.idealo\.fr)?\/relocator\/[^)\s]+)\)([\s\S]*?)(?=\n\* +\[|\n## |$)/g;
+    let m;
+    while ((m = re.exec(md)) !== null) {
+      const title = m[1].trim(), relUrl = m[2], body = m[3] || '';
+      if (!/relocator/i.test(relUrl)) continue;
+      const pm = body.match(/\[([\d\s]+[.,]\d{2})\s*€\]/);
+      const price = pm ? parsePrice(pm[1]) : parsePrice((relUrl.match(/[?&]price=([\d.]+)/) || [])[1]);
+      if (!price) continue;
+      const dm = body.match(/\[([\d\s]+[.,]\d{2})\s*€ livraison incl\.\]/i);
+      const delivered = dm ? parsePrice(dm[1]) : 0;
+      const mm = body.match(/\/marchand\/(\d+)\/([^/.)\s]+)/);
+      let merchant = mm ? merchantName(mm[2]) : '';
+      if (!merchant) {
+        const tm = body.match(/Marchand:\s*\[([^\]]+)\]/i) || m[0].match(/Marchand:\s*\[([^\]]+)\]/i);
+        if (tm) merchant = tm[1].trim();
+      }
+      const rm = body.match(/\[\*\*([\d,]+)\*\*\]\([^)]*marchand[^)]*\)/);
+      const lm = body.match(/\[\*?\s*Livraison:\s*([^\]]+)\]/i);
+      const sid = (relUrl.match(/[?&]sid=(\d+)/) || [])[1] || (mm ? mm[1] : '');
+      offers.push({
+        title, price, delivered, merchant,
+        promo: /Code Promo/i.test(body),
+        rating: rm ? rm[1] : '',
+        delivery: lm ? lm[1].trim() : '',
+        sid, url: absUrl(relUrl),
+      });
+    }
+    const seen = new Set();
+    return offers.filter(o => {
+      const k = o.sid + '|' + o.price + '|' + o.title;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a, b) => a.price - b.price);
+  }
+
+  /* Fallback parser for the raw offerpage HTML. The Markdown reader sometimes
+     returns only the datasheet and drops the offer list; the same rows are
+     always present in the HTML (productOffers-listItem). */
+  function parseOffersHtml(html) {
+    const offers = [];
+    const src = String(html || '');
+    const parts = src.split(/(?=<(?:li|div)[^>]+class="[^"]*productOffers-listItem(?![A-Za-z0-9_-])[^"]*")/i).slice(1);
+    for (const chunk of parts) {
+      const linkM = chunk.match(/class="[^"]*productOffers-listItemTitle[^"]*"[^>]*href="([^"]+)"/i)
+        || chunk.match(/href="([^"]*\/relocator\/[^"]+)"/i);
+      if (!linkM) continue;
+      const relUrl = htmlText(linkM[1]);
+      if (!/\/relocator\//i.test(relUrl)) continue;
+      const pm = relUrl.match(/[?&]price=([\d.,]+)/i)
+        || chunk.match(/class="[^"]*productOffers-listItemOfferPrice[^"]*"[^>]*>\s*([\d\s.,]+)\s*€/i);
+      const price = pm ? parsePrice(pm[1]) : 0;
+      if (!price) continue;
+      let delivered = 0;
+      const shipRe = /class="[^"]*productOffers-listItemOfferShippingDetails[^"]*"[^>]*>([\s\S]{0,300}?)<\/div>/gi;
+      let sm;
+      while ((sm = shipRe.exec(chunk)) !== null) {
+        const txt = htmlText(sm[1]);
+        const am = txt.match(/([\d\s]+[.,]\d{2})\s*€/);
+        if (!am) continue;
+        const val = parsePrice(am[1]);
+        if (!val) continue;
+        if (/livraison\s+incl|prix\s+total/i.test(txt)) delivered = val;
+        else if (/frais\s+de\s+port|livraison/i.test(txt) && val < price) delivered = price + val;
+      }
+      const smName = chunk.match(/titleCaption\s*&quot;\s*:\s*&quot;([^&]+)&quot;/i)
+        || chunk.match(/data-shop-name="([^"]+)"/i)
+        || chunk.match(/"shop_name"\s*:\s*"([^"]+)"/i);
+      let merchant = smName ? htmlText(smName[1]) : '';
+      if (merchant && /\s-\s.*Marchand\b/i.test(merchant)) merchant = merchant.split(/\s-\s/)[1] || merchant;
+      const mm = chunk.match(/\/marchand\/(\d+)\/([^/.)\s"]+)/i);
+      if (!merchant && mm) merchant = merchantName(mm[2]);
+      const sid = (relUrl.match(/[?&]sid=(\d+)/) || [])[1] || (mm ? mm[1] : '');
+      const titleM = chunk.match(/class="[^"]*productOffers-listItemTitleInner[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const title = titleM ? htmlText(titleM[1]) : '';
+      const ratingM = chunk.match(/class="[^"]*starAndRatingWrapper[^"]*"[\s\S]{0,300}?<b>\s*([\d.,]+)\s*<\/b>/i);
+      const dateM = chunk.match(/class="[^"]*OfferDeliveryStatusDatesRange[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const provM = chunk.match(/class="[^"]*OfferDeliveryProvider[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const delivery = [dateM ? htmlText(dateM[1]) : '', provM ? htmlText(provM[1]) : ''].filter(Boolean).join(' · ');
+      offers.push({
+        title: title || merchant || 'Offre', price, delivered, merchant,
+        promo: /Code Promo|Bon plan/i.test(chunk),
+        rating: ratingM ? ratingM[1] : '',
+        delivery, sid, url: absUrl(relUrl),
+      });
+    }
+    const seen = new Set();
+    return offers.filter(o => {
+      const k = o.sid + '|' + o.price + '|' + o.title;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a, b) => a.price - b.price);
+  }
+
+  async function product(url) {
+    try {
+      let { md } = await cachedMd(url);
+      let d = parseProduct(md, url);
+      if (!d.specs && !d.price) { // stale/partial render: refetch once, bypassing cache
+        md = (await cachedMd(url, true)).md;
+        d = parseProduct(md, url);
+      }
+      if (!d.specs && !d.price) throw new Error('empty');
+      return d;
+    } catch (e) {
+      return { error: String((e && e.message) || e) };
+    }
+  }
+
+  async function offers(url, force) {
+    try {
+      let { md, cached } = await cachedMd(url, force);
+      let items = parseOffers(md);
+      if (!items.length && cached) { // stale/partial cache: refetch once
+        md = (await cachedMd(url, true)).md;
+        items = parseOffers(md);
+        cached = false;
+      }
+      if (items.length) return { offers: items, cached: !!cached };
+      // Reader Markdown can omit the offer list while the raw HTML still has it.
+      let html = await getProductHtml(url);
+      items = parseOffersHtml(html);
+      if (!items.length) {
+        html = await getProductHtml(url, true);
+        items = parseOffersHtml(html);
+      }
+      return { offers: items, cached: false };
+    } catch (e) {
+      // Last chance after a 429/timeout: retry the raw HTML once.
+      try {
+        const html = await getProductHtml(url, true);
+        return { offers: parseOffersHtml(html), cached: false };
+      } catch (e2) {
+        return { offers: [], error: String((e2 && e2.message) || e2) };
+      }
+    }
+  }
+
+  /* Offer POST tokens from a /liste/ page (raw HTML): each direct offer is a
+     <form action=".../ipc/prg" method="POST"> carrying an opaque token that
+     redirects straight to the merchant offer. Cached 24h (small map). */
+  const PTOK_KEY = 'cmv2.ptokens';
+  const PTOK_TTL = 10 * 60 * 1000; // offer tokens may be short-lived: always refetch, cache only dedupes quick repeats
+  const ptokCache = (() => { try { return JSON.parse(lsGet(PTOK_KEY)) || {}; } catch { return {}; } })();
+  function ptokPersist() {
+    if (lsSet(PTOK_KEY, JSON.stringify(ptokCache)) === true) return;
+    try { const ks = Object.keys(ptokCache); if (ks.length) { delete ptokCache[ks[0]]; lsSet(PTOK_KEY, JSON.stringify(ptokCache)); } } catch { /* ignore */ }
+  }
+  function parseOfferTokens(html) {
+    const out = [];
+    const re = /<form action="([^"]+)" method="POST"[^>]*><input[^>]*name="value" value="([0-9a-f]+)"[^>]*>/gi;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const action = m[1], token = m[2];
+      const seg = html.slice(m.index, m.index + 4000);
+      const mt = seg.match(/<div class="sr-productSummary__title[^"]*">([^<]+)<\/div>/)
+        || seg.match(/<div class="[^"]*productSummary__title[^"]*">([^<]+)<\/div>/);
+      const ms = seg.match(/Vendu par\s*:\s*(?:<[^>]+>)?\s*([^<]+?)\s*</);
+      out.push({ title: mt ? mt[1].trim() : '', shop: ms ? ms[1].trim() : '', token, action });
+    }
+    return out;
+  }
+  function normT(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function matchToken(tokens, title, vendor) {
+    const t = normT(title), v = normT(vendor);
+    let f = tokens.find(x => normT(x.title) === t && (!v || normT(x.shop) === v));
+    if (!f && v) f = tokens.find(x => normT(x.shop) === v && t && normT(x.title).startsWith(t.slice(0, 40)));
+    if (!f && t) f = tokens.find(x => normT(x.title).startsWith(t.slice(0, 40)) || (normT(x.title) && t.startsWith(normT(x.title).slice(0, 40))));
+    return f || null;
+  }
+  function peekTokens(listUrl) {
+    const c = ptokCache[listUrl];
+    if (c && (Date.now() - c.t) < PTOK_TTL && c.map) return c.map;
+    return null;
+  }
+  async function offerTokens(listUrl, force) {
+    const c = !force && ptokCache[listUrl];
+    if (c && (Date.now() - c.t) < PTOK_TTL && c.map) return { tokens: c.map, cached: true };
+    const wait = Math.max(0, GAP_MS - (Date.now() - lastT));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastT = Date.now();
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), TIMEOUT_MS * 2);
+    try {
+      const res = await fetch(READER + listUrl, { signal: ctl.signal, headers: { 'X-Respond-With': 'html' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      const map = parseOfferTokens(html);
+      ptokCache[listUrl] = { t: Date.now(), map };
+      ptokPersist();
+      return { tokens: map, cached: false };
+    } finally { clearTimeout(to); }
+  }
+
+  return { list, product, details, offers, offerTokens, peekTokens, matchToken, parseOfferTokens, parseMarkdown, parseProduct, parseDetailsHtml, parseVariants, matchVariantAttrs, variantNorm, parseOffers, parseOffersHtml, sortUrl, pruneCache, filters, parseFilters, parseCatUrl, composeUrl };
+})();
