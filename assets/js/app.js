@@ -3086,7 +3086,7 @@ const PICKER_SCHEMA = {
   mb: {
     quick: MB_SOCKET_FACETS.map(s => ({ ...s, baseFacet: true })),
     more: [
-      { group: 'Format', help: 'format' },
+      { group: 'Format', help: 'format', kind: 'list' },
       { group: "Nombre d'emplacements RAM", help: 'slots' },
       { group: 'Standard Ethernet', help: 'ethernet', kind: 'enum' },
       { group: 'Nombre de slots PCIe x16', help: 'pcie' },
@@ -3115,7 +3115,9 @@ const PICKER_SCHEMA = {
       { label: 'Aircooler', groups: ['Type de produit'], pick: /ventirad|refroidisseur|tower|top.?blow|air/i },
       { label: 'AIO', groups: ['Type de produit'], pick: /watercool|aio|liquide|kit/i },
     ],
-    more: [],
+    more: [
+      { group: 'Hauteur totale', help: 'height', kind: 'range' },
+    ],
   },
   ssd: {
     quick: [
@@ -3134,7 +3136,7 @@ const PICKER_SCHEMA = {
   gpu: {
     quick: [],
     more: [
-      { group: 'Série', help: 'series' },
+      { group: 'Série', help: 'series', kind: 'list' },
       { group: 'Capacité de mémoire', help: 'memory' },
       { group: 'Total Board Power', help: 'power' },
       { group: 'Version PCIe', help: 'pcie', kind: 'enum' },
@@ -3149,7 +3151,7 @@ const PICKER_SCHEMA = {
     ],
     more: [
       { group: 'Type de produit', help: 'caseType' },
-      { group: 'Format de carte mère supporté', help: 'format' },
+      { group: 'Format de carte mère supporté', help: 'format', kind: 'list' },
       { group: 'Ventilateurs préinstallés', help: 'fansIncluded' },
       { group: 'Nombre max. de ventilateurs', help: 'fansTotal' },
       { group: 'Baie 2,5" internes', help: 'bays25' },
@@ -3297,7 +3299,7 @@ const PICKER_SCHEMA = {
       { label: '60 fps', groups: ['Cadence rafale'], pick: /^60/i },
     ],
     more: [
-      { group: 'Résolution', help: 'resolution' },
+      { group: 'Résolution', help: 'resolution', kind: 'list' },
       { group: 'Cadence rafale', help: 'fps' },
       { group: 'Mise au point', help: 'focus', kind: 'enum' },
       { group: 'Résolution mode Photo', help: 'photoRes' },
@@ -3574,6 +3576,7 @@ const FILTER_HELP = {
   panel: { fr: "Dalle : technologie de l'écran (IPS, VA, OLED…). Influence couleurs, contraste et angles de vision.", en: "Panel: screen technology (IPS, VA, OLED…). Affects colors, contrast and viewing angles.", wiki: W + '%C3%89cran_%C3%A0_cristaux_liquides' },
   resolution: { fr: "Résolution : nombre de pixels (1080p, 1440p, 4K). Plus élevée = image plus nette, plus exigeante pour le GPU.", en: "Resolution: pixel count (1080p, 1440p, 4K). Higher means sharper but heavier on the GPU.", wiki: W + 'R%C3%A9solution_d%27affichage' },
   screenSize: { fr: "Taille de l'écran : diagonale en pouces.", en: "Screen size: diagonal in inches.", wiki: W + 'Pouce_(unit%C3%A9_de_longueur)' },
+  height: { fr: "Hauteur totale : encombrement vertical du refroidisseur. Elle doit rester sous la hauteur maximale acceptée par le boîtier.", en: "Total height: vertical clearance of the cooler. It must stay below the maximum height supported by the case.", wiki: '' },
   refresh: { fr: "Taux de rafraîchissement : images par seconde affichables (Hz). Plus élevé = jeu plus fluide.", en: "Refresh rate: images per second (Hz). Higher means smoother gaming.", wiki: W + 'Fr%C3%A9quence_de_rafra%C3%AEchissement' },
   response: { fr: "Temps de réponse : délai de changement de couleur (ms). Plus bas = moins de rémanence.", en: "Response time: color-change delay (ms). Lower means less ghosting.", wiki: W + 'Temps_de_r%C3%A9ponse' },
   sync: { fr: "Synchronisation : FreeSync/G-Sync adapte le rafraîchissement pour éviter le tearing.", en: "Sync: FreeSync/G-Sync adapts refresh to avoid tearing.", wiki: W + 'FreeSync' },
@@ -3742,10 +3745,25 @@ function toggleFacet(gid, oid, on) {
 }
 
 /* ---------- render ---------- */
+function orderedGroupOptions(g) {
+  const opts = [...g.options];
+  if (!/standard wi.?fi/.test(normName(g.name))) return opts;
+  const tokens = ['be', 'ax', 'ac', 'a', 'b', 'g', 'n'];
+  const has = (s, token) => new RegExp('(^|[^a-z])' + token + '([^a-z]|$)', 'i').test(s);
+  const rank = o => {
+    const s = normName(o.name);
+    if (/wi.?fi ?7/.test(s) || has(s, 'be')) return 0;
+    if (/wi.?fi ?6/.test(s) || has(s, 'ax')) return 1;
+    if (/wi.?fi ?5/.test(s) || has(s, 'ac')) return 2;
+    const i = tokens.indexOf(tokens.find(x => has(s, x)));
+    return i >= 0 ? i : tokens.length;
+  };
+  return opts.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr', { numeric: true }));
+}
 function buildListBlock(g, entry, cls) {
   const single = !!entry.single;
   const sel = pickerSel[g.id] || [];
-  const opts = g.options.map(o => {
+  const opts = orderedGroupOptions(g).map(o => {
     const checked = sel.includes(o.id) ? ' checked' : '';
     const input = single
       ? `<input type="radio" name="pf-${g.id}" data-gid="${g.id}" data-oid="${o.id}" data-single="1"${checked}>`
@@ -3784,12 +3802,10 @@ function buildSliderBlock(g, entry, cls, numeric) {
 }
 function renderGroupBlock(g, entry, cls) {
   entry = entry || {};
-  const big = g.options.length > 10;
-  if (entry.kind === 'enum') return (entry.single || big) ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
+  if (entry.kind === 'enum' || entry.kind === 'list') return buildListBlock(g, entry, cls);
   if (entry.kind === 'range') return entry.single ? buildSingleSliderBlock(g, entry, cls, true) : buildSliderBlock(g, entry, cls, true);
   if (rangeStops(g)) return entry.single ? buildSingleSliderBlock(g, entry, cls, true) : buildSliderBlock(g, entry, cls, true);
-  if (entry.single) return buildListBlock(g, entry, cls);
-  return big ? buildListBlock(g, entry, cls) : buildSliderBlock(g, entry, cls, false);
+  return buildListBlock(g, entry, cls);
 }
 function buildKjFilterHtml() {
   const opts = KJ_TAG_ORDER.map(tag => {

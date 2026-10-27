@@ -721,6 +721,7 @@ body.gallery-open,body.qr-open{overflow:hidden}
 .dslider input.f-rhi{z-index:4}
 .picker-tip{position:fixed;z-index:9999;max-width:300px;background:var(--active-bg);color:var(--active-fg);border-radius:10px;padding:9px 11px;font-size:.76rem;line-height:1.35;box-shadow:var(--shadow-md)}
 .picker-tip a{color:var(--active-link);font-weight:800}
+html[data-glass="off"] .picker-tip{background:var(--active-bg)!important;color:var(--active-fg)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 /* buttons */
 .btn{display:inline-flex;align-items:center;gap:10px;font-weight:900;font-size:.9rem;padding:12px 18px;border-radius:var(--radius-pill);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);cursor:pointer;box-shadow:var(--shadow-sm);transition:transform .18s ease,box-shadow .2s ease,border-color .2s ease,filter .2s ease}
 .btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
@@ -1599,6 +1600,7 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   #editorPanel .editor-body{padding:14px 0 calc(14px + env(safe-area-inset-bottom))}
   #editorPanel .btn-row{position:sticky;bottom:0;margin:12px -14px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:var(--glass-bg);border-top:1px solid var(--line);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);z-index:3}
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerToolsPanel,
+  #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerFilters,
   #pickerPanel:not(.picker-tools-open) .picker-tools>.picker-quickrow{display:none!important}
   .picker-foot{position:static;bottom:auto;flex:0 0 auto;margin:10px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-radius:25px}
   #summaryPanel.hidden,#pickerPanel.hidden,#editorPanel.hidden,#tutorialVideoPanel.hidden{display:none!important}
