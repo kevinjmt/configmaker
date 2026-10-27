@@ -1602,6 +1602,7 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerToolsPanel,
   #pickerPanel:not(.picker-tools-open) .picker-tools>#pickerFilters,
   #pickerPanel:not(.picker-tools-open) .picker-tools>.picker-quickrow{display:none!important}
+  #pickerPanel.picker-tools-open .picker-list{display:none!important}
   .picker-foot{position:static;bottom:auto;flex:0 0 auto;margin:10px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-radius:25px}
   #summaryPanel.hidden,#pickerPanel.hidden,#editorPanel.hidden,#tutorialVideoPanel.hidden{display:none!important}
   body.summary-sheet-open #summaryPanel,body.picker-sheet-open #pickerPanel,body.editor-sheet-open #editorPanel,body.tutorial-sheet-open #tutorialVideoPanel{visibility:visible;opacity:1;transform:none}
@@ -1725,14 +1726,16 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   #printRoot .pr-v.ok{color:#1a8744}#printRoot .pr-v.ko{color:#e03131}
   #printRoot .pr-meta{color:#8a978d;font-size:10px;margin-top:8px}
   /* page 1: hero card (case image + name + budget/totals/gaps) + app menu */
-  #printRoot .pr-hero{display:flex;gap:14px;align-items:center;border:1px solid #dfe4e0;border-radius:14px;padding:12px;break-inside:avoid;page-break-inside:avoid}
-  #printRoot .pr-hero-img{width:104px;height:104px;object-fit:contain;flex:0 0 auto}
-  #printRoot .pr-hero-icon{width:104px;display:flex;justify-content:center;font-size:64px;color:#1a8744}
+  #printRoot .pr-hero{display:flex;gap:20px;align-items:center;min-height:90mm;border:1px solid #dfe4e0;border-radius:14px;padding:18px 20px;break-inside:avoid;page-break-inside:avoid}
+  #printRoot .pr-hero-img{width:160px;height:160px;object-fit:contain;flex:0 0 auto}
+  #printRoot .pr-hero-icon{width:160px;display:flex;justify-content:center;font-size:96px;color:#1a8744}
   #printRoot .pr-hero-main{flex:1;min-width:0}
-  #printRoot .pr-hero-name{font-size:24px;font-weight:900;line-height:1.15}
-  #printRoot .pr-hero-badges{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  #printRoot .pr-hero-name{font-size:30px;font-weight:900;line-height:1.15}
+  #printRoot .pr-hero-badges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
   #printRoot .pr-badge{font-size:10px;font-weight:800;border:1px solid #cfd6d0;border-radius:999px;padding:2px 9px;color:#0f5c2c;background:#f3f8f4}
-  #printRoot .pr-hero-stats,#printRoot .pr-hero-diffs{display:flex;gap:20px;flex-wrap:wrap;margin-top:8px}
+  #printRoot .pr-hero-stats,#printRoot .pr-hero-diffs{display:flex;gap:24px;flex-wrap:wrap;margin-top:12px}
+  #printRoot .pr-hero-stats .pr-v{font-size:18px}
+  #printRoot .pr-hero-diffs{margin-top:14px}
   #printRoot .pr-hero-diffs{padding-top:8px;border-top:1px dashed #dfe4e0}
   #printRoot .pr-menu{display:flex;gap:16px;align-items:flex-start;margin-top:18px;border-top:2px solid #1a8744;padding-top:12px;break-inside:avoid;page-break-inside:avoid}
   #printRoot .pr-menu-logo{width:72px;height:72px;border-radius:16px;flex:0 0 auto}

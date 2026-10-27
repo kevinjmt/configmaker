@@ -8032,17 +8032,15 @@ function buildPrintReport(parts) {
     </div>
     <a href="https://www.idealo.fr/" target="_blank" rel="noopener">idealo.fr</a>
   </div>`);
-  if (show('performances')) {
-    const briefSrc = document.getElementById('briefBody');
-    if (briefSrc && briefSrc.children.length) {
-      const brief = document.createElement('div');
-      brief.className = 'pr-brief';
-      brief.innerHTML = `<h3 class="pr-h3"><i class="fa-solid fa-gauge-high"></i> ${esc(L('Usage summary', 'Résumé d’usage'))}</h3>`;
-      const body = prStripIds(briefSrc.cloneNode(true));
-      body.className = 'pr-brief-body';
-      brief.appendChild(body);
-      cover.appendChild(brief);
-    }
+  const briefSrc = document.getElementById('briefBody');
+  if (briefSrc && briefSrc.children.length) {
+    const brief = document.createElement('div');
+    brief.className = 'pr-brief';
+    brief.innerHTML = `<h3 class="pr-h3"><i class="fa-solid fa-gauge-high"></i> ${esc(L('Usage summary', 'Résumé d’usage'))}</h3>`;
+    const body = prStripIds(briefSrc.cloneNode(true));
+    body.className = 'pr-brief-body';
+    brief.appendChild(body);
+    cover.appendChild(brief);
   }
 
   /* 2 — description */
