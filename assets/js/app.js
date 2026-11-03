@@ -1738,7 +1738,7 @@ function openLibrary(slotId) {
     const items = lib[tab] || [];
     const tabsHtml = LIBRARY_TABS.map(x => {
       const n = (lib[x.id] || []).length;
-      return `<button class="usage-pill${x.id === tab ? ' active' : ''}" data-lib-tab="${x.id}"><i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="count">${n}</span>` : ''}</button>`;
+      return `<button type="button" class="usage-tab${x.id === tab ? ' active' : ''}" data-lib-tab="${x.id}"><i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="lib-tab-count">${n}</span>` : ''}</button>`;
     }).join('');
     const rows = items.map((it, idx) => `
       <div class="lib-row" draggable="true" data-lib-id="${esc(it.id)}">
@@ -1769,11 +1769,18 @@ function openLibrary(slotId) {
       </div>`;
     })() : '';
     host.innerHTML = `<div id="libRoot">
-      <p class="hint">${esc(L('Links saved for this component only. Installation links are mirrored in “My tutorials”.', 'Liens enregistrés pour ce composant uniquement. Les liens d’installation sont repris dans « Mes tutoriels ».'))}</p>
       <div class="usage-tabs lib-tabs">${tabsHtml}</div>
-      ${form}
-      ${fallback}
-      <div class="lib-list">${rows || `<p class="hint lib-empty">${esc(L('No link yet in this tab.', 'Aucun lien dans cet onglet pour le moment.'))}</p>`}</div>
+      <div class="se-picker lib-picker">
+        <div class="se-picker-head">
+          <h4><i class="${tabDef.icon}"></i> ${esc(lang === 'en' ? tabDef.en : tabDef.fr)}</h4>
+          <span class="se-picker-state">${items.length} ${esc(L(items.length === 1 ? 'link' : 'links', items.length === 1 ? 'lien' : 'liens'))}</span>
+        </div>
+        <p class="hint">${esc(L('Links saved for this component only. Installation links are mirrored in “My tutorials”.', 'Liens enregistrés pour ce composant uniquement. Les liens d’installation sont repris dans « Mes tutoriels ».'))}</p>
+        ${form}
+        ${fallback}
+        <div class="lib-list">${rows || `<p class="hint lib-empty">${esc(L('No link yet in this tab.', 'Aucun lien dans cet onglet pour le moment.'))}</p>`}</div>
+        <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(L('Use PDF or JSON to export this component’s library only.', 'Utilisez PDF ou JSON pour exporter uniquement la bibliothèque de ce composant.'))}</p>
+      </div>
       <div class="lib-foot">
         <button class="mini-btn" data-lib-pdf><i class="fa-solid fa-file-pdf"></i> PDF</button>
         <button class="mini-btn" data-lib-json><i class="fa-solid fa-file-code"></i> JSON</button>
@@ -2473,9 +2480,11 @@ function renderIdealo() {
     const desc = pickerItemDescription(it);
     card.innerHTML = `
       <span class="pick-media">${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}</span>
-      <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span>${kjHeartHtml(stKj.fav, 'pick-fav')}<span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
-      ${pills ? `<span class="pick-badges">${pills}</span>` : ''}
-      <span class="pick-desc">${esc(desc)}</span>
+      <span class="pick-body">
+        <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span>${kjHeartHtml(stKj.fav, 'pick-fav')}<span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
+        ${pills ? `<span class="pick-badges">${pills}</span>` : ''}
+        <span class="pick-desc">${esc(desc)}</span>
+      </span>
       <span class="pick-actions"></span>`;
     card.onclick = e => { if (e.target.closest('.pick-actions') || e.target.closest('.pick-fav')) return; if (noPage && it.src) { window.open(it.src, '_blank', 'noopener'); return; } openPickerDetail(it); };
     card.onkeydown = e => {
@@ -9316,7 +9325,7 @@ function bind() {
   $('#sumClose').onclick = closeSummarySheet;
   $('#summaryPanel').addEventListener('scroll', updatePowerTotalsReveal, { passive: true });
   $('#pickerClose').onclick = closePicker;
-  $('#pickerDetailBack').onclick = closePickerDetail;
+  $('#pickerDetailBack').onclick = closePicker;
   const pdBody = $('#pickerDetailBody');
   if (pdBody) {
     pdBody.addEventListener('click', onPickerDetailClick);
