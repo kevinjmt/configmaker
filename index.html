@@ -28,7 +28,7 @@
 <meta name="twitter:title" content="ConfigMaker by KJ">
 <meta name="twitter:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta name="twitter:image" content="https://kevinjmt.github.io/configmaker/assets/icons/favicon-512.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=155">
+<link rel="stylesheet" href="./assets/css/app.css?v=156">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -160,6 +160,7 @@
             <button id="idealoOpenFallback" class="btn btn-sm"><i class="fa-solid fa-external-link"></i> idealo.fr</button>
           </div>
           <div class="picker-links">
+            <button id="pickerNoneBtn" class="btn btn-sm"><i class="fa-solid fa-ban"></i> <span data-i18n="picker.none">Aucun</span></button>
             <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
           </div>
           <div class="idealo-under">
@@ -246,10 +247,15 @@
     <section class="col-left" aria-label="Tutoriels">
       <div class="sec-title">
         <h2><i class="fa-solid fa-graduation-cap"></i> <span data-i18n="tut.title">Tutoriels</span></h2>
-        <span class="count">9</span>
+        <span class="count" id="tutCount">9</span>
       </div>
       <p class="hint" data-i18n="tut.leftHint">Sélectionnez un composant pour voir les deux tutoriels correspondants.</p>
       <div id="tutorialList"></div>
+      <div class="sec-title tut-custom-head">
+        <h2><i class="fa-solid fa-folder-plus"></i> <span data-i18n="tut.custom">Mes tutoriels</span></h2>
+        <button id="tutAddBtn" class="mini-btn"><i class="fa-solid fa-plus"></i> <span data-i18n="tut.add">Ajouter</span></button>
+      </div>
+      <div id="customTutorialList"></div>
     </section>
     <section class="col-right" aria-label="Vidéos tutorielles">
       <div id="tutorialPlaylists" class="glass panel tut-playlists">
@@ -434,7 +440,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=11"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=164"></script>
+<script src="./assets/js/app.js?v=168"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>

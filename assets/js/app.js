@@ -179,6 +179,9 @@ const SLOT_DEFS = [
   { id: 'mouse', sec: 'setup', icon: 'lucide:mouse', q: 'souris', w: 2 },
   { id: 'pad', sec: 'setup', icon: 'lucide:square', q: 'tapis de souris XXL', w: 0 },
   { id: 'headset', sec: 'setup', icon: 'lucide:headset', q: 'casque gaming', w: 3 },
+  { id: 'micro', sec: 'setup', icon: 'lucide:mic', q: 'microphone USB XLR', w: 2, extra: true },
+  { id: 'iem', sec: 'setup', icon: 'lucide:ear', q: 'écouteurs intra-auriculaires IEM', w: 0, extra: true },
+  { id: 'kvm', sec: 'setup', icon: 'lucide:network', q: 'commutateur KVM', w: 5, extra: true },
   { id: 'gamepad', sec: 'setup', icon: 'lucide:gamepad-2', q: 'manette jeu', w: 3, extra: true },
   { id: 'ups', sec: 'setup', icon: 'lucide:battery-charging', q: 'onduleur', w: 0, extra: true },
   { id: 'multiprise', sec: 'setup', icon: 'lucide:plug', q: 'multiprise parafoudre', w: 0, extra: true },
@@ -269,7 +272,7 @@ const I18N = {
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauvegarder', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
-    'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.',
+    'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.', 'tut.custom': 'Mes tutoriels', 'tut.add': 'Ajouter',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Ouvrez une playlist complète sur YouTube ou choisissez un composant pour afficher les tutoriels correspondants.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'Montage PC · 18 vidéos', 'tut.materielSub': 'Montage PC · 16 vidéos',
     'tut.back': 'Retour aux playlists', 'tut.open': 'Ouvrir sur YouTube', 'tut.approx': 'Correspondance approximative', 'tut.sources': 'TopAchat + Materiel.net',
@@ -318,7 +321,7 @@ const I18N = {
     'compare.openIdealo': 'Idealo',
     'compare.openMerchant': 'Marchand',
     'compare.noAlt': 'Aucune alternative',
-    'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
+    'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche', 'picker.none': 'Aucun',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
     'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative", 'picker.detail': 'Fiche du composant', 'picker.openIdealo': 'Ouvrir sur Idealo',
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
@@ -414,7 +417,7 @@ const I18N = {
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
-    'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.',
+    'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.', 'tut.custom': 'My tutorials', 'tut.add': 'Add',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Open a full playlist on YouTube or select a component to show the matching tutorials.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'PC build · 18 videos', 'tut.materielSub': 'PC build · 16 videos',
     'tut.back': 'Back to playlists', 'tut.open': 'Open on YouTube', 'tut.approx': 'Approximate match', 'tut.sources': 'TopAchat + Materiel.net',
@@ -463,7 +466,7 @@ const I18N = {
     'compare.openIdealo': 'Idealo',
     'compare.openMerchant': 'Merchant',
     'compare.noAlt': 'No alternative',
-    'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
+    'picker.search': 'Filter my entries…', 'picker.new': 'New entry', 'picker.none': 'None',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
     'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative', 'picker.detail': 'Component details', 'picker.openIdealo': 'Open on Idealo',
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
@@ -547,8 +550,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Disque dur externe', extssd: 'SSD externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External hard drive', extssd: 'External SSD', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', micro: 'Microphone', iem: 'Écouteurs IEM', kvm: 'Commutateur KVM', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Disque dur externe', extssd: 'SSD externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', micro: 'Microphone', iem: 'IEM earphones', kvm: 'KVM switch', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External hard drive', extssd: 'External SSD', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -556,11 +559,95 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false }; }
+function blankLibrary() { return { manual: [], unboxing: [], review: [], installation: [] }; }
+const LIBRARY_TABS = [
+  { id: 'manual', icon: 'fa-solid fa-book', fr: 'Manuel', en: 'Manual' },
+  { id: 'unboxing', icon: 'fa-solid fa-box-open', fr: 'Unboxing', en: 'Unboxing' },
+  { id: 'review', icon: 'fa-solid fa-star', fr: 'Review', en: 'Review' },
+  { id: 'installation', icon: 'fa-solid fa-screwdriver-wrench', fr: 'Installation', en: 'Installation' },
+];
+function mediaKind(url) {
+  const u = String(url || '');
+  if (/youtu\.be|youtube\.com|vimeo\.com/i.test(u)) return 'video';
+  if (/\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(u)) return 'photo';
+  return 'link';
+}
+function normalizeLibrary(raw) {
+  const out = blankLibrary();
+  LIBRARY_TABS.forEach(tab => {
+    const list = raw && Array.isArray(raw[tab.id]) ? raw[tab.id] : [];
+    out[tab.id] = list.filter(it => it && it.url).map(it => ({
+      id: String(it.id || uid()),
+      title: String(it.title || ''),
+      url: String(it.url || ''),
+      kind: ['video', 'photo', 'link'].includes(it.kind) ? it.kind : mediaKind(it.url),
+      addedAt: Number(it.addedAt) || Date.now(),
+    }));
+  });
+  return out;
+}
+function productLibrary(p) {
+  if (!p) return blankLibrary();
+  if (!p.library || typeof p.library !== 'object') p.library = blankLibrary();
+  LIBRARY_TABS.forEach(tab => {
+    const raw = Array.isArray(p.library[tab.id]) ? p.library[tab.id] : [];
+    p.library[tab.id] = raw.filter(it => it && it.url).map(it => {
+      it.id = String(it.id || uid());
+      it.title = String(it.title || '');
+      it.url = String(it.url || '');
+      it.kind = ['video', 'photo', 'link'].includes(it.kind) ? it.kind : mediaKind(it.url);
+      it.addedAt = Number(it.addedAt) || Date.now();
+      return it;
+    });
+  });
+  return p.library;
+}
+function libraryManualUrl(p) {
+  if (!p) return '';
+  const lib = productLibrary(p);
+  return (lib.manual.find(it => it.url) || {}).url || p.manual || '';
+}
+function customTutorials() {
+  if (!Array.isArray(state.customTutorials)) state.customTutorials = [];
+  return state.customTutorials;
+}
+function customTutorialLabel(item) {
+  return (item && (item.label || (item.slotId ? slotName(item.slotId) : ''))) || (lang === 'en' ? 'Custom tutorial' : 'Tutoriel perso');
+}
+function normalizeStateExtras(st) {
+  if (!st || typeof st !== 'object') return st;
+  st.customTutorials = Array.isArray(st.customTutorials) ? st.customTutorials.filter(x => x && x.url).map(x => ({
+    ...x,
+    id: String(x.id || uid()),
+    title: String(x.title || ''),
+    url: String(x.url || ''),
+    kind: ['video', 'photo', 'link'].includes(x.kind) ? x.kind : mediaKind(x.url),
+    source: x.source === 'library' ? 'library' : 'custom',
+    slotId: String(x.slotId || ''),
+    slotDefId: String(x.slotDefId || ''),
+    label: String(x.label || ''),
+  })) : [];
+  Object.values(st.slots || {}).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    if (!Array.isArray(s.products)) s.products = [];
+    const hasSel = s.selectedId && s.products.some(p => p.id === s.selectedId);
+    if (s.none && !hasSel) { s.none = true; s.selectedId = null; }
+    else if (!hasSel) { s.selectedId = s.products[0]?.id || null; s.none = false; }
+    else s.none = false;
+    s.products.forEach(p => {
+      if (!p || typeof p !== 'object') return;
+      p.ordered = !!p.ordered;
+      p.orderedAt = Number(p.orderedAt) || 0;
+      p.library = normalizeLibrary(p.library);
+    });
+  });
+  return st;
+}
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
 function defaultState() {
   const slots = {};
-  SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
-  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage() };
+  SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null, none: false }; });
+  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage(), customTutorials: [] };
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
@@ -570,10 +657,11 @@ if (!state.usage) {
   try { const p = load(LS.prefs, {}); if (p && (p.usage || p.tarif || p.priceHP || p.priceHC)) seeded = p; } catch { /* ignore */ }
   state.usage = normUsage(seeded || {});
 }
+normalizeStateExtras(state);
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
 let cmpCardsState = null; // open side-by-side component cards popup
 let cmpOptAnchor = null; // trigger of the compact alternatives popover
-let tutSelected = null, tutCloseTimer = null;
+let tutSelected = null, tutSelectedCustomId = null, tutCloseTimer = null;
 let sheetHideTimer = null;
 const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
@@ -863,6 +951,7 @@ async function ensureAlternativeData(slotId) {
   const s = state.slots[slotId];
   if (!s || typeof Idealo === 'undefined') return;
   const targets = (s.products || []).filter(x => x.id !== s.selectedId
+    && !x.ordered
     && /idealo\.fr\/prix\//i.test(x.idealo || '')
     && (!x.price || !x.datasheet)
     && !(editingPid && editingPid === x.id));
@@ -1373,14 +1462,15 @@ function slotCard(id) {
   const stale = !!(p && refreshFailed.has(p.id));
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '');
+  const noComponent = !p && !!s.none;
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '');
   el.dataset.slot = id;
   if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
   if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
-  const title = p ? esc(productDisplayName(p)) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
-  const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
+  const title = p ? esc(productDisplayName(p)) : noComponent ? esc((lang === 'en' ? 'No ' : 'Aucun ') + slotName(id)) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
+  const specs = p ? esc(productQuickSpecs(p)) : noComponent ? (lang === 'en' ? 'No component selected' : 'Aucun composant sélectionné') : esc(slotName(id));
   const mlbl = (fr, en) => `<span class="mini-lbl">${esc(lang === 'en' ? en : fr)}</span>`;
   let priceDiv = `<div class="slot-price">—</div>`, vendorDiv = `<div class="slot-vendor">${esc(slotName(id))}</div>`, delivDiv = '';
   if (p) {
@@ -1414,7 +1504,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-solid ${p.ordered ? 'fa-check' : 'fa-box'}"></i></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1425,7 +1515,8 @@ function slotCard(id) {
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i>${mlbl('Acheter', 'Buy')}</button>
       ${['mb', 'ssd1', 'gpu', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i>${mlbl('PCIe', 'PCIe')}</button>` : ''}
       ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (tier list 2025)' : 'Qualité & fiabilité alim (tier list 2025)'}"><i class="fa-solid fa-ranking-star"></i>${mlbl('Qualité', 'Tier')}</button>` : ''}
-      ${p && p.manual ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i>${mlbl('Manuel', 'Manual')}</button>` : ''}
+      <button class="mini-btn" data-act="library" title="${lang === 'en' ? 'Open product library' : 'Ouvrir la bibliothèque du produit'}"><i class="fa-solid fa-book-open"></i>${mlbl('Bibliothèque', 'Library')}</button>
+      ${libraryManualUrl(p) ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i>${mlbl('Manuel', 'Manual')}</button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
@@ -1436,6 +1527,7 @@ function slotCard(id) {
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.act === 'fav') { if (p) { toggleFavorite(p, slotCatKey(id)); syncFavoriteViews(); } return; }
+    if (b.dataset.act === 'ordered') { if (p) { p.ordered = !p.ordered; p.orderedAt = p.ordered ? Date.now() : 0; if (p.ordered) refreshFailed.delete(p.id); persist(); renderSlots(); toast(p.ordered ? (lang === 'en' ? 'Marked as ordered — price refresh locked' : 'Marqué comme commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Order mark removed' : 'Marque de commande retirée')); } return; }
     if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
     if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); if (openVariants.has(id)) ensureVariantAttrs(id); renderSlots(); return; }
@@ -1474,7 +1566,7 @@ function renderAlts(host, s, slotId) {
     row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
     row.innerHTML = `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
-    row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
+    row.onclick = () => { s.selectedId = p.id; s.none = false; persist(); refresh(); };
     const acts = document.createElement('div');
     acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
     const open = document.createElement('button');
@@ -1498,7 +1590,8 @@ function altRemove(slotId, pid) {
   const s = state.slots[slotId]; if (!s) return;
   if (!confirm(lang === 'en' ? 'Delete this entry?' : 'Supprimer cette fiche ?')) return;
   s.products = s.products.filter(x => x.id !== pid);
-  if (s.selectedId === pid) s.selectedId = s.products[0]?.id || null;
+  if (s.selectedId === pid) { s.selectedId = s.products[0]?.id || null; s.none = false; }
+  removeProductTutorials(pid);
   if (!s.products.length) openAlts.delete(slotId);
   persist(); refresh();
 }
@@ -1517,11 +1610,203 @@ function slotAction(id, act) {
   }
   else if (act === 'pcie') openPcieSim();
   else if (act === 'psucompare') openPsuCompare(id);
-  else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); }
+  else if (act === 'library') { if (p) openLibrary(id); }
+  else if (act === 'manual') { const u = libraryManualUrl(p); if (u) window.open(u, '_blank', 'noopener'); }
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'refetch') refreshOnePrice(id);
   else if (act === 'compat') openCompatDetail(id);
-  else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
+  else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; s.none = false; persist(); refresh(); } }
+}
+
+
+/* ---------- Per-product library ---------- */
+function libKindIcon(kind) {
+  return kind === 'video' ? 'fa-solid fa-circle-play' : kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link';
+}
+function syncLibraryTutorial(slotId, p, item) {
+  if (!p || !item || !item.url) return;
+  const list = customTutorials();
+  let tut = list.find(t => t.source === 'library' && t.productId === p.id && t.libraryItemId === item.id);
+  const data = {
+    slotId,
+    slotDefId: (state.slots[slotId] && state.slots[slotId].defId) || '',
+    label: slotName(slotId),
+    productId: p.id,
+    libraryItemId: item.id,
+    title: item.title || (lang === 'en' ? 'Installation' : 'Installation'),
+    url: item.url,
+    kind: item.kind || mediaKind(item.url),
+    source: 'library',
+    updatedAt: Date.now(),
+  };
+  if (tut) Object.assign(tut, data);
+  else list.push({ id: 'lib_' + uid(), ...data });
+}
+function removeLibraryTutorial(productId, itemId) {
+  state.customTutorials = customTutorials().filter(t => !(t.source === 'library' && t.productId === productId && t.libraryItemId === itemId));
+  if (tutSelectedCustomId && !customTutorials().some(t => t.id === tutSelectedCustomId)) tutSelectedCustomId = null;
+}
+function removeProductTutorials(productId) {
+  if (!productId) return;
+  state.customTutorials = customTutorials().filter(t => !(t.source === 'library' && t.productId === productId));
+  if (tutSelectedCustomId && !customTutorials().some(t => t.id === tutSelectedCustomId)) tutSelectedCustomId = null;
+}
+function libraryExportPayload(slotId, p) {
+  const s = state.slots[slotId];
+  return {
+    app: 'ConfigMaker',
+    version: APP_VERSION,
+    kind: 'library',
+    exportedAt: new Date().toISOString(),
+    slot: { id: slotId, label: slotName(slotId), type: s ? defOf(s).id : '' },
+    product: { id: p.id, name: p.name },
+    library: JSON.parse(JSON.stringify(productLibrary(p))),
+  };
+}
+function exportLibraryJson(slotId, p) {
+  const name = (state.name || 'config') + ' - ' + (p.name || slotName(slotId)) + ' - bibliotheque.json';
+  download(name.replace(/[\\/:*?"<>|]+/g, '-'), JSON.stringify(libraryExportPayload(slotId, p), null, 2), 'application/json');
+}
+function prLibraryBody(p) {
+  const lib = productLibrary(p);
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+  const blocks = LIBRARY_TABS.map(tab => {
+    const items = lib[tab.id] || [];
+    if (!items.length) return '';
+    return `<h3 class="pr-h3"><i class="${tab.icon}"></i> ${esc(lang === 'en' ? tab.en : tab.fr)}</h3>
+      <div class="pr-lib-list">${items.map(it => `<a href="${esc(it.url)}" target="_blank" rel="noopener"><i class="${libKindIcon(it.kind)}"></i> ${esc(it.title || it.url)}</a>`).join('')}</div>`;
+  }).join('');
+  if (!blocks && p.manual) {
+    return `<h3 class="pr-h3"><i class="fa-solid fa-book"></i> ${esc(L('Manual', 'Manuel'))}</h3><div class="pr-lib-list"><a href="${esc(p.manual)}" target="_blank" rel="noopener"><i class="fa-solid fa-link"></i> ${esc(p.manual)}</a></div>`;
+  }
+  return blocks || `<p class="hint">${esc(L('No links saved in this library.', 'Aucun lien enregistré dans cette bibliothèque.'))}</p>`;
+}
+function exportLibraryPdf(slotId, p) {
+  const root = printRoot();
+  root.innerHTML = '';
+  const sec = prSection(root, (lang === 'en' ? 'Library — ' : 'Bibliothèque — ') + (p.name || slotName(slotId)), 'fa-solid fa-book-open');
+  sec.insertAdjacentHTML('beforeend', prLibraryBody(p));
+  document.body.classList.add('printing');
+  window.print();
+}
+function openLibrary(slotId) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p) return;
+  const lib = productLibrary(p);
+  let tab = 'manual', editing = null, dragId = null;
+  openModal((lang === 'en' ? 'Library — ' : 'Bibliothèque — ') + (p.name || slotName(slotId)), '<div id="libRoot"></div>', 'modal-wide');
+  const host = $('#modalBody');
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+
+  const paint = () => {
+    const tabDef = LIBRARY_TABS.find(x => x.id === tab) || LIBRARY_TABS[0];
+    const items = lib[tab] || [];
+    const tabsHtml = LIBRARY_TABS.map(x => {
+      const n = (lib[x.id] || []).length;
+      return `<button class="usage-pill${x.id === tab ? ' active' : ''}" data-lib-tab="${x.id}"><i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="count">${n}</span>` : ''}</button>`;
+    }).join('');
+    const rows = items.map((it, idx) => `
+      <div class="lib-row" draggable="true" data-lib-id="${esc(it.id)}">
+        <span class="lib-drag" title="${esc(L('Drag to reorder', 'Glisser pour réordonner'))}"><i class="fa-solid fa-grip-vertical"></i></span>
+        <span class="lib-kind"><i class="${libKindIcon(it.kind)}"></i></span>
+        <span class="lib-main"><a href="${esc(it.url)}" target="_blank" rel="noopener"><strong>${esc(it.title || it.url)}</strong></a><small>${esc(it.url)}</small></span>
+        <span class="lib-actions">
+          <button class="mini-btn" data-lib-move="up" data-lib-id="${esc(it.id)}" ${idx === 0 ? 'disabled' : ''} title="${esc(L('Move up', 'Monter'))}"><i class="fa-solid fa-arrow-up"></i></button>
+          <button class="mini-btn" data-lib-move="down" data-lib-id="${esc(it.id)}" ${idx === items.length - 1 ? 'disabled' : ''} title="${esc(L('Move down', 'Descendre'))}"><i class="fa-solid fa-arrow-down"></i></button>
+          <button class="mini-btn" data-lib-edit="${esc(it.id)}" title="${esc(L('Edit', 'Modifier'))}"><i class="fa-solid fa-pen"></i></button>
+          <button class="mini-btn danger" data-lib-del="${esc(it.id)}" title="${esc(L('Delete', 'Supprimer'))}"><i class="fa-solid fa-trash"></i></button>
+        </span>
+      </div>`).join('');
+    const fallback = tab === 'manual' && p.manual && !items.some(it => it.url === p.manual) ? `
+      <div class="lib-fallback"><span><i class="fa-solid fa-link"></i> ${esc(L('Existing manual link:', 'Lien manuel de la fiche :'))} <a href="${esc(p.manual)}" target="_blank" rel="noopener">${esc(p.manual)}</a></span>
+      <button class="mini-btn" data-lib-importfallback><i class="fa-solid fa-plus"></i> ${esc(L('Add to library', 'Ajouter à la bibliothèque'))}</button></div>` : '';
+    const form = editing ? (() => {
+      const it = editing.mode === 'edit' ? items.find(x => x.id === editing.id) || {} : {};
+      return `<div class="lib-form">
+        <div class="fld"><label>${esc(L('Title', 'Titre'))}</label><input id="libTitle" value="${esc(it.title || '')}" placeholder="${esc(L('Installation video, review…', 'Vidéo d’installation, test…'))}"></div>
+        <div class="fld"><label>URL</label><input id="libUrl" type="url" value="${esc(it.url || '')}" placeholder="https://…"></div>
+        <div class="fld"><label>${esc(L('Type', 'Type'))}</label><select id="libKind">
+          <option value="link"${(it.kind || 'link') === 'link' ? ' selected' : ''}>${esc(L('Link', 'Lien'))}</option>
+          <option value="video"${it.kind === 'video' ? ' selected' : ''}>${esc(L('Video', 'Vidéo'))}</option>
+          <option value="photo"${it.kind === 'photo' ? ' selected' : ''}>${esc(L('Photo', 'Photo'))}</option>
+        </select></div>
+        <div class="btn-row"><button class="btn btn-sm" data-lib-cancel>${esc(L('Cancel', 'Annuler'))}</button><button class="btn btn-sm btn-primary" data-lib-save><i class="fa-solid fa-check"></i> ${esc(L('Save', 'Enregistrer'))}</button></div>
+      </div>`;
+    })() : '';
+    host.innerHTML = `<div id="libRoot">
+      <p class="hint">${esc(L('Links saved for this component only. Installation links are mirrored in “My tutorials”.', 'Liens enregistrés pour ce composant uniquement. Les liens d’installation sont repris dans « Mes tutoriels ».'))}</p>
+      <div class="usage-tabs lib-tabs">${tabsHtml}</div>
+      ${form}
+      ${fallback}
+      <div class="lib-list">${rows || `<p class="hint lib-empty">${esc(L('No link yet in this tab.', 'Aucun lien dans cet onglet pour le moment.'))}</p>`}</div>
+      <div class="lib-foot">
+        <button class="mini-btn" data-lib-pdf><i class="fa-solid fa-file-pdf"></i> PDF</button>
+        <button class="mini-btn" data-lib-json><i class="fa-solid fa-file-code"></i> JSON</button>
+        <span class="grow"></span>
+        <button class="btn btn-sm" data-lib-close>${esc(L('Close', 'Fermer'))}</button>
+        <button class="btn btn-sm btn-primary" data-lib-add><i class="fa-solid fa-plus"></i> ${esc(L('Add', 'Ajouter'))}</button>
+      </div>
+    </div>`;
+    refreshIcons(host);
+    schedulePillSliders();
+
+    const q = sel => host.querySelector(sel);
+    host.querySelectorAll('[data-lib-tab]').forEach(b => b.onclick = () => { tab = b.dataset.libTab; editing = null; paint(); });
+    host.querySelectorAll('[data-lib-move]').forEach(b => b.onclick = () => {
+      const arr = lib[tab], i = arr.findIndex(x => x.id === b.dataset.libId), j = i + (b.dataset.libMove === 'up' ? -1 : 1);
+      if (i < 0 || j < 0 || j >= arr.length) return;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      persist(); paint();
+    });
+    host.querySelectorAll('[data-lib-edit]').forEach(b => b.onclick = () => { editing = { mode: 'edit', id: b.dataset.libEdit }; paint(); });
+    host.querySelectorAll('[data-lib-del]').forEach(b => b.onclick = () => {
+      const it = items.find(x => x.id === b.dataset.libDel); if (!it) return;
+      if (!confirm(L('Delete this link?', 'Supprimer ce lien ?'))) return;
+      lib[tab] = lib[tab].filter(x => x.id !== it.id);
+      if (tab === 'installation') removeLibraryTutorial(p.id, it.id);
+      persist(); paint(); renderSlots();
+    });
+    const addBtn = q('[data-lib-add]'); if (addBtn) addBtn.onclick = () => { editing = { mode: 'add' }; paint(); };
+    const cancel = q('[data-lib-cancel]'); if (cancel) cancel.onclick = () => { editing = null; paint(); };
+    const save = q('[data-lib-save]');
+    if (save) save.onclick = () => {
+      const title = $('#libTitle').value.trim(), url = $('#libUrl').value.trim(), kind = $('#libKind').value;
+      if (!url) { toast(L('URL required', 'URL requise')); return; }
+      const item = { id: editing.mode === 'edit' ? editing.id : uid(), title: title || url, url, kind: kind || mediaKind(url), addedAt: Date.now() };
+      if (editing.mode === 'edit') {
+        const idx = lib[tab].findIndex(x => x.id === editing.id);
+        if (idx >= 0) lib[tab][idx] = item; else lib[tab].push(item);
+      } else lib[tab].push(item);
+      if (tab === 'installation') syncLibraryTutorial(slotId, p, item);
+      editing = null;
+      persist(); paint(); renderSlots();
+      if (tab === 'installation') toast(L('Added to “My tutorials”', 'Ajouté à « Mes tutoriels »'));
+    };
+    const fallbackBtn = q('[data-lib-importfallback]');
+    if (fallbackBtn) fallbackBtn.onclick = () => {
+      const item = { id: uid(), title: L('Manual', 'Manuel'), url: p.manual, kind: mediaKind(p.manual), addedAt: Date.now() };
+      lib.manual.push(item); persist(); paint(); renderSlots();
+    };
+    const pdf = q('[data-lib-pdf]'); if (pdf) pdf.onclick = () => exportLibraryPdf(slotId, p);
+    const json = q('[data-lib-json]'); if (json) json.onclick = () => exportLibraryJson(slotId, p);
+    const close = q('[data-lib-close]'); if (close) close.onclick = closeModal;
+
+    host.querySelectorAll('.lib-row').forEach(row => {
+      row.addEventListener('dragstart', e => { dragId = row.dataset.libId; row.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); } catch { /* ignore */ } });
+      row.addEventListener('dragend', () => { dragId = null; row.classList.remove('dragging'); host.querySelectorAll('.lib-row').forEach(r => r.classList.remove('drag-over')); });
+      row.addEventListener('dragover', e => { if (!dragId || dragId === row.dataset.libId) return; e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', e => {
+        e.preventDefault();
+        const target = row.dataset.libId, arr = lib[tab];
+        const from = arr.findIndex(x => x.id === dragId), to = arr.findIndex(x => x.id === target);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1); arr.splice(to, 0, moved);
+        dragId = null; persist(); paint();
+      });
+    });
+  };
+  paint();
 }
 
 /* ---------- PSU quality & reliability (community PSU tier list, 2025) ---------- */
@@ -1582,6 +1867,7 @@ function openPsuCompare(slotId) {
 }
 async function refreshOnePrice(slotId) {
   const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
+  if (p.ordered) { toast(lang === 'en' ? 'Ordered component — price refresh is locked' : 'Composant commandé — actualisation du prix bloquée'); return; }
   if (!/idealo\.fr\/prix\//i.test(p.idealo || '') || typeof Idealo === 'undefined') return;
   if (editingPid && editingPid === p.id) return;
   refreshingPids.add(p.id); renderSlots(); renderSummary();
@@ -1589,7 +1875,9 @@ async function refreshOnePrice(slotId) {
   try {
     const r = await Idealo.offers(p.idealo, true);
     const cur = s.products.find(x => x.id === p.id);
-    if (cur && !r.error && r.offers.length) {
+    if (cur && cur.ordered) {
+      /* locked while the request was in flight — keep the saved price */
+    } else if (cur && !r.error && r.offers.length) {
       const changed = applyOfferRefresh(cur, r.offers, true);
       refreshFailed.delete(cur.id);
       toast(changed
@@ -1600,14 +1888,15 @@ async function refreshOnePrice(slotId) {
       toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
     }
   } catch {
-    refreshFailed.add(p.id);
-    toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
+    const cur = s.products.find(x => x.id === p.id);
+    if (cur && !cur.ordered) refreshFailed.add(p.id);
+    if (!cur || !cur.ordered) toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
   }
   refreshingPids.delete(p.id);
   persist(); refresh(); hideProgress();
 }
 const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'netcard', 'os', 'soft'];
-const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extssd', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
+const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'micro', 'iem', 'kvm', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extssd', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
   const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
   const byId = Object.fromEntries(SLOT_DEFS.map(d => [d.id, d]));
@@ -1673,6 +1962,7 @@ function addSlotByDef(defId) {
 function removeSlot(slotId) {
   if (!state.slots[slotId] || !slotId.includes('_')) return;
   if (!confirm(lang === 'en' ? 'Remove this component?' : 'Supprimer ce composant ?')) return;
+  (state.slots[slotId].products || []).forEach(p => removeProductTutorials(p.id));
   delete state.slots[slotId];
   state.order = state.order.filter(x => x !== slotId);
   openAlts.delete(slotId);
@@ -1705,6 +1995,9 @@ const IDEALO_CATS = [
   { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
   { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
   { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172F1160494/casques-gamer.html' },
+  { key: 'micro', label: 'Microphones', url: 'https://www.idealo.fr/prechcat.html?q=microphone' },
+  { key: 'iem', label: 'Écouteurs intra-auriculaires', url: 'https://www.idealo.fr/cat/5172F106764479/casques-gamer.html' },
+  { key: 'kvm', label: 'Commutateurs KVM', url: 'https://www.idealo.fr/prechcat.html?q=commutateur%20kvm' },
   { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/liste/122968612/pate-thermique-cpu.html' },
   { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
   { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
@@ -1730,7 +2023,7 @@ const IDEALO_CATS = [
   { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
   { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', extssd: 'extssd', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', micro: 'micro', iem: 'iem', kvm: 'kvm', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', extssd: 'extssd', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let pickerSeq = 0; // invalidates a pending dynamic-default resolution when the picker changes
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0, idealLoadingMore = false;
@@ -2922,7 +3215,7 @@ function commitPickerItem(it) {
   const existing = findExistingProduct(s, it);
   if (existing) {
     let changed = false;
-    if (!addOnly && s.selectedId !== existing.id) { s.selectedId = existing.id; changed = true; }
+    if (!addOnly && s.selectedId !== existing.id) { s.selectedId = existing.id; s.none = false; changed = true; }
     closePickerDetail();
     closePicker();
     if (changed) {
@@ -2943,8 +3236,8 @@ function commitPickerItem(it) {
     if (ds) { np.datasheet = sanitizeDs(ds); np.dsClean = true; }
   }
   s.products.push(np);
-  if (!addOnly || !s.selectedId) s.selectedId = np.id;
-  if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected);
+  if (!addOnly || !s.selectedId) { s.selectedId = np.id; s.none = false; }
+  if (!addOnly && prevSelected && prevSelected !== np.id) { removeProductTutorials(prevSelected); s.products = s.products.filter(x => x.id !== prevSelected); }
   persist(); compatCache = null;
   closePickerDetail();
   closePicker();
@@ -3004,6 +3297,8 @@ function openPicker(id, mode = 'replace') {
     openCard.classList.add('kj-open');
     setTimeout(() => openCard.classList.remove('kj-open'), 1100);
   }
+  const noneBtn = $('#pickerNoneBtn');
+  if (noneBtn) noneBtn.classList.toggle('hidden', pickerMode === 'add');
   const chip = $('#pickerModeChip');
   if (chip) {
     chip.classList.toggle('hidden', pickerMode !== 'add');
@@ -4316,8 +4611,9 @@ function openProductForm(slotId, p, opts = {}) {
     compatCache = null;
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
-    if (!opts.addOnly || !s.selectedId) s.selectedId = p.id;
+    if (!opts.addOnly || !s.selectedId) { s.selectedId = p.id; s.none = false; }
     if (!alreadyListed && !opts.addOnly && prevSelected && prevSelected !== p.id) {
+      removeProductTutorials(prevSelected);
       s.products = s.products.filter(x => x.id !== prevSelected); // replace mode: drop the previous fiche
     }
     persist(); closeEditorPanel(); refresh(); renderPicker();
@@ -4330,8 +4626,9 @@ function openProductForm(slotId, p, opts = {}) {
   const dp = $('#f_delP');
   if (dp) dp.onclick = () => {
     const s = state.slots[slotId];
+    removeProductTutorials(p.id);
     s.products = s.products.filter(x => x.id !== p.id);
-    if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null;
+    if (s.selectedId === p.id) { s.selectedId = s.products[0]?.id || null; s.none = false; }
     if (pdState && pdState.item && pdState.item.id === p.id) closePickerDetail();
     persist(); closeEditorPanel(); refresh(); renderPicker();
   };
@@ -4949,7 +5246,8 @@ function drawPrices() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = cssW, H = cssH;
   ctx.clearRect(0, 0, W, H);
-  const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const themeMode = document.documentElement.dataset.theme;
+  const dark = themeMode === 'dark' || themeMode === 'black' || (themeMode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   const grid = dark ? '#333' : '#e3e8e3', axis = dark ? '#9aa0a6' : '#666';
   const h = hist()[state.name] || [];
   const leg = $('#priceLegend'); leg.className = 'legend' + (phMode === 'per' ? ' groups' : ''); leg.innerHTML = '';
@@ -6655,6 +6953,7 @@ function restoreSnapshot(snap, name, enMsg, frMsg) {
   state = JSON.parse(JSON.stringify(snap));
   if (name) state.name = name;
   state.usage = normUsage(state.usage || {});
+  normalizeStateExtras(state);
   persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh();
   toast(lang === 'en' ? enMsg : frMsg);
 }
@@ -7097,10 +7396,10 @@ async function importAiProduct(slotId, it, link) {
   if (!s) return { ok: false, reason: 'slot' };
   const existing = findExistingProduct(s, np);
   if (existing) {
-    s.selectedId = existing.id;
+    s.selectedId = existing.id; s.none = false;
     return { ok: true, item: existing, existing: true };
   }
-  s.products.push(np); s.selectedId = np.id;
+  s.products.push(np); s.selectedId = np.id; s.none = false;
   /* Finish exactly like a manual pick: same fields, same background datasheet
      upgrade and same alternative enrichment, without refetching the two
      responses we already have for the price gate. */
@@ -7432,11 +7731,12 @@ function importConfig(obj, opts) {
   if (!state.order) state.order = Object.keys(state.slots);
   if (!state.name) state.name = 'Ma Config';
   state.usage = normUsage(state.usage || {});
+  normalizeStateExtras(state);
   if (typeof state.budget !== 'number') state.budget = parseFloat(state.budget) || 0;
   Object.values(state.slots).forEach(s => {
     if (!s || typeof s !== 'object') return;
     if (!Array.isArray(s.products)) s.products = [];
-    if (!(s.selectedId && s.products.some(p => p.id === s.selectedId))) s.selectedId = s.products[0]?.id || null;
+    if (!s.none && !(s.selectedId && s.products.some(p => p.id === s.selectedId))) s.selectedId = s.products[0]?.id || null;
   });
   try { openAlts.clear(); } catch { /* ignore */ }
   try { openVariants.clear(); } catch { /* ignore */ }
@@ -7569,7 +7869,7 @@ async function refreshPrices(quiet) {
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
     (s.products || []).forEach(p => {
-      if (p && /idealo\.fr\/prix\//i.test(p.idealo || '')) {
+      if (p && !p.ordered && /idealo\.fr\/prix\//i.test(p.idealo || '')) {
         if (!byUrl.has(p.idealo)) byUrl.set(p.idealo, []);
         byUrl.get(p.idealo).push({ id, pid: p.id });
       }
@@ -7587,7 +7887,7 @@ async function refreshPrices(quiet) {
     const url = urls[i];
     const entries = byUrl.get(url).filter(e => {
       const s = state.slots[e.id];
-      return s && s.products.some(x => x.id === e.pid);
+      return s && s.products.some(x => x.id === e.pid && !x.ordered);
     });
     if (!entries.length) continue;
     entries.forEach(e => refreshingPids.add(e.pid));
@@ -7601,7 +7901,7 @@ async function refreshPrices(quiet) {
         entries.forEach(({ id, pid }) => {
           const s = state.slots[id];
           const cur = s && s.products.find(x => x.id === pid);
-          if (!cur || (editingPid && editingPid === pid)) return;
+          if (!cur || cur.ordered || (editingPid && editingPid === pid)) return;
           refreshFailed.delete(pid);
           if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
         });
@@ -7626,7 +7926,8 @@ const EXPORT_PARTS = [
   { id: 'graphs', icon: 'fa-solid fa-chart-pie', fr: 'Graphiques', en: 'Graphs', hintFr: 'Répartition du budget et données des graphiques.', hintEn: 'Budget allocation and chart data.', pdf: true, json: true },
   { id: 'consumption', icon: 'fa-solid fa-bolt', fr: 'Consommation', en: 'Power draw', hintFr: 'Puissance, calendriers d’usage et tarification.', hintEn: 'Power, usage calendars and pricing.', pdf: true, json: true },
   { id: 'compatibility', icon: 'fa-solid fa-shield-halved', fr: 'Compatibilité', en: 'Compatibility', hintFr: 'Vérifications, alertes et justifications.', hintEn: 'Checks, warnings and explanations.', pdf: true, json: true },
-  { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés et playlists.', hintEn: 'Selected-component tutorials and playlists.', pdf: true, json: true },
+  { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés, tutoriels perso et playlists.', hintEn: 'Selected-component tutorials, custom tutorials and playlists.', pdf: true, json: true },
+  { id: 'library', icon: 'fa-solid fa-book-open', fr: 'Bibliothèques produits', en: 'Product libraries', hintFr: 'Manuels, unboxings, reviews et installations par composant.', hintEn: 'Manuals, unboxings, reviews and installations per component.', pdf: true, json: true },
   { id: 'priceHistory', icon: 'fa-solid fa-clock-rotate-left', fr: 'Historique des prix', en: 'Price history', hintFr: 'Courbes et points de prix enregistrés.', hintEn: 'Saved curves and price points.', pdf: true, json: true },
   { id: 'savedVersions', icon: 'fa-solid fa-box-archive', fr: 'Sauvegardes', en: 'Saved versions', hintFr: 'Versions sauvegardées de cette config (JSON uniquement).', hintEn: 'Saved versions of this config (JSON only).', pdf: false, json: true },
 ];
@@ -7895,14 +8196,18 @@ function prComponentCard(id) {
   if (src) srcEl = src.querySelector('.slot[data-slot="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
   const node = prStripIds(srcEl ? srcEl.cloneNode(true) : document.createElement('div'));
   node.classList.add('pr-slot');
-  node.querySelectorAll('.slot-remove, .slot-refetch, .slot-alt-tab, .compat-more').forEach(n => n.remove());
+  node.querySelectorAll('.slot-remove, .slot-refetch, .slot-alt-tab, .compat-more, .kj-heart').forEach(n => n.remove());
   const s = state.slots[id], p = s ? sel(s) : null;
+  if (p && p.ordered) {
+    const badges = node.querySelector('.slot-badges');
+    if (badges) badges.insertAdjacentHTML('beforeend', `<span class="pr-badge"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Ordered' : 'Commandé')}</span>`);
+  }
   const acts = node.querySelector('.slot-actions');
   if (acts) {
     acts.textContent = '';
     const idealoOk = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
     const links = p ? [
-      { href: String(p.manual || '').trim(), icon: 'fa-solid fa-book', label: lang === 'en' ? 'Manual' : 'Manuel' },
+      { href: String(libraryManualUrl(p) || '').trim(), icon: 'fa-solid fa-book', label: lang === 'en' ? 'Manual' : 'Manuel' },
       { href: idealoOk ? p.idealo : '', icon: 'fa-solid fa-arrow-up-right-from-square', label: 'Idealo' },
       { href: buyUrlFor(p) || '', icon: 'fa-solid fa-cart-shopping', label: lang === 'en' ? 'Merchant' : 'Marchand' },
     ] : [];
@@ -8080,7 +8385,11 @@ function buildPrintReport(parts) {
       ids.forEach(id => grp.appendChild(prComponentCard(id)));
       comps.appendChild(grp);
     });
-    if (!anyComp) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+    const noneIds = state.order.filter(id => { const sl = state.slots[id]; return sl && sl.none && !sel(sl); });
+    if (noneIds.length) {
+      comps.insertAdjacentHTML('beforeend', `<div class="pr-none-list"><h3 class="pr-h3"><i class="fa-solid fa-ban"></i> ${esc(L('No component', 'Aucun composant'))}</h3><ul>${noneIds.map(id => `<li><strong>${esc(slotName(id))}</strong> — ${esc(L('intentionally left empty', 'volontairement laissé vide'))}</li>`).join('')}</ul></div>`);
+    }
+    if (!anyComp && !noneIds.length) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
   }
 
   /* 5 — consumption: usage & pricing config + power charts/totals */
@@ -8148,11 +8457,32 @@ function buildPrintReport(parts) {
     } else {
       tut.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No selected component has a matching tutorial.', 'Aucun composant sélectionné n’a de tutoriel correspondant.'))}</p>`);
     }
+    const customs = customTutorials();
+    if (customs.length) {
+      tut.insertAdjacentHTML('beforeend', `<h3 class="pr-h3"><i class="fa-solid fa-folder-plus"></i> ${esc(L('My tutorials', 'Mes tutoriels'))}</h3>
+        <div class="pr-tut-list">${customs.map(item => `<div class="pr-tut-item"><div class="pr-tut-head"><strong>${esc(customTutorialLabel(item))}</strong><span>${esc(item.title || item.url)}</span></div><a href="${esc(item.url)}" target="_blank" rel="noopener"><i class="${item.kind === 'video' ? 'fa-brands fa-youtube' : item.kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link'}"></i> ${esc(item.url)}</a></div>`).join('')}</div>`);
+    }
     tut.insertAdjacentHTML('beforeend', `<h3 class="pr-h3"><i class="fa-brands fa-youtube"></i> ${esc(L('Full playlists', 'Playlists complètes'))}</h3>
       <div class="pr-tut-playlists">
         <a href="${esc(TUT_PLAYLISTS.topachat.url)}" target="_blank" rel="noopener"><strong>TopAchat</strong><span>${esc(L('PC build · 18 videos', 'Montage PC · 18 vidéos'))}</span></a>
         <a href="${esc(TUT_PLAYLISTS.materiel.url)}" target="_blank" rel="noopener"><strong>Materiel.net</strong><span>${esc(L('PC build · 16 videos', 'Montage PC · 16 vidéos'))}</span></a>
       </div>`);
+  }
+
+  /* 8b — product libraries */
+  if (show('library')) {
+    const libs = prSection(root, L('Product libraries', 'Bibliothèques produits'), 'fa-solid fa-book-open');
+    let anyLib = false;
+    state.order.forEach(id => {
+      const sl = state.slots[id], p = sl ? sel(sl) : null;
+      if (!p) return;
+      const lib = productLibrary(p);
+      const total = LIBRARY_TABS.reduce((n, tab) => n + (lib[tab.id] || []).length, 0);
+      if (!total && !p.manual) return;
+      anyLib = true;
+      libs.insertAdjacentHTML('beforeend', `<div class="pr-lib-block"><div class="pr-lib-head"><strong>${esc(slotName(id))}</strong><span>${esc(p.name || '')}</span></div>${prLibraryBody(p)}</div>`);
+    });
+    if (!anyLib) libs.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No library link saved.', 'Aucun lien de bibliothèque enregistré.'))}</p>`);
   }
 
   /* 9 — price history (three charts as images) */
@@ -8266,7 +8596,16 @@ function exportTutorialData() {
     const item = TUTORIALS.find(x => x.slot === id) || TUTORIALS.find(x => x.slot === sl.defId);
     if (item) items.push({ slot: id, label: slotName(id), component: p.name || '', videos: item });
   });
-  return { items, playlists: TUT_PLAYLISTS };
+  return { items, custom: customTutorials(), playlists: TUT_PLAYLISTS };
+}
+function exportLibraryData() {
+  const items = [];
+  state.order.forEach(id => {
+    const sl = state.slots[id]; const p = sl ? sel(sl) : null;
+    if (!p) return;
+    items.push({ slot: id, label: slotName(id), component: p.name || '', library: JSON.parse(JSON.stringify(productLibrary(p))) });
+  });
+  return { items };
 }
 /* JSON export of the currently selected config. Configuration is always
    present so the file stays re-importable; the selection controls the rest. */
@@ -8285,6 +8624,7 @@ function exportConfigJson(parts) {
   if (chosen.has('consumption')) obj.consumption = exportConsumptionData();
   if (chosen.has('compatibility')) obj.compatibility = exportCompatibilityData();
   if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
+  if (chosen.has('library')) obj.library = exportLibraryData();
   if (chosen.has('priceHistory')) obj.prices = load(LS.hist, {})[name] || [];
   if (chosen.has('savedVersions')) obj.history = load(LS.configs, {})[name] || [];
   download(name + '.configmaker.json', JSON.stringify(obj, null, 2), 'application/json');
@@ -8373,6 +8713,118 @@ function openChangelog() {
 function tutorialBySlot(id) {
   return TUTORIALS.find(x => x.slot === id) || null;
 }
+function youtubeVideoId(url) {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? m[1] : '';
+}
+function customTutorialBlock(item) {
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+  const source = item.source === 'library' ? L('Product library', 'Bibliothèque produit') : L('My tutorials', 'Mes tutoriels');
+  const watch = '<a href="' + esc(item.url) + '" target="_blank" rel="noopener"><span>' + esc(L('Open', 'Ouvrir')) + '</span> <i class="fa-solid fa-arrow-up-right-from-square"></i></a>';
+  if (item.kind === 'video' && youtubeVideoId(item.url)) {
+    const id = youtubeVideoId(item.url);
+    return `<div class="tut-video-block">
+      <div class="tut-video-label"><span class="tut-video-source"><i class="fa-brands fa-youtube"></i> ${esc(source)}</span>${watch}</div>
+      <div class="video-embed"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0" title="${esc(item.title || '')}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>
+      <p class="tut-video-caption">${esc(item.title || item.url)}</p></div>`;
+  }
+  if (item.kind === 'photo') {
+    return `<div class="tut-video-block">
+      <div class="tut-video-label"><span class="tut-video-source"><i class="fa-solid fa-image"></i> ${esc(source)}</span>${watch}</div>
+      <div class="tut-photo"><img src="${esc(item.url)}" alt="${esc(item.title || '')}" loading="lazy"></div>
+      <p class="tut-video-caption">${esc(item.title || item.url)}</p></div>`;
+  }
+  return `<div class="tut-video-block">
+    <div class="tut-video-label"><span class="tut-video-source"><i class="fa-solid fa-link"></i> ${esc(source)}</span>${watch}</div>
+    <div class="tut-link-card"><i class="fa-solid fa-link"></i><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title || item.url)}</a></div></div>`;
+}
+function renderCustomTutorialList() {
+  const host = $('#customTutorialList');
+  if (!host) return;
+  const list = customTutorials();
+  if (!list.length) {
+    host.innerHTML = `<p class="hint">${esc(lang === 'en' ? 'Add your own tutorial for any component of this config.' : 'Ajoutez votre propre tutoriel pour un composant de cette config.')}</p>`;
+    return;
+  }
+  host.innerHTML = list.map((item, idx) => {
+    const active = item.id === tutSelectedCustomId;
+    const defId = item.slotDefId || (state.slots[item.slotId] && state.slots[item.slotId].defId);
+    const def = SLOT_DEFS.find(x => x.id === defId) || { icon: 'fa-solid fa-link' };
+    const label = customTutorialLabel(item);
+    const src = item.source === 'library' ? (lang === 'en' ? 'Library' : 'Bibliothèque') : (lang === 'en' ? 'Mine' : 'Perso');
+    return `<div class="slot tut-slot tut-custom${active ? ' sel' : ''}" draggable="true" data-tut-custom="${esc(item.id)}">
+      <button class="slot-main tut-slot-main" type="button" data-tut-open="${esc(item.id)}" aria-pressed="${active ? 'true' : 'false'}">
+        <span class="slot-visual">${iconHtml(def.icon)}</span>
+        <span class="slot-info"><span class="slot-type">${esc(label)} · ${esc(src)}</span><span class="slot-name">${esc(item.title || item.url)}</span><span class="slot-specs">${esc(item.kind === 'video' ? (lang === 'en' ? 'Video' : 'Vidéo') : item.kind === 'photo' ? (lang === 'en' ? 'Photo' : 'Photo') : 'Lien')}</span></span>
+        <span class="slot-side tut-play-ico"><i class="${item.kind === 'video' ? 'fa-solid fa-play' : item.kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link'}"></i></span>
+      </button>
+      <div class="tut-custom-actions">
+        <span class="tut-drag" title="${esc(lang === 'en' ? 'Drag to reorder' : 'Glisser pour réordonner')}"><i class="fa-solid fa-grip-vertical"></i></span>
+        <button class="mini-btn" data-tut-move="up" data-tut-id="${esc(item.id)}" ${idx === 0 ? 'disabled' : ''} title="${esc(lang === 'en' ? 'Move up' : 'Monter')}"><i class="fa-solid fa-arrow-up"></i></button>
+        <button class="mini-btn" data-tut-move="down" data-tut-id="${esc(item.id)}" ${idx === list.length - 1 ? 'disabled' : ''} title="${esc(lang === 'en' ? 'Move down' : 'Descendre')}"><i class="fa-solid fa-arrow-down"></i></button>
+        ${item.source === 'library' ? `<span class="kj-pill">${esc(lang === 'en' ? 'From library' : 'Via bibliothèque')}</span>` : `<button class="mini-btn" data-tut-edit="${esc(item.id)}" title="${esc(lang === 'en' ? 'Edit' : 'Modifier')}"><i class="fa-solid fa-pen"></i></button><button class="mini-btn danger" data-tut-del="${esc(item.id)}" title="${esc(lang === 'en' ? 'Delete' : 'Supprimer')}"><i class="fa-solid fa-trash"></i></button>`}
+      </div>
+    </div>`;
+  }).join('');
+  refreshIcons(host);
+  let dragId = null;
+  host.querySelectorAll('[data-tut-custom]').forEach(row => {
+    row.addEventListener('dragstart', e => { dragId = row.dataset.tutCustom; row.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); } catch { /* ignore */ } });
+    row.addEventListener('dragend', () => { dragId = null; row.classList.remove('dragging'); host.querySelectorAll('[data-tut-custom]').forEach(r => r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', e => { if (!dragId || dragId === row.dataset.tutCustom) return; e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      const arr = customTutorials(), from = arr.findIndex(x => x.id === dragId), to = arr.findIndex(x => x.id === row.dataset.tutCustom);
+      if (from < 0 || to < 0 || from === to) return;
+      const [moved] = arr.splice(from, 1); arr.splice(to, 0, moved);
+      dragId = null; persist(); renderTutorialList();
+    });
+  });
+}
+function moveCustomTutorial(id, dir) {
+  const arr = customTutorials(), i = arr.findIndex(x => x.id === id), j = i + (dir === 'up' ? -1 : 1);
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  persist(); renderTutorialList();
+}
+function deleteCustomTutorial(id) {
+  const item = customTutorials().find(x => x.id === id);
+  if (!item || item.source === 'library') return;
+  if (!confirm(lang === 'en' ? 'Delete this tutorial?' : 'Supprimer ce tutoriel ?')) return;
+  state.customTutorials = customTutorials().filter(x => x.id !== id);
+  if (tutSelectedCustomId === id) tutSelectedCustomId = null;
+  persist(); renderTutorialList(); renderTutorialRight();
+}
+function openCustomTutorialForm(id) {
+  const list = customTutorials();
+  const item = id ? list.find(x => x.id === id) : null;
+  if (item && item.source === 'library') return;
+  const ids = state.order.filter(sid => state.slots[sid]);
+  if (item && item.slotId && !ids.includes(item.slotId)) ids.unshift(item.slotId);
+  const options = ids.map(sid => `<option value="${esc(sid)}"${((item && item.slotId) || activeSlot) === sid ? ' selected' : ''}>${esc(slotName(sid))}</option>`).join('');
+  openModal(item ? (lang === 'en' ? 'Edit tutorial' : 'Modifier le tutoriel') : (lang === 'en' ? 'Add a tutorial' : 'Ajouter un tutoriel'), `
+    <div class="lib-form">
+      <div class="fld"><label>${esc(lang === 'en' ? 'Component' : 'Composant')}</label><select id="ct_slot">${options}</select></div>
+      <div class="fld"><label>${esc(lang === 'en' ? 'Title' : 'Titre')}</label><input id="ct_title" value="${esc(item ? item.title : '')}" placeholder="${esc(lang === 'en' ? 'My installation video' : 'Ma vidéo d’installation')}"></div>
+      <div class="fld"><label>URL</label><input id="ct_url" type="url" value="${esc(item ? item.url : '')}" placeholder="https://…"></div>
+      <div class="fld"><label>${esc(lang === 'en' ? 'Type' : 'Type')}</label><select id="ct_kind">
+        <option value="video"${item && item.kind === 'video' ? ' selected' : ''}>${esc(lang === 'en' ? 'Video' : 'Vidéo')}</option>
+        <option value="photo"${item && item.kind === 'photo' ? ' selected' : ''}>${esc(lang === 'en' ? 'Photo' : 'Photo')}</option>
+        <option value="link"${!item || item.kind === 'link' ? ' selected' : ''}>${esc(lang === 'en' ? 'Link' : 'Lien')}</option>
+      </select></div>
+      <div class="btn-row"><button class="btn btn-sm" id="ct_cancel">${esc(lang === 'en' ? 'Cancel' : 'Annuler')}</button><button class="btn btn-sm btn-primary" id="ct_save"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Save' : 'Enregistrer')}</button></div>
+    </div>`);
+  $('#ct_cancel').onclick = closeModal;
+  $('#ct_save').onclick = () => {
+    const slotId = $('#ct_slot').value, url = $('#ct_url').value.trim();
+    if (!slotId || !url) { toast(lang === 'en' ? 'Component and URL required' : 'Composant et URL requis'); return; }
+    const data = { slotId, slotDefId: state.slots[slotId] ? state.slots[slotId].defId : '', label: slotName(slotId), title: $('#ct_title').value.trim() || url, url, kind: $('#ct_kind').value || mediaKind(url), source: 'custom', updatedAt: Date.now() };
+    if (item) Object.assign(item, data); else list.push({ id: uid(), ...data });
+    persist(); closeModal(); renderTutorialList();
+    if (tutSelectedCustomId) renderTutorialRight();
+  };
+}
 function tutorialPlaylistLinks() {
   const top = $('#tutPlaylistTop');
   const materiel = $('#tutPlaylistMateriel');
@@ -8384,7 +8836,7 @@ function renderTutorialList() {
   if (!host) return;
   host.innerHTML = TUTORIALS.map(item => {
     const def = SLOT_DEFS.find(x => x.id === item.slot) || { icon: 'fa-solid fa-box' };
-    const active = item.slot === tutSelected;
+    const active = item.slot === tutSelected && !tutSelectedCustomId;
     return `<div class="slot tut-slot${active ? ' sel' : ''}" data-tut-slot="${item.slot}">
       <button class="slot-main tut-slot-main" type="button" aria-pressed="${active ? 'true' : 'false'}">
         <span class="slot-visual">${iconHtml(def.icon)}</span>
@@ -8398,6 +8850,9 @@ function renderTutorialList() {
     </div>`;
   }).join('');
   refreshIcons(host);
+  renderCustomTutorialList();
+  const count = $('#tutCount');
+  if (count) count.textContent = String(TUTORIALS.length + customTutorials().length);
 }
 function tutorialVideoBlock(source, video, approx) {
   const label = source === 'topachat' ? t('tut.topachat') : t('tut.materiel');
@@ -8415,8 +8870,9 @@ function tutorialVideoBlock(source, video, approx) {
 function renderTutorialRight() {
   const playlists = $('#tutorialPlaylists'), panel = $('#tutorialVideoPanel'), body = $('#tutorialVideos');
   if (!playlists || !panel || !body) return;
-  const item = tutSelected ? tutorialBySlot(tutSelected) : null;
-  if (!item) {
+  const custom = tutSelectedCustomId ? customTutorials().find(x => x.id === tutSelectedCustomId) : null;
+  const item = !custom && tutSelected ? tutorialBySlot(tutSelected) : null;
+  if (!custom && !item) {
     playlists.classList.remove('hidden');
     panel.classList.add('hidden');
     body.innerHTML = '';
@@ -8424,9 +8880,15 @@ function renderTutorialRight() {
   }
   playlists.classList.add('hidden');
   panel.classList.remove('hidden');
-  $('#tutorialSlotType').textContent = slotName(item.slot);
-  $('#tutorialTitle').textContent = item.top.title;
-  body.innerHTML = tutorialVideoBlock('topachat', item.top, !!item.approx) + tutorialVideoBlock('materiel', item.materiel, !!item.approx);
+  if (custom) {
+    $('#tutorialSlotType').textContent = custom.label || slotName(custom.slotId);
+    $('#tutorialTitle').textContent = custom.title || custom.url;
+    body.innerHTML = customTutorialBlock(custom);
+  } else {
+    $('#tutorialSlotType').textContent = slotName(item.slot);
+    $('#tutorialTitle').textContent = item.top.title;
+    body.innerHTML = tutorialVideoBlock('topachat', item.top, !!item.approx) + tutorialVideoBlock('materiel', item.materiel, !!item.approx);
+  }
   refreshIcons(body);
 }
 function showTutorials() {
@@ -8444,7 +8906,15 @@ function clearTutorialVideos() {
 function selectTutorial(slot) {
   if (!tutorialBySlot(slot)) return;
   clearTimeout(tutCloseTimer);
-  tutSelected = slot;
+  tutSelected = slot; tutSelectedCustomId = null;
+  renderTutorialList();
+  renderTutorialRight();
+  if (isMobileView()) openTutorialSheet();
+}
+function selectCustomTutorial(id) {
+  if (!customTutorials().some(x => x.id === id)) return;
+  clearTimeout(tutCloseTimer);
+  tutSelected = null; tutSelectedCustomId = id;
   renderTutorialList();
   renderTutorialRight();
   if (isMobileView()) openTutorialSheet();
@@ -8454,7 +8924,7 @@ function closeTutorialVideo() {
   closeTutorialSheet();
   clearTimeout(tutCloseTimer);
   const finish = () => {
-    tutSelected = null;
+    tutSelected = null; tutSelectedCustomId = null;
     renderTutorialList();
     renderTutorialRight();
   };
@@ -8577,11 +9047,21 @@ function renderExternalServices() {
 }
 
 /* ---------- Theme / lang ---------- */
+function defaultThemeForNow() {
+  return new Date().getMonth() === 10 ? 'black' : 'system';
+}
 function applyTheme() {
-  document.documentElement.dataset.theme = prefs.theme || 'system';
+  const mode = prefs.theme || defaultThemeForNow();
+  document.documentElement.dataset.theme = mode;
   const ic = $('#themeBtn i');
-  ic.className = prefs.theme === 'light' ? 'fa-solid fa-sun' : prefs.theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-circle-half-stroke';
-  $('#themeBtn').title = 'Thème : ' + (prefs.theme || 'système');
+  ic.className = mode === 'light' ? 'fa-solid fa-sun' : mode === 'black' ? 'fa-solid fa-circle' : mode === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-circle-half-stroke';
+  const names = lang === 'en'
+    ? { light: 'light', dark: 'dark', black: 'black', system: 'system' }
+    : { light: 'clair', dark: 'sombre', black: 'noir', system: 'système' };
+  $('#themeBtn').title = (lang === 'en' ? 'Theme: ' : 'Thème : ') + (names[mode] || names.system);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    m.content = mode === 'black' ? '#000000' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
+  });
 }
 function applyLang() {
   document.documentElement.lang = lang;
@@ -8599,6 +9079,7 @@ function applyLang() {
     const tutorialPage = $('#page-tutorials');
     if (tutorialPage && !tutorialPage.classList.contains('hidden')) renderTutorialRight();
   }
+  applyTheme();
 }
 function applyUiPrefs() {
   const root = document.documentElement;
@@ -8761,6 +9242,19 @@ function bind() {
     const row = e.target.closest('[data-tut-slot]');
     if (row) selectTutorial(row.dataset.tutSlot);
   };
+  const customTutorialList = $('#customTutorialList');
+  if (customTutorialList) customTutorialList.onclick = e => {
+    const edit = e.target.closest('[data-tut-edit]');
+    if (edit) { e.stopPropagation(); openCustomTutorialForm(edit.dataset.tutEdit); return; }
+    const del = e.target.closest('[data-tut-del]');
+    if (del) { e.stopPropagation(); deleteCustomTutorial(del.dataset.tutDel); return; }
+    const move = e.target.closest('[data-tut-move]');
+    if (move) { e.stopPropagation(); moveCustomTutorial(move.dataset.tutId, move.dataset.tutMove); return; }
+    const row = e.target.closest('[data-tut-open]');
+    if (row) selectCustomTutorial(row.dataset.tutOpen);
+  };
+  const tutAddBtn = $('#tutAddBtn');
+  if (tutAddBtn) tutAddBtn.onclick = () => openCustomTutorialForm(null);
   const tutorialBack = $('#tutorialBack');
   if (tutorialBack) tutorialBack.onclick = closeTutorialVideo;
   $('#cmpAll').onclick = () => { cmpState.mode = 'all'; renderCompare(); };
@@ -8820,6 +9314,13 @@ function bind() {
     else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); galleryMove(1); }
   });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
+  $('#pickerNoneBtn').onclick = () => {
+    const slotId = activeSlot, sl = slotId && state.slots[slotId];
+    if (!sl) return;
+    sl.selectedId = null; sl.none = true;
+    persist(); closePicker(); refresh();
+    toast(lang === 'en' ? 'Component marked as none' : 'Composant marqué comme aucun');
+  };
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
     const url = idealoSearchUrl(q);
@@ -8928,7 +9429,7 @@ function bind() {
   $('#benchCopy').onclick = () => { navigator.clipboard?.writeText(benchQuery()); toast(lang === 'en' ? 'Copied' : 'Copié'); };
   $('#benchExtraGo').onclick = () => { benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); };
   $('#benchExtra').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); } };
-  $('#themeBtn').onclick = () => { prefs.theme = prefs.theme === 'light' ? 'dark' : prefs.theme === 'dark' ? 'system' : 'light'; save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang }); applyTheme(); };
+  $('#themeBtn').onclick = () => { const order = ['light', 'dark', 'black', 'system']; const cur = prefs.theme || defaultThemeForNow(); prefs.theme = order[(Math.max(0, order.indexOf(cur)) + 1) % order.length]; save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang }); applyTheme(); };
   $('#langBtn').onclick = () => { lang = lang === 'fr' ? 'en' : 'fr'; save(LS.prefs, { ...load(LS.prefs, {}), lang, theme: prefs.theme }); applyLang(); refresh(); };
   $('#installBtn').onclick = openInstall;
   $('#modalClose').onclick = closeModal;
@@ -9023,8 +9524,9 @@ function bind() {
     ]);
     if (r && r.adopted) state = load(LS.state, null) || state;
   } catch { /* LS seed already rendered below */ }
+  normalizeStateExtras(state);
   const storedPrefs = load(LS.prefs, {});
-  prefs = { ...prefs, ...storedPrefs, theme: storedPrefs.theme || prefs.theme || 'system' };
+  prefs = { ...prefs, ...storedPrefs, theme: storedPrefs.theme || prefs.theme || defaultThemeForNow() };
   lang = storedPrefs.lang || lang;
   // load from share link
   baselineSaved(); // draft restored as-is; dirty iff different from last save
