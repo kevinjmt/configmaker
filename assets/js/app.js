@@ -1524,7 +1524,7 @@ function slotCard(id) {
     </div>
     ${p.tracking || p.tstatus ? `<div class="delivery-tag"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus))}</div>` : ''}` : ''}
     </div>
-    ${p ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
