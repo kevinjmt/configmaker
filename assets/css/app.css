@@ -945,8 +945,11 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .ai-send{flex:0 0 auto;width:42px;border-radius:12px;border:1px solid color-mix(in srgb,var(--brand) 30%,var(--line));cursor:pointer;color:var(--brand-ink);font-size:.95rem;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 22%,transparent),color-mix(in srgb,var(--brand-2) 14%,transparent));backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),var(--shadow-sm)}
 .ai-send:hover{filter:brightness(1.05);border-color:color-mix(in srgb,var(--brand) 46%,var(--line))}
 /* ordered / intentionally-empty components */
-.slot-ordered{margin-left:auto;color:var(--muted)}
+.slot-ordered{margin-left:auto;width:auto;height:28px;padding:0 10px;border-radius:999px;gap:6px;font-size:.72rem;font-weight:800;color:var(--muted)}
+.slot-ordered-txt{line-height:1}
+.slot-ordered:hover{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:color-mix(in srgb,var(--brand) 10%,var(--surface))}
 .slot-ordered.on{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:color-mix(in srgb,var(--brand) 12%,var(--surface))}
+.slot-ordered.on:hover{color:var(--brand);border-color:var(--brand);background:color-mix(in srgb,var(--brand) 20%,var(--surface));box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 18%,transparent)}
 .slot-ordered + .slot-fav{margin-left:0}
 .slot.ordered .slot-main{filter:grayscale(1);opacity:.62}
 .slot.ordered .slot-main:hover{opacity:.82}

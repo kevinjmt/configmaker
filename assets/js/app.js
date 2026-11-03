@@ -640,6 +640,8 @@ function normalizeStateExtras(st) {
       p.orderedAt = Number(p.orderedAt) || 0;
       p.library = normalizeLibrary(p.library);
     });
+    const selectedProduct = s.products.find(p => p && p.id === s.selectedId);
+    if (selectedProduct && selectedProduct.noComponent) { s.selectedId = null; s.none = true; }
   });
   return st;
 }
@@ -1504,7 +1506,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-solid ${p.ordered ? 'fa-check' : 'fa-box'}"></i></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Not ordered' : 'Non commandé') : (lang === 'en' ? 'Ordered' : 'Commandé')}</span></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1553,35 +1555,68 @@ function slotCard(id) {
   if (alts) renderAlts(alts, s, id);
   return el;
 }
+function noneAltLabel(slotId) {
+  const name = slotName(slotId);
+  return lang === 'en' ? `No ${name}` : `Aucun ${name}`;
+}
+function addNoneAlternative(slotId) {
+  const s = state.slots[slotId];
+  if (!s) return;
+  let p = (s.products || []).find(x => x && x.noComponent);
+  const existed = !!p;
+  if (!p) {
+    p = blankProduct();
+    p.name = p.baseName = noneAltLabel(slotId);
+    p.noComponent = true;
+    s.products.push(p);
+  }
+  persist(); refresh();
+  toast(existed
+    ? (lang === 'en' ? '“No component” is already in alternatives' : '« Aucun composant » est déjà dans les alternatives')
+    : (lang === 'en' ? '“No component” added to alternatives' : '« Aucun composant » ajouté aux alternatives'));
+}
 function renderAlts(host, s, slotId) {
   const cur = sel(s);
   const sorted = [...s.products].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
   host.innerHTML = sorted.length ? '' : `<p class="hint">${lang === 'en' ? 'No alternatives yet — pick one from the Idealo results or create a fiche.' : 'Aucune alternative — choisissez-en une depuis les résultats Idealo ou créez une fiche.'}</p>`;
   sorted.forEach(p => {
+    const noComp = !!p.noComponent;
+    const isCurrent = noComp ? !cur && s.none : cur && p.id === cur.id;
     const diff = cur ? (Number(p.price) - Number(cur.price)) * (Number(p.qty) || 1) : 0;
-    const cls = !cur || p.id === cur.id ? 'same' : diff > 0 ? 'up' : 'down';
-    const lbl = !cur || p.id === cur.id ? (lang === 'en' ? 'current' : 'actuel') : `${diff > 0 ? '+' : ''}${eur(diff)}`;
+    const cls = isCurrent ? 'same' : !cur ? 'same' : diff > 0 ? 'up' : 'down';
+    const lbl = noComp
+      ? (s.none && !cur ? (lang === 'en' ? 'current' : 'actuel') : '')
+      : isCurrent ? (lang === 'en' ? 'current' : 'actuel') : !cur ? '' : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
-    const rowSpin = refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
-    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
-    row.innerHTML = `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
+    const rowSpin = !noComp && refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
+    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '');
+    row.innerHTML = noComp
+      ? `<span class="grow"><strong><i class="fa-regular fa-square"></i> ${esc(noneAltLabel(slotId))}</strong></span><span class="diff ${cls}">${lbl}</span>`
+      : `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
-    row.onclick = () => { s.selectedId = p.id; s.none = false; persist(); refresh(); };
+    row.onclick = () => {
+      if (noComp) { s.selectedId = null; s.none = true; }
+      else { s.selectedId = p.id; s.none = false; }
+      persist(); refresh();
+    };
     const acts = document.createElement('div');
     acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
-    const open = document.createElement('button');
-    open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
-    open.title = 'Idealo';
-    open.onclick = e => { e.stopPropagation(); window.open(p.idealo || idealoSearchUrl(p.name), '_blank', 'noopener'); };
-    const edit = document.createElement('button');
-    edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
-    edit.title = lang === 'en' ? 'Edit' : 'Modifier';
-    edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
+    if (!noComp) {
+      const open = document.createElement('button');
+      open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
+      open.title = 'Idealo';
+      open.onclick = e => { e.stopPropagation(); window.open(p.idealo || idealoSearchUrl(p.name), '_blank', 'noopener'); };
+      const edit = document.createElement('button');
+      edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
+      edit.title = lang === 'en' ? 'Edit' : 'Modifier';
+      edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
+      acts.append(open, edit);
+    }
     const del = document.createElement('button');
     del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
     del.title = lang === 'en' ? 'Remove' : 'Supprimer';
     del.onclick = e => { e.stopPropagation(); altRemove(slotId, p.id); };
-    acts.append(open, edit, del);
+    acts.append(del);
     row.appendChild(acts);
     host.appendChild(row);
   });
@@ -1995,9 +2030,9 @@ const IDEALO_CATS = [
   { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
   { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
   { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172F1160494/casques-gamer.html' },
-  { key: 'micro', label: 'Microphones', url: 'https://www.idealo.fr/prechcat.html?q=microphone' },
+  { key: 'micro', label: 'Microphones', url: 'https://www.idealo.fr/cat/5712F942997/micros.html?q=microphone' },
   { key: 'iem', label: 'Écouteurs intra-auriculaires', url: 'https://www.idealo.fr/cat/5172F106764479/casques-gamer.html' },
-  { key: 'kvm', label: 'Commutateurs KVM', url: 'https://www.idealo.fr/prechcat.html?q=commutateur%20kvm' },
+  { key: 'kvm', label: 'Commutateurs KVM', url: 'https://www.idealo.fr/cat/18318/commutateurs-kvm.html' },
   { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/liste/122968612/pate-thermique-cpu.html' },
   { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
   { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
@@ -2246,6 +2281,11 @@ const RAM_TYPE_CATS = {
   DDR4: 'https://www.idealo.fr/cat/4552F102193212/barrettes-de-ram.html',
 };
 function catUrl(key) { return (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url; }
+const LEGACY_CAT_URLS = {
+  'https://www.idealo.fr/prechcat.html?q=microphone': 'https://www.idealo.fr/cat/5712F942997/micros.html?q=microphone',
+  'https://www.idealo.fr/prechcat.html?q=commutateur%20kvm': 'https://www.idealo.fr/cat/18318/commutateurs-kvm.html',
+};
+function migrateCatUrl(url) { return LEGACY_CAT_URLS[String(url || '')] || url; }
 /* Older saved SSD listings predate the internal-drive facet; keep extra SSD slots on internal drives too. */
 function internalSsdUrl(url) {
   const s = String(url || '');
@@ -3276,6 +3316,7 @@ function openPicker(id, mode = 'replace') {
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const key = slotCatKey(id);
   let remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
+  if (remembered) remembered = migrateCatUrl(remembered);
   if (remembered && key === 'ssd') remembered = internalSsdUrl(remembered);
   const seq = ++pickerSeq;
   loadCategory(key);
@@ -3298,7 +3339,7 @@ function openPicker(id, mode = 'replace') {
     setTimeout(() => openCard.classList.remove('kj-open'), 1100);
   }
   const noneBtn = $('#pickerNoneBtn');
-  if (noneBtn) noneBtn.classList.toggle('hidden', pickerMode === 'add');
+  if (noneBtn) noneBtn.classList.remove('hidden');
   const chip = $('#pickerModeChip');
   if (chip) {
     chip.classList.toggle('hidden', pickerMode !== 'add');
@@ -9317,9 +9358,19 @@ function bind() {
   $('#pickerNoneBtn').onclick = () => {
     const slotId = activeSlot, sl = slotId && state.slots[slotId];
     if (!sl) return;
+    if (pickerMode === 'add') {
+      addNoneAlternative(slotId);
+      closePicker();
+      return;
+    }
+    const prevSelected = sl.selectedId;
     sl.selectedId = null; sl.none = true;
+    if (prevSelected) {
+      removeProductTutorials(prevSelected);
+      sl.products = (sl.products || []).filter(x => x.id !== prevSelected);
+    }
     persist(); closePicker(); refresh();
-    toast(lang === 'en' ? 'Component marked as none' : 'Composant marqué comme aucun');
+    toast(lang === 'en' ? 'Component removed' : 'Composant retiré');
   };
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
