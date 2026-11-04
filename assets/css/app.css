@@ -475,7 +475,7 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .pick-card .pp{font-weight:900;white-space:nowrap}
 .pick-card .pdiff{font-size:.75rem;font-weight:800}
 /* selected result cards */
-#idealoResults .pick-card{display:grid;grid-template-columns:72px minmax(0,1fr) auto;grid-template-areas:"media body actions";gap:12px 14px;align-items:center;min-height:106px;padding:12px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+#idealoResults .pick-card{display:grid;grid-template-columns:72px minmax(0,1fr) auto;grid-template-areas:"media body actions";gap:12px 14px;align-items:center;min-height:106px;flex:0 0 auto;padding:12px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
 #idealoResults .pick-card:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));box-shadow:var(--shadow-sm)}
 #idealoResults .pick-card:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .pick-media{grid-area:media;width:72px;height:72px;border-radius:12px;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -984,6 +984,8 @@ code.k{background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
 .lib-foot{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .lib-foot .grow{flex:1}
 @media (max-width:640px){
+  .usage-tabs.lib-tabs{width:100%;flex-wrap:wrap;overflow:visible;border-radius:18px;gap:4px}
+  .usage-tabs.lib-tabs .usage-tab{flex:1 1 calc(50% - 4px);justify-content:center;padding:7px 8px;font-size:.78rem}
   .lib-foot{gap:6px;flex-wrap:nowrap}
   .lib-foot .btn-sm{padding:8px 9px;font-size:.78rem;gap:6px}
   .lib-foot .grow{flex:1 1 0;min-width:0}

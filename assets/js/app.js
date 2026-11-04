@@ -1633,7 +1633,7 @@ function altRemove(slotId, pid) {
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
   if (act === 'pick') openPicker(id, 'replace');
-  else if (act === 'details') { if (p) { openPicker(id); openPickerDetail(p); } }
+  else if (act === 'details') { if (p) { openPicker(id); openPickerDetail(p, { closePicker: true }); } }
   else if (act === 'edit') openProductForm(id, p);
   else if (act === 'addalt') openPicker(id, 'add');
   else if (act === 'idealo') { if (p && p.idealo && /idealo\.fr/i.test(p.idealo)) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
@@ -1791,6 +1791,11 @@ function openLibrary(slotId) {
     </div>`;
     refreshIcons(host);
     schedulePillSliders();
+    const tabsEl = host.querySelector('.lib-tabs');
+    const activeTab = tabsEl && tabsEl.querySelector('.usage-tab.active');
+    if (tabsEl && activeTab && tabsEl.scrollWidth > tabsEl.clientWidth) {
+      tabsEl.scrollLeft = Math.max(0, activeTab.offsetLeft - (tabsEl.clientWidth - activeTab.offsetWidth) / 2);
+    }
 
     const q = sel => host.querySelector(sel);
     host.querySelectorAll('[data-lib-tab]').forEach(b => b.onclick = () => { tab = b.dataset.libTab; editing = null; paint(); });
@@ -2988,6 +2993,15 @@ function fitPickerDetail() {
   const top = Math.max(0, panel.getBoundingClientRect().top);
   panel.style.height = Math.max(460, Math.round(innerHeight - top - 16)) + 'px';
 }
+function syncPickerDetailBack(closePickerOnBack) {
+  const btn = $('#pickerDetailBack');
+  if (!btn) return;
+  const label = closePickerOnBack ? pdTxt('Fermer', 'Close') : pdTxt('Retour', 'Back');
+  btn.innerHTML = `<i class="fa-solid ${closePickerOnBack ? 'fa-xmark' : 'fa-arrow-left'}"></i>`;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.onclick = closePickerOnBack ? closePicker : closePickerDetail;
+}
 function openPickerDetail(it, opts = {}) {
   if (!activeSlot || !it) return;
   pdSeq++;
@@ -3007,6 +3021,7 @@ function openPickerDetail(it, opts = {}) {
   panel.scrollTop = 0;
   detail.classList.remove('hidden');
   detail.scrollTop = 0;
+  syncPickerDetailBack(!!opts.closePicker);
   renderPickerDetail(true);
   fitPickerDetail();
   requestAnimationFrame(fitPickerDetail);
@@ -9325,7 +9340,7 @@ function bind() {
   $('#sumClose').onclick = closeSummarySheet;
   $('#summaryPanel').addEventListener('scroll', updatePowerTotalsReveal, { passive: true });
   $('#pickerClose').onclick = closePicker;
-  $('#pickerDetailBack').onclick = closePicker;
+  $('#pickerDetailBack').onclick = closePickerDetail;
   const pdBody = $('#pickerDetailBody');
   if (pdBody) {
     pdBody.addEventListener('click', onPickerDetailClick);
