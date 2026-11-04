@@ -415,6 +415,12 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-ds-spin{color:var(--muted-2);font-size:.75rem;margin-left:4px}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
 .delivery-tag{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 10px 84px}
+.delivery-status{border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);padding:11px 13px;margin:0 0 12px;font-size:.82rem;line-height:1.4}
+.delivery-status-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.delivery-status-head strong{font-size:.9rem}
+.delivery-status p{margin:5px 0 0;color:var(--ink-2);overflow-wrap:anywhere}
+.delivery-status small{display:block;margin-top:5px;color:var(--muted);font-size:.7rem}
+.delivery-auto{border:1px solid color-mix(in srgb,var(--info) 42%,var(--line));border-radius:999px;color:var(--info);font-size:.62rem;font-weight:900;letter-spacing:.06em;padding:1px 6px;text-transform:uppercase}
 .hidden{display:none!important}
 /* picker */
 #pickerPanel{margin-bottom:18px;min-width:0;max-width:100%}
@@ -892,6 +898,10 @@ html[data-glass="off"] .se-picker{background:var(--surface);backdrop-filter:none
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line);background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
 .modal-head h2{margin:0;font-size:1.05rem}
 .modal-body{padding:18px;overflow:auto;flex:1;min-height:0}
+.promo-modal{display:flex;flex-direction:column;gap:12px}
+.promo-code{border:1px dashed color-mix(in srgb,var(--brand) 55%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--brand) 10%,var(--surface));padding:16px;text-align:center;font-size:clamp(1.45rem,5vw,2rem);font-weight:900;letter-spacing:.08em;line-height:1.15;overflow-wrap:anywhere;user-select:all}
+.promo-desc{margin:0;font-size:.84rem;line-height:1.45;color:var(--ink-2)}
+.promo-hint{margin:0;font-size:.72rem}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form-grid .full{grid-column:1/-1}
 .fld{display:flex;flex-direction:column;gap:4px}

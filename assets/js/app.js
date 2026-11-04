@@ -645,7 +645,20 @@ function normalizeStateExtras(st) {
   });
   return st;
 }
-function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function setOfferPromo(target, offer, opts = {}) {
+  if (!target || !offer) return false;
+  let changed = false;
+  if (offer.promo) {
+    if (!target.promo) { target.promo = true; changed = true; }
+    if (offer.promoCode && target.promoCode !== offer.promoCode) { target.promoCode = offer.promoCode; changed = true; }
+    if (offer.promoDesc && target.promoDesc !== offer.promoDesc) { target.promoDesc = offer.promoDesc; changed = true; }
+    if (!offer.promoCode && opts.clear && (target.promoCode || target.promoDesc)) { target.promoCode = ''; target.promoDesc = ''; changed = true; }
+  } else if (opts.clear && (target.promo || target.promoCode || target.promoDesc)) {
+    target.promo = false; target.promoCode = ''; target.promoDesc = ''; changed = true;
+  }
+  return changed;
+}
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null, none: false }; });
@@ -1264,6 +1277,53 @@ function buyUrlFor(p) {
   if (p.idealo && /idealo\.fr/i.test(p.idealo)) return p.idealo;
   return '';
 }
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fall through */ }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { /* ignore */ }
+  ta.remove();
+  return ok;
+}
+function openPromoModal({ code, desc, merchant, url } = {}) {
+  code = String(code || '').trim();
+  if (!code) return false;
+  desc = String(desc || '').trim();
+  merchant = String(merchant || '').trim();
+  url = String(url || '').trim();
+  openModal(lang === 'en' ? 'Promo code' : 'Code promo', `
+    <div class="promo-modal">
+      <p class="hint">${merchant ? esc(lang === 'en' ? `Use this code on ${merchant}.` : `Utilisez ce code chez ${merchant}.`) : esc(lang === 'en' ? 'Use this code on the merchant site.' : 'Utilisez ce code sur le site du marchand.')}</p>
+      <div class="promo-code" id="promoCode">${esc(code)}</div>
+      ${desc ? `<p class="promo-desc">${esc(desc)}</p>` : ''}
+      <div class="btn-row">
+        <button class="btn btn-primary" id="promoCopy"><i class="fa-solid fa-copy"></i> <span>${lang === 'en' ? 'Copy code' : 'Copier le code'}</span></button>
+        ${url ? `<button class="btn" id="promoGo"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${lang === 'en' ? 'Open merchant' : 'Ouvrir le marchand'}</button>` : ''}
+      </div>
+      <p class="hint promo-hint">${lang === 'en' ? 'Copy it before leaving for the merchant site.' : 'Copiez-le avant d’ouvrir le site du marchand.'}</p>
+    </div>`, 'modal-promo');
+  const copy = $('#promoCopy');
+  if (copy) copy.onclick = async () => {
+    const ok = await copyText(code);
+    const label = copy.querySelector('span');
+    if (label) label.textContent = ok ? (lang === 'en' ? 'Copied!' : 'Copié !') : (lang === 'en' ? 'Copy failed' : 'Copie impossible');
+    if (ok) toast(lang === 'en' ? 'Promo code copied' : 'Code promo copié');
+    setTimeout(() => { if (label) label.textContent = lang === 'en' ? 'Copy code' : 'Copier le code'; }, 1800);
+  };
+  const go = $('#promoGo');
+  if (go) go.onclick = () => {
+    window.open(url, '_blank', 'noopener');
+    closeModal();
+  };
+  return true;
+}
 /* ---------- Idealo variants on slot cards ---------- */
 const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 /* The raw name stays the real model/variant name (used by compatibility/bench
@@ -1399,7 +1459,7 @@ async function selectVariant(slotId, url, cardPrice) {
       if (o.price) cur.price = o.price;
       if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) cur.store = o.url;
-      if (o.promo) cur.promo = true;
+      setOfferPromo(cur, o, { clear: true });
     } else if (cardPrice > 0) cur.price = cardPrice;
     cur.verified = [];
     persist(); compatCache = null; refresh();
@@ -1448,7 +1508,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
       if (o.price) cur.price = o.price;
       if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) cur.store = o.url;
-      if (o.promo) cur.promo = true;
+      setOfferPromo(cur, o, { clear: true });
     }
     persist(); compatCache = null; refresh();
     dsUpgradeAttempted.delete(cur.id);
@@ -1481,7 +1541,7 @@ function slotCard(id) {
     const discounted = !!(p.promo || hasDiscount(p));
     const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
-    const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
+    const promoTip = p && p.promoCode ? 'Code : ' + p.promoCode : (lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo');
     priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${countNum(p.price, 'eur', 0, '', 'slot-price:' + id)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
     vendorDiv = `<div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>`;
     delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${countNum(unitTotal(p), 'eur', 0, '', 'slot-total:' + id)}</div>`;
@@ -1522,7 +1582,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus))}</div>` : ''}` : ''}
+    ${p.tracking || p.tstatus ? `<div class="delivery-tag" title="${esc(p.tstatusMsg || '')}"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</div>` : ''}` : ''}
     </div>
     ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
@@ -1640,7 +1700,11 @@ function slotAction(id, act) {
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
     const u = buyUrlFor(p);
-    if (u) { window.open(u, '_blank', 'noopener'); return; }
+    if (u) {
+      if (p && p.promoCode) { openPromoModal({ code: p.promoCode, desc: p.promoDesc, merchant: p.vendor, url: u }); return; }
+      window.open(u, '_blank', 'noopener');
+      return;
+    }
     toast('issue is known, i am trying to fix it :)');
   }
   else if (act === 'pcie') openPcieSim();
@@ -2167,6 +2231,9 @@ function favoriteSnapshot(item, cat) {
     delivery: Number(item && item.delivery) || 0,
     url: String((item && (item.url || item.idealo)) || ''),
     store: String((item && item.store) || ''),
+    promo: !!(item && item.promo),
+    promoCode: String((item && item.promoCode) || ''),
+    promoDesc: String((item && item.promoDesc) || ''),
     src: String((item && item.src) || ''),
     savedAt: Date.now(),
   };
@@ -2197,6 +2264,7 @@ function favoritePickerItems(cat) {
     .map(r => ({
       name: r.name, img: r.image, images: r.images || [], specs: r.specs, summary: r.summary,
       price: r.price, vendor: r.vendor, delivery: r.delivery, url: r.url, store: r.store,
+      promo: !!r.promo, promoCode: r.promoCode || '', promoDesc: r.promoDesc || '',
       src: r.src, _favorite: true, _savedAt: r.savedAt,
     }));
 }
@@ -2568,6 +2636,8 @@ function pickerItemProduct(it) {
   np.watts = Number(it.watts) || 0;
   np.capW = Number(it.capW) || 0;
   np.promo = !!it.promo;
+  np.promoCode = String(it.promoCode || '');
+  np.promoDesc = String(it.promoDesc || '');
   np.isBest = !!it.isBest;
   np.best = it.best == null ? null : it.best;
   np.dsClean = !!it.dsClean;
@@ -2643,7 +2713,9 @@ function mergeOfferData(p, o, opts = {}) {
     changed = true;
   }
   if (o.url && same('store')) { p.store = o.url; changed = true; }
-  if (o.promo && !p.promo) { p.promo = true; changed = true; }
+  if (o.promo && (!missing || !p.promo || !p.promoCode)) {
+    if (setOfferPromo(p, o)) changed = true;
+  }
   if (o.price) p.isBest = Number(o.price) <= Number(opts.itemPrice || o.price) || !!p.isBest;
   return changed;
 }
@@ -2850,9 +2922,9 @@ function pdOffersMask(st) {
   const rows = sorted.map(o => {
     const tot = totalOf(o);
     const isBest = bestTotal > 0 && Math.abs(tot - bestTotal) < 0.005;
-    const details = [o.title && o.title !== o.merchant ? o.title : '', o.delivery || ''].filter(Boolean).join(' · ');
-    return `<a class="pd-offer${isBest ? ' is-best' : ''}" href="${esc(o.url || '')}" data-pd-act="offer" target="_blank" rel="noopener">
-      <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
+    const details = [o.promoCode ? `Code ${o.promoCode}` : '', o.title && o.title !== o.merchant ? o.title : '', o.delivery || ''].filter(Boolean).join(' · ');
+    return `<a class="pd-offer${isBest ? ' is-best' : ''}" href="${esc(o.url || '')}" data-pd-act="offer" data-offer-url="${esc(o.url || '')}" data-promo-code="${esc(o.promoCode || '')}" data-promo-desc="${esc(o.promoDesc || '')}" data-merchant="${esc(o.merchant || '')}" target="_blank" rel="noopener">
+      <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${o.promoCode ? 'Code : ' + esc(o.promoCode) : pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
       <span class="pd-offer-price"><strong>${countNum(o.price, 'eur')}</strong>${o.delivered > 0 ? `<small>${countNum(o.delivered, 'eur')} ${pdTxt('livr. incl.', 'incl. delivery')}</small>` : ''}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
   }).join('');
   const empty = st.loading
@@ -2911,7 +2983,7 @@ function renderPickerDetail(resetScroll) {
   const quick = pdQuickParts(it, st.details);
   const offersCount = st.offers ? st.offers.length : (Number(it.offers) || 0);
   const store = it.store || (st.offers && st.offers[0] && st.offers[0].url) || '';
-  const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promo ? pdTxt('Promo', 'Promo') : ''].filter(Boolean).join(' · ');
+  const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promoCode ? `Code ${it.promoCode}` : (it.promo ? pdTxt('Promo', 'Promo') : '')].filter(Boolean).join(' · ');
   const stKj = kjStatusFor(it, activeSlot ? slotCatKey(activeSlot) : '');
   const kjTint = kjTintClass(stKj);
   const KJ_TINTS = ['kj-tint-fav', 'kj-tint-top', 'kj-tint-rec', 'kj-tint-tested', 'kj-tint-avoid'];
@@ -3104,6 +3176,7 @@ async function loadPickerDetailData() {
         if (o.merchant) st.item.vendor = o.merchant;
         if (o.delivered > 0 && o.price) st.item.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
         if (o.url) st.item.store = o.url;
+        setOfferPromo(st.item, o, { clear: true });
       }
     } else {
       st.offersError = (off && off.error) ? off.error : pdTxt('Offres indisponibles pour le moment.', 'Offers unavailable right now.');
@@ -3226,6 +3299,15 @@ function onPickerDetailClick(e) {
       break;
     }
     case 'offer':
+      if (b.dataset.promoCode) {
+        e.preventDefault();
+        openPromoModal({
+          code: b.dataset.promoCode,
+          desc: b.dataset.promoDesc,
+          merchant: b.dataset.merchant,
+          url: b.dataset.offerUrl || b.getAttribute('href') || '',
+        });
+      }
       break;
   }
 }
@@ -4726,8 +4808,8 @@ async function openMerchants(slotId) {
     return r.offers.map((o, i) => {
     const tot = o.price + ship(o);
     return `
-      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${tot === bestTotal ? `<span class="better-badge" title="${lang === 'en' ? 'Best total price' : 'Meilleur prix total'}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo'}">%</span> ` : ''}${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
-      <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}</small></span>
+      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${tot === bestTotal ? `<span class="better-badge" title="${lang === 'en' ? 'Best total price' : 'Meilleur prix total'}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${o.promoCode ? 'Code : ' + esc(o.promoCode) : (lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo')}">%</span> ` : ''}${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
+      <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}${o.promoCode ? ` · Code ${esc(o.promoCode)}` : ''}</small></span>
       <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}</span></div>`; }).join('')})()}</div>
     <div class="btn-row"><button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
   $$('#modalBody .merchant-row').forEach(row => row.onclick = () => {
@@ -4736,7 +4818,7 @@ async function openMerchants(slotId) {
     p.price = o.price || p.price;
     if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     p.store = o.url || p.store;
-    p.promo = !!o.promo;
+    setOfferPromo(p, o, { clear: true });
     const ship = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
     const minTotal = Math.min(...r.offers.filter(x => x.price).map(x => x.price + ship(x)));
     p.isBest = (o.price + ship(o)) <= minTotal + 1e-9;
@@ -4775,7 +4857,101 @@ function openPcieSim() {
 /* ---------- Delivery ---------- */
 const CARRIERS = ['Chronopost', 'Colissimo', 'DHL', 'UPS', 'FedEx', 'Mondial Relay', 'Relais Colis', 'Amazon Logistics', 'Autre'];
 const STATUSES = ['', 'ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'];
-function statusLabel(s) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (lang === 'en' ? 'No tracking' : 'Pas de suivi'); }
+const TRACKING_READER = 'https://r.jina.ai/';
+const TRACKING_TTL = 10 * 60 * 1000;
+const trackingBusy = new Set();
+function statusLabel(s, hasTracking) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (hasTracking ? (lang === 'en' ? 'Status unknown' : 'Statut inconnu') : (lang === 'en' ? 'No tracking' : 'Pas de suivi')); }
+function trackingUrl(carrier, number) {
+  const n = String(number || '').trim();
+  if (!n) return '';
+  const q = encodeURIComponent(n);
+  if (carrier === 'Chronopost') return `https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${q}`;
+  if (carrier === 'Colissimo') return `https://www.laposte.fr/outils/suivre-vos-envois?code=${q}`;
+  if (carrier === 'DHL') return `https://www.dhl.com/fr-fr/home/tracking/tracking-express.html?submit=1&tracking-id=${q}`;
+  if (carrier === 'UPS') return `https://www.ups.com/track?loc=fr_FR&tracknum=${q}`;
+  if (carrier === 'FedEx') return `https://www.fedex.com/fedextrack/?trknbr=${q}`;
+  if (carrier === 'Mondial Relay') return `https://www.mondialrelay.fr/suivi-de-colis?numeroExpedition=${q}`;
+  if (carrier === 'Relais Colis') return `https://www.relaiscolis.com/suivi-de-colis/?numero=${q}`;
+  if (carrier === 'Amazon Logistics') return `https://track.amazon.fr/tracking/${q}`;
+  return `https://t.17track.net/fr#nums=${q}`;
+}
+function trackingStatusFromText(text) {
+  const clean = String(text || '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#>*_`|]/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/[^\S\r\n]+/g, ' ');
+  const lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const strong = clean.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
+  if (strong) return { status: 'delivered', msg: strong[0] };
+  const dated = lines.filter(l => /\b\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}\b/.test(l) && /\b\d{1,2}:\d{2}\b/.test(l));
+  const pool = dated.length ? dated.slice(0, 8) : lines.filter(l => /statut|status|état|derni[eè]re|dernier|suivi|tracking/i.test(l)).slice(0, 20);
+  const detect = line => {
+    const noIssue = /(aucun incident|no issue|sans incident)/i.test(line);
+    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
+    if (/(livr[ée]|remis|delivered)/i.test(line)) return 'delivered';
+    if (/(en cours de livraison|out for delivery|en livraison)/i.test(line)) return 'out';
+    if (/(acheminement|en transit|in transit|transit)/i.test(line)) return 'transit';
+    if (/(pris en charge|expédi|expedie|collected|shipped|déposé|depose)/i.test(line)) return 'shipped';
+    if (/(prépar|preparing|en attente|pending)/i.test(line)) return 'preparing';
+    if (/(commandé|commande|ordered)/i.test(line)) return 'ordered';
+    return '';
+  };
+  for (const line of pool) {
+    const status = detect(line);
+    if (status) return { status, msg: line.slice(0, 180) };
+  }
+  const notFound = /(introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(clean);
+  return { status: '', msg: notFound ? (lang === 'en' ? 'Tracking number not found' : 'Numéro de suivi introuvable') : '' };
+}
+async function checkTrackingStatus(carrier, number) {
+  const url = trackingUrl(carrier, number);
+  if (!url) return { error: 'missing' };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    return { ...trackingStatusFromText(text), url };
+  } catch (e) {
+    return { error: String((e && e.message) || e), url };
+  } finally { clearTimeout(timer); }
+}
+async function refreshTrackingStatus(p, force) {
+  if (!p || !p.tracking) return { error: 'missing' };
+  if (!force && p.tstatusSource === 'manual') return { skipped: true };
+  const carrier = p.carrier, number = p.tracking;
+  const key = p.id + '|' + carrier + '|' + number;
+  if (trackingBusy.has(key)) return { busy: true };
+  trackingBusy.add(key);
+  try {
+    const r = await checkTrackingStatus(carrier, number);
+    if (p.carrier !== carrier || p.tracking !== number) return { stale: true };
+    p.tstatusAt = Date.now();
+    if (r.status) {
+      p.tstatus = r.status;
+      p.tstatusMsg = r.msg || '';
+      p.tstatusSource = 'auto';
+    } else if (r.error) {
+      p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
+    } else {
+      p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
+    }
+    persist();
+    return r;
+  } finally { trackingBusy.delete(key); }
+}
+function deliveryStatusHtml(p) {
+  const when = p.tstatusAt ? new Date(p.tstatusAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
+  return `<div class="delivery-status-head"><strong>${esc(statusLabel(p.tstatus, !!p.tracking))}</strong>${p.tstatus && p.tstatusSource === 'auto' ? `<span class="delivery-auto">${lang === 'en' ? 'auto' : 'auto'}</span>` : ''}</div>
+    ${p.tstatusMsg ? `<p>${esc(p.tstatusMsg)}</p>` : ''}
+    ${when ? `<small>${lang === 'en' ? 'Checked' : 'Vérifié'} ${esc(when)}</small>` : ''}`;
+}
+function shouldAutoCheckTracking(p) {
+  return !!(p && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
+}
 function openDelivery(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
   openModal((lang === 'en' ? 'Delivery tracker — ' : 'Suivi colis — ') + p.name, `
@@ -4784,9 +4960,58 @@ function openDelivery(slotId) {
       <div class="fld"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}"></div>
       <div class="fld full"><label>Status</label><select id="d_st">${STATUSES.map(x => `<option value="${x}" ${p.tstatus === x ? 'selected' : ''}>${x ? statusLabel(x) : '—'}</option>`).join('')}</select></div>
     </div>
+    <div class="delivery-status" id="d_statusBox" data-slot="${esc(slotId)}">${deliveryStatusHtml(p)}</div>
     <div class="btn-row"><button class="btn btn-primary" id="d_save"><i class="fa-solid fa-check"></i> OK</button>
-    ${p.tracking ? `<a class="btn" target="_blank" rel="noopener" href="https://t.17track.net/#nums=${encodeURIComponent(p.tracking)}"><i class="fa-solid fa-truck-fast"></i> 17track</a>` : ''}</div>`);
-  $('#d_save').onclick = () => { p.carrier = $('#d_car').value; p.tracking = $('#d_tr').value.trim(); p.tstatus = $('#d_st').value; persist(); closeModal(); refresh(); };
+    <button class="btn" id="d_check"${p.tracking ? '' : ' disabled'}><i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}</button>
+    <a class="btn" id="d_open" target="_blank" rel="noopener" href="${esc(trackingUrl(p.carrier, p.tracking))}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> ${lang === 'en' ? 'Open tracking' : 'Ouvrir le suivi'}</a>
+    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${p.tracking ? esc('https://t.17track.net/fr#nums=' + encodeURIComponent(p.tracking)) : '#'}"${p.tracking ? '' : ' hidden'}>17track</a></div>`);
+  let checking = false;
+  const syncLink = () => {
+    const car = $('#d_car').value, num = $('#d_tr').value.trim();
+    const link = trackingUrl(car, num);
+    const open = $('#d_open'), alt = $('#d_17'), check = $('#d_check');
+    if (open) { open.href = link || '#'; open.hidden = !num; }
+    if (alt) { alt.href = num ? 'https://t.17track.net/fr#nums=' + encodeURIComponent(num) : '#'; alt.hidden = !num; }
+    if (check) check.disabled = !num;
+  };
+  $('#d_car').onchange = syncLink;
+  $('#d_tr').oninput = syncLink;
+  const runCheck = async force => {
+    if (checking || !p.tracking) return;
+    checking = true;
+    const check = $('#d_check'), box = $('#d_statusBox');
+    if (check) { check.disabled = true; check.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking…' : 'Vérification…'}`; }
+    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking carrier status…' : 'Vérification du statut…'}</div>`;
+    const r = await refreshTrackingStatus(p, force);
+    checking = false;
+    if (check) { check.disabled = !p.tracking; check.innerHTML = `<i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}`; }
+    const live = $('#d_statusBox');
+    if (live && live.dataset.slot === String(slotId)) {
+      live.innerHTML = deliveryStatusHtml(p);
+      const st = $('#d_st'); if (st) st.value = p.tstatus || '';
+    }
+    if (r && r.status) { refresh(); toast(lang === 'en' ? 'Status updated' : 'Statut mis à jour'); }
+    else if (r && r.error) toast(lang === 'en' ? 'Automatic status unavailable' : 'Statut automatique indisponible');
+  };
+  $('#d_check').onclick = () => runCheck(true);
+  $('#d_save').onclick = () => {
+    const car = $('#d_car').value, num = $('#d_tr').value.trim(), st = $('#d_st').value;
+    const changed = car !== p.carrier || num !== p.tracking;
+    p.carrier = car;
+    p.tracking = num;
+    if (changed) {
+      p.tstatus = st;
+      p.tstatusAt = 0;
+      p.tstatusMsg = '';
+      p.tstatusSource = st ? 'manual' : '';
+    } else if (st !== p.tstatus) {
+      p.tstatus = st;
+      p.tstatusAt = Date.now();
+      p.tstatusSource = st ? 'manual' : '';
+    }
+    persist(); closeModal(); refresh();
+  };
+  if (shouldAutoCheckTracking(p)) runCheck(false);
 }
 
 /* ---------- Summary ---------- */
@@ -6829,7 +7054,7 @@ async function cmpSelectVariant(col, slotId, item, opts = {}) {
       if (o.price) np.price = o.price;
       if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) np.store = o.url;
-      if (o.promo) np.promo = true;
+      setOfferPromo(np, o, { clear: true });
     }
     s.products.push(np);
     s.selectedId = np.id;
@@ -7914,7 +8139,7 @@ function applyOfferRefresh(cur, offers, withFlags) {
     offers.forEach(x => {
       if (!x.price) return;
       const t = x.price * qty + shipOf(x);
-      if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, total: t };
+      if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, promoCode: x.promoCode || '', promoDesc: x.promoDesc || '', total: t };
     });
     if (best && best.total < curTotal - 0.005) {
       if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
@@ -7922,8 +8147,7 @@ function applyOfferRefresh(cur, offers, withFlags) {
     const noBetter = !best || best.total >= curTotal - 0.005;
     if (!!cur.isBest !== noBetter) { cur.isBest = noBetter; ch = true; }
     const ref = o;
-    const promo = !!(ref && ref.promo);
-    if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
+    if (ref && setOfferPromo(cur, ref, { clear: true })) ch = true;
   }
   return ch;
 }
@@ -9485,7 +9709,7 @@ function bind() {
         if (o.price) it.price = o.price;
         if (o.delivered > 0 && o.price) it.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
         if (o.url) it.store = o.url;
-        if (o.promo) it.promo = true;
+        setOfferPromo(it, o, { clear: true });
       }
       if (!it.name) { toast(lang === 'en' ? 'Could not read this page' : 'Lecture de la page impossible'); return; }
       $('#idealoUrl').value = '';
