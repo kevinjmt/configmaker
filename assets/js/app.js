@@ -1842,9 +1842,30 @@ function openLibrary(slotId) {
         <div class="btn-row"><button class="btn btn-sm" data-lib-cancel>${esc(L('Cancel', 'Annuler'))}</button><button class="btn btn-sm btn-primary" data-lib-save><i class="fa-solid fa-check"></i> ${esc(L('Save', 'Enregistrer'))}</button></div>
       </div>`;
     })() : '';
-    host.innerHTML = `<div id="libRoot">
-      <div class="usage-tabs lib-tabs">${tabsHtml}</div>
-      <div class="se-picker lib-picker">
+    let root = host.querySelector('#libRoot');
+    if (!root || !root.querySelector('.lib-tabs')) {
+      host.innerHTML = `<div id="libRoot">
+        <div class="usage-tabs lib-tabs">${tabsHtml}</div>
+        <div class="se-picker lib-picker"></div>
+        <div class="lib-foot">
+          <button class="mini-btn" data-lib-pdf><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <button class="mini-btn" data-lib-json><i class="fa-solid fa-file-code"></i> JSON</button>
+          <span class="grow"></span>
+          <button class="btn btn-sm" data-lib-close>${esc(L('Close', 'Fermer'))}</button>
+          <button class="btn btn-sm btn-primary" data-lib-add><i class="fa-solid fa-plus"></i> ${esc(L('Add', 'Ajouter'))}</button>
+        </div>
+      </div>`;
+      root = host.querySelector('#libRoot');
+    }
+    const tabsEl = root.querySelector('.lib-tabs');
+    LIBRARY_TABS.forEach(x => {
+      const b = tabsEl.querySelector(`[data-lib-tab="${x.id}"]`);
+      if (!b) return;
+      const n = (lib[x.id] || []).length;
+      b.classList.toggle('active', x.id === tab);
+      b.innerHTML = `<i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="lib-tab-count">${n}</span>` : ''}`;
+    });
+    root.querySelector('.lib-picker').innerHTML = `
         <div class="se-picker-head">
           <h4><i class="${tabDef.icon}"></i> ${esc(lang === 'en' ? tabDef.en : tabDef.fr)}</h4>
           <span class="se-picker-state">${items.length} ${esc(L(items.length === 1 ? 'link' : 'links', items.length === 1 ? 'lien' : 'liens'))}</span>
@@ -1853,21 +1874,11 @@ function openLibrary(slotId) {
         ${form}
         ${fallback}
         <div class="lib-list">${rows || `<p class="hint lib-empty">${esc(L('No link yet in this tab.', 'Aucun lien dans cet onglet pour le moment.'))}</p>`}</div>
-        <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(L('Use PDF or JSON to export this component’s library only.', 'Utilisez PDF ou JSON pour exporter uniquement la bibliothèque de ce composant.'))}</p>
-      </div>
-      <div class="lib-foot">
-        <button class="mini-btn" data-lib-pdf><i class="fa-solid fa-file-pdf"></i> PDF</button>
-        <button class="mini-btn" data-lib-json><i class="fa-solid fa-file-code"></i> JSON</button>
-        <span class="grow"></span>
-        <button class="btn btn-sm" data-lib-close>${esc(L('Close', 'Fermer'))}</button>
-        <button class="btn btn-sm btn-primary" data-lib-add><i class="fa-solid fa-plus"></i> ${esc(L('Add', 'Ajouter'))}</button>
-      </div>
-    </div>`;
+        <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(L('Use PDF or JSON to export this component’s library only.', 'Utilisez PDF ou JSON pour exporter uniquement la bibliothèque de ce composant.'))}</p>`;
     refreshIcons(host);
     schedulePillSliders();
-    const tabsEl = host.querySelector('.lib-tabs');
-    const activeTab = tabsEl && tabsEl.querySelector('.usage-tab.active');
-    if (tabsEl && activeTab && tabsEl.scrollWidth > tabsEl.clientWidth) {
+    const activeTab = tabsEl.querySelector('.usage-tab.active');
+    if (activeTab && tabsEl.scrollWidth > tabsEl.clientWidth) {
       tabsEl.scrollLeft = Math.max(0, activeTab.offsetLeft - (tabsEl.clientWidth - activeTab.offsetWidth) / 2);
     }
 
