@@ -31,8 +31,8 @@
  * intentionally so the document stays a complete, readable catalogue.
  */
 window.KJ_PICKS = {
-    version: 1,
-    updated: '2026-10-21',
+    version: 2,
+    updated: '2026-11-05',
     categories: {
         /* ── PC components ─────────────────────────────────────────────────── */
         cpu: [
@@ -206,6 +206,28 @@ window.KJ_PICKS = {
             { id: 'https://www.idealo.fr/prix/202904702/hyperx-cloud-iii.html', name: 'HyperX Cloud III', tags: ['top', 'tested'], note: '' },
             { id: 'https://www.idealo.fr/prix/208027877/logitech-g-g321-lightspeed.html', name: 'Logitech G G321 LIGHTSPEED', tags: ['avoid'], note: '' },
             { id: 'https://www.idealo.fr/prix/204888529/steelseries-arctis-nova-5-wireless-noir.html', name: 'SteelSeries Arctis Nova 5 Wireless noir', tags: ['top', 'tested'], note: '' },
+        ],
+        micro: [
+            // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/209789779/maono-pd200w.html', name: 'Maono PD200W', tags: ['tested', 'top'], note: '' },
+            { id: 'https://www.idealo.fr/prix/6527357/hyperx-quadcast.html', name: 'HyperX QuadCast', tags: ['tested', 'avoid'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204796283/shure-mv6.html', name: 'Shure MV6', tags: ['recommended'] },
+            { id: 'https://www.idealo.fr/prix/200468138/elgato-wave-3.html', name: 'Elgato Wave:3', tags: ['tested', 'recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/4820540/logitech-g-blue-yeti.html', name: 'Logitech G Blue Yeti', tags: ['tested', 'avoid'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202790560/fifine-k669.html', name: 'FIFINE K669', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204293122/shure-mv7.html', name: 'Shure MV7+', tags: ['recommended'] },
+            { id: 'https://www.idealo.fr/prix/201606165/shure-mv7x.html', name: 'Shure MV7X', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/204470984/fifine-am8.html', name: 'FIFINE AM8', tags: ['top', 'tested'], note: '' },
+            { id: 'https://www.idealo.fr/prix/202255596/hyperx-quadcast-s.html', name: 'HyperX QuadCast S', tags: ['tested', 'recommended'] },
+        ],
+        iem: [
+            // { id: '', name: '', tags: ['recommended'], note: '' },
+        ],
+        kvm: [
+            // { id: '', name: '', tags: ['recommended'], note: '' },
+            { id: 'https://www.idealo.fr/prix/208027566/ugreen-displayport-dual-monitor-kvm-switch-2-in-2-out-55851.html', name: 'UGREEN DisplayPort Dual Monitor KVM Switch 2-in 2-out', tags: ['top'] },
+            { id: 'https://www.idealo.fr/prix/204744590/ugreen-hdmi-2-0-kvm-switch-15707.html', name: 'UGREEN HDMI 2.0 KVM Switch (15707)', tags: ['recommended'] },
+            { id: 'https://www.idealo.fr/prix/203491735/ugreen-usb-3-0-sharing-switch-2pc-cm662.html', name: 'Ugreen USB 3.0 Sharing Switch 2PC (CM662)', tags: ['recommended'], note: '' },
         ],
         gamepad: [
             // { id: '', name: '', tags: ['recommended'], note: '' },

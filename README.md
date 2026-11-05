@@ -7,7 +7,7 @@
 **Build, compare and understand your PC setup — locally.**
 
 [![Open ConfigMaker](https://img.shields.io/badge/Open-ConfigMaker-1a8744?style=for-the-badge&logo=githubpages&logoColor=white)](https://kevinjmt.github.io/configmaker)
-[![Version](https://img.shields.io/badge/version-2.0.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-60a5fa?style=for-the-badge&logo=pwa&logoColor=white)](https://kevinjmt.github.io/configmaker)
 [![Issues](https://img.shields.io/badge/issues-welcome-ff6b6b?style=for-the-badge&logo=github&logoColor=white)](https://github.com/kevinjmt/configmaker/issues)
 
@@ -86,15 +86,15 @@ Open <http://localhost:8080>.
 - External services are contacted only when you use the features that need them: prices, product data, benchmarks, tutorials, AI or web fonts.
 - Exporting JSON gives you a portable copy of your data. Clearing browser storage removes local data.
 
-### Release 2.0.0
+### Release 2.1.0
 
 This release brings:
 
-- a single canonical link for the webapp, share links, PDFs and documentation;
-- a new project README and release presentation;
-- stronger Android/iOS installation with an explicit PWA identity and standalone launch;
-- iOS safe-area handling for installed mode;
-- canonical GitHub links for the project and its issue tracker.
+- ordered tracking with automatic delivery refresh and price-refresh locking;
+- a reorderable library for manuals, unboxings, reviews and installations, with PDF/JSON exports;
+- custom tutorials, a "no component" selection and the Black Month theme in November;
+- new microphone, KVM switch and IEM categories;
+- fixes for KJ pills, the component-card close action, mobile card backgrounds and PCIe slots.
 
 See the in-app **Changelog** for the full history.
 
@@ -198,6 +198,6 @@ Les rapports de bugs, idées et pull requests sont les bienvenus.
 
 <div align="center">
 
-**ConfigMaker v2.0.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
+**ConfigMaker v2.1.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
 
 </div>

@@ -28,7 +28,7 @@
 <meta name="twitter:title" content="ConfigMaker by KJ">
 <meta name="twitter:description" content="Configurateur PC & setup : prix Idealo, consommation, manuels, benchmarks, historique.">
 <meta name="twitter:image" content="https://kevinjmt.github.io/configmaker/assets/icons/favicon-512.png">
-<link rel="stylesheet" href="./assets/css/app.css?v=155">
+<link rel="stylesheet" href="./assets/css/app.css?v=163">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css">
@@ -46,7 +46,7 @@
   <div class="kjbrand">
     <a href="./" id="brandHome" aria-label="ConfigMaker accueil">
       <img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker">
-      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.0.0</button></small></span>
+      <span class="brand-name">ConfigMaker by KJ <small>· <button id="versionBtn" class="version-btn" title="Changelog">v2.1.0</button></small></span>
     </a>
   </div>
   <div class="menutitles" id="menu">
@@ -115,7 +115,7 @@
           <button class="icon-btn" id="pickerClose" aria-label="Fermer"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div id="pickerDetail" class="picker-detail hidden" aria-live="polite">
-          <div class="pd-head"><button id="pickerDetailBack" class="icon-btn" aria-label="Retour"><i class="fa-solid fa-arrow-left"></i></button><span data-i18n="picker.detail">Fiche du composant</span><button id="pdEdit" class="icon-btn pd-edit hidden" title="Modifier la fiche" aria-label="Modifier la fiche"><i class="fa-solid fa-pen"></i></button><button id="pdFav" class="icon-btn pd-fav" title="Ajouter aux favoris" aria-label="Ajouter aux favoris"><i class="fa-regular fa-heart"></i></button></div>
+          <div class="pd-head"><button id="pickerDetailBack" class="icon-btn" title="Retour" aria-label="Retour"><i class="fa-solid fa-arrow-left"></i></button><span data-i18n="picker.detail">Fiche du composant</span><button id="pdEdit" class="icon-btn pd-edit hidden" title="Modifier la fiche" aria-label="Modifier la fiche"><i class="fa-solid fa-pen"></i></button><button id="pdFav" class="icon-btn pd-fav" title="Ajouter aux favoris" aria-label="Ajouter aux favoris"><i class="fa-regular fa-heart"></i></button></div>
           <div id="pickerDetailBody" class="pd-body"></div>
         </div>
         <div class="picker-tools">
@@ -160,6 +160,7 @@
             <button id="idealoOpenFallback" class="btn btn-sm"><i class="fa-solid fa-external-link"></i> idealo.fr</button>
           </div>
           <div class="picker-links">
+            <button id="pickerNoneBtn" class="btn btn-sm"><i class="fa-solid fa-ban"></i> <span data-i18n="picker.none">Aucun</span></button>
             <button id="pickerNewBtn" class="btn btn-sm btn-primary"><i class="fa-solid fa-plus"></i> <span data-i18n="picker.new">Nouvelle fiche</span></button>
           </div>
           <div class="idealo-under">
@@ -246,10 +247,15 @@
     <section class="col-left" aria-label="Tutoriels">
       <div class="sec-title">
         <h2><i class="fa-solid fa-graduation-cap"></i> <span data-i18n="tut.title">Tutoriels</span></h2>
-        <span class="count">9</span>
+        <span class="count" id="tutCount">9</span>
       </div>
       <p class="hint" data-i18n="tut.leftHint">Sélectionnez un composant pour voir les deux tutoriels correspondants.</p>
       <div id="tutorialList"></div>
+      <div class="sec-title tut-custom-head">
+        <h2><i class="fa-solid fa-folder-plus"></i> <span data-i18n="tut.custom">Mes tutoriels</span></h2>
+        <button id="tutAddBtn" class="mini-btn"><i class="fa-solid fa-plus"></i> <span data-i18n="tut.add">Ajouter</span></button>
+      </div>
+      <div id="customTutorialList"></div>
     </section>
     <section class="col-right" aria-label="Vidéos tutorielles">
       <div id="tutorialPlaylists" class="glass panel tut-playlists">
@@ -379,7 +385,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <span class="footer-logo"><img class="imgtitle" src="./assets/icons/configmakericon.png" alt="ConfigMaker"></span>
-      <p class="footer-name">ConfigMaker by KJ<small>v2.0.0 · configurateur</small></p>
+      <p class="footer-name">ConfigMaker by KJ<small>v2.1.0 · configurateur</small></p>
       <p class="footer-tag" data-i18n="footer.tag">Prix Idealo, consommation, manuels — 100 % local, sans panier.</p>
     </div>
     <div class="footercol"><p>ConfigMaker</p><a href="https://kevinjmt.github.io/configmaker" target="_blank" rel="noopener" data-i18n="footer.webapp">Webapp officielle</a><a href="#" id="footChangelog">Changelog</a><a href="#" id="footExport">Export données</a><a href="#projectReview" data-i18n="review.title">Soutenir ConfigMaker</a><a href="#externalServices" data-i18n="services.title">Services externes</a><a href="https://pcie-simulator.vercel.app/" target="_blank" rel="noopener">PCIe Simulator <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
@@ -423,8 +429,8 @@
 <div id="consentBar" class="consent-bar hidden"><span data-i18n="consent.msg">Ce site stocke vos configs localement. Accepter ?</span><span class="consent-btns"><button class="mini-btn" id="consentAccept"><i class="fa-solid fa-check"></i> <span data-i18n="consent.accept">Accepter</span></button><button class="mini-btn" id="consentDeny"><i class="fa-solid fa-xmark"></i> <span data-i18n="consent.deny">Refuser</span></button></span></div>
 
 <script src="./assets/js/store.js?v=1"></script>
-<script src="./assets/js/idealo.js?v=76"></script>
-<script src="./assets/js/kj-picks.js?v=1"></script>
+<script src="./assets/js/idealo.js?v=77"></script>
+<script src="./assets/js/kj-picks.js?v=2"></script>
 <script src="./assets/js/compat.js?v=15"></script>
 <script src="./assets/js/psudb.js?v=3"></script>
 <script src="./assets/js/pcie-catalog.js?v=12"></script>
@@ -434,7 +440,7 @@
 <script src="./assets/js/fpsdb.js?v=1"></script>
 <script src="./assets/js/perf.js?v=11"></script>
 <script src="./assets/js/qrcode.js?v=1"></script>
-<script src="./assets/js/app.js?v=164"></script>
+<script src="./assets/js/app.js?v=181"></script>
 <script>
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
 </script>
