@@ -420,8 +420,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .delivery-tag .delivery-bar>span{display:block;height:100%;border-radius:inherit;background:var(--info);transition:width .3s ease}
 .delivery-tag.st-delivered .delivery-bar>span{background:var(--success)}
 .delivery-tag.st-issue .delivery-bar>span{background:var(--danger)}
-.delivery-tag.checking .delivery-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 25%,rgba(255,255,255,.55) 50%,transparent 75%);background-size:250% 100%;animation:sk 1.2s infinite}
-html[data-anim="off"] .delivery-tag.checking .delivery-bar::after{animation:none}
+.delivery-tag.checking{border-radius:10px;overflow:hidden}
+.delivery-tag.checking::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 25%,rgba(128,128,128,.20) 50%,transparent 75%);background-size:250% 100%;animation:sk 1.4s infinite;z-index:1}
+html[data-anim="off"] .delivery-tag.checking::after{animation:none}
 .delivery-status{border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);padding:11px 13px;margin:0 0 12px;font-size:.82rem;line-height:1.4}
 .delivery-status-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .delivery-status-head strong{font-size:.9rem}

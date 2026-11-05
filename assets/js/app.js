@@ -8221,7 +8221,7 @@ async function refreshPageData(quiet, opts = {}) {
     const s = state.slots[id]; if (!s) return;
     const chosen = sel(s);
     if (chosen && chosen.ordered) {
-      if (chosen.tracking && chosen.tstatus !== 'delivered') tasks.push({ kind: 'tracking', id, p: chosen });
+      if (chosen.tracking) tasks.push({ kind: 'tracking', id, p: chosen });
       return;
     }
     if (skipPrices || typeof Idealo === 'undefined') return;
