@@ -1,11 +1,11 @@
-/* ConfigMaker v2.0.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.1.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const APP_URL = 'https://kevinjmt.github.io/configmaker';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
@@ -9010,6 +9010,11 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.1.0 — Commandes, bibliothèque et nouvelles catégories</h3>
+      <p class="hint"><strong>Ajouts :</strong> bouton « Commandé » à gauche du bouton favori, avec verrouillage de l’actualisation des prix et carte composant grisée, ainsi que les boutons « Commandé » / « Non commandé ». Thème « Black Month » activé par défaut en novembre. Option « Aucun &lt;type de composant&gt; » dans la sélection, à côté de « Nouvelle fiche ». Bouton « Ajouter un tutoriel » dans la section Tutoriels pour enregistrer des vidéos et les réorganiser. Mini-bouton « Bibliothèque » : ouverture de la bibliothèque comme les tutoriels, onglets Manuel / Unboxing / Review / Installation, ajout, édition, réorganisation et suppression de vidéos, photos et liens ; le bouton Manuel ouvre le premier lien manuel et les éléments Installation sont automatiquement ajoutés aux tutoriels ; la bibliothèque peut être exportée en PDF et JSON via la popup d’export. Actualisation automatique du suivi de livraison.</p>
+      <p class="hint"><strong>Correctifs :</strong> bouton des pastilles KJ dans la sélection de composants ; bouton retour remplacé par un bouton fermer dans la fiche composant ; fonds des cartes composants sur mobile ; slots PCIe.</p>
+      <p class="hint"><strong>Nouvelles catégories :</strong> micros, commutateurs KVM et IEM.</p>
+    </div>
     <div class="chlog"><h3>v2.0.0 — Release officielle, installation mobile et liens canoniques</h3><p class="hint">ConfigMaker passe en v2.0.0 avec un README de présentation, un lien officiel unique pour la webapp, les partages et les PDF, et une installation PWA renforcée sur Android et iOS. L’application s’ouvre désormais comme une vraie app depuis l’écran d’accueil, avec le plein écran et les zones sûres iOS, tandis que les liens GitHub du projet et des issues restent centralisés. Toutes les fonctions de la v2.69 sont conservées.</p></div>
     <div class="chlog"><h3>v2.69 — Soutien au projet, exports à la carte et benchmarks moyens</h3><p class="hint">Deux nouveaux blocs avant les fichiers Excel mettent en avant le projet et remercient Idealo, avec une section complète des services externes et leurs liens en pied de page. Les exports PDF et JSON partagent désormais un sélecteur compact : tout, données actuelles, configuration + performances, configuration seule ou choix libre, avec la configuration toujours incluse et un aperçu verrouillé tout coché dans Partager. Le PDF place les publicités ConfigMaker et Idealo puis le résumé d’usage horizontal sur la première page, supprime le doublon plus loin, reprend les sections IObit et usage quotidien dans les mêmes encadrés que les blocs lourds et peut inclure les tutoriels. Les benchmarks 3DMark et Geekbench utilisent la moyenne de tous les runs disponibles, plafonnée à 1 000 échantillons. L’actualisation des prix peut être annulée en deux clics, un réglage permet de la désactiver, les avertissements couvrent l’absence de GPU avec un CPU sans graphique intégré et l’absence de ventirad avec un CPU sans ventilateur fourni, et le favicon reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.68 — Fiche composant, compteurs et offres fiabilisées</h3><p class="hint">La fiche composant s’ouvre en lecture seule depuis « Infos » et le crayon reste disponible pour modifier la fiche sélectionnée. Les offres affichent toujours « N offres · dès X € », s’ouvrent au bon endroit et séparent leur erreur de celle de la fiche technique avec un bouton Réessayer. L’aperçu passe avant les variantes, avec des raccourcis vers les variantes et la fiche technique. Les compteurs n’animent que les valeurs modifiées, depuis leur ancienne valeur, et restent statiques sans animation. La création par IA tient sur une seule ligne de progression. Les panneaux Partager/Exporter reprennent une liste verticale compacte. Les offres Idealo sont récupérées dans le HTML brut quand le Markdown les omet, les contrôles actifs restent lisibles en thème sombre et le comparateur mobile ne déborde plus horizontalement.</p></div>
