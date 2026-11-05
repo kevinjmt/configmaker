@@ -971,6 +971,8 @@ async function ensureAlternativeData(slotId) {
   // refreshingPids (row shimmer) and dsLoading (grey datasheet pill).
   const s = state.slots[slotId];
   if (!s || typeof Idealo === 'undefined') return;
+  const chosen = sel(s);
+  const lockAltPrices = !!(chosen && chosen.ordered);
   const targets = (s.products || []).filter(x => x.id !== s.selectedId
     && !x.ordered
     && /idealo\.fr\/prix\//i.test(x.idealo || '')
@@ -980,7 +982,7 @@ async function ensureAlternativeData(slotId) {
     const cur = s.products.find(x => x.id === t.id);
     if (!cur || altAttempted.has(cur.id)) continue;
     altAttempted.add(cur.id);
-    if (!cur.price) {
+    if (!cur.price && !lockAltPrices) {
       refreshingPids.add(cur.id); renderSlots();
       try {
         const r = await Idealo.offers(cur.idealo, true);
@@ -4967,6 +4969,11 @@ function deliveryStatusHtml(p) {
 function shouldAutoCheckTracking(p) {
   return !!(p && p.ordered && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
 }
+async function refreshProductTracking(p, force) {
+  trackingRefreshingPids.add(p.id); renderSlots();
+  try { return await refreshTrackingStatus(p, force); }
+  finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+}
 async function refreshOrderedTracking(force = false, onlyPid = null) {
   if (!state || !Array.isArray(state.order)) return { updated: 0, failed: 0 };
   const targets = [], seen = new Set();
@@ -4983,10 +4990,7 @@ async function refreshOrderedTracking(force = false, onlyPid = null) {
   });
   let updated = 0, failed = 0;
   for (const p of targets) {
-    trackingRefreshingPids.add(p.id); renderSlots();
-    let r;
-    try { r = await refreshTrackingStatus(p, force); }
-    finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+    const r = await refreshProductTracking(p, force);
     if (r && r.status) updated++;
     else if (r && !r.busy && r.error) failed++;
   }
@@ -8109,31 +8113,19 @@ function importConfig(obj, opts) {
     schedulePriceRefresh(600, true);
   } else schedulePriceRefresh();
 }
-/* ---------- Background price refresh (same vendor, else cheapest) ---------- */
+/* ---------- Background component refresh (prices or delivery, in slot order) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
 let priceRefreshCancel = false, priceRefreshCancelArmed = false, priceRefreshCancelTimer = null, priceProgressText = '';
-let refreshTrackingAfterPrices = false;
 const refreshingPids = new Set();
 const refreshFailed = new Set();
 function schedulePriceRefresh(delay = 1200, quiet = false) {
   clearTimeout(priceRefreshTimer);
   if (prefs.noPriceRefresh === true) return;
-  priceRefreshTimer = setTimeout(() => refreshPrices(quiet), delay);
-}
-function finishPageRefresh(cancelled) {
-  if (!refreshTrackingAfterPrices) return;
-  refreshTrackingAfterPrices = false;
-  if (!cancelled) refreshOrderedTracking(true);
+  priceRefreshTimer = setTimeout(() => refreshPageData(quiet), delay);
 }
 function schedulePageRefresh(delay = 2500) {
-  if (prefs.noPriceRefresh === true) {
-    clearTimeout(priceRefreshTimer);
-    refreshTrackingAfterPrices = false;
-    priceRefreshTimer = setTimeout(() => refreshOrderedTracking(true), delay);
-    return;
-  }
-  refreshTrackingAfterPrices = true;
-  schedulePriceRefresh(delay);
+  clearTimeout(priceRefreshTimer);
+  priceRefreshTimer = setTimeout(() => refreshPageData(false, { skipPrices: prefs.noPriceRefresh === true }), delay);
 }
 function showProgress(txt, opts = {}) {
   const pp = $('#progressPop'); if (!pp) return;
@@ -8145,7 +8137,7 @@ function showProgress(txt, opts = {}) {
     if (!priceRefreshCancelArmed) {
       btn.disabled = false;
       btn.classList.remove('confirm');
-      btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation';
+      btn.title = lang === 'en' ? 'Cancel the refresh' : 'Annuler l’actualisation';
     }
   }
   pp.classList.toggle('cancelable', !!opts.cancelable);
@@ -8155,7 +8147,7 @@ function resetProgressCancel() {
   clearTimeout(priceRefreshCancelTimer);
   priceRefreshCancelArmed = false;
   const btn = $('#progressCancel');
-  if (btn) { btn.disabled = false; btn.classList.remove('confirm'); btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation'; }
+  if (btn) { btn.disabled = false; btn.classList.remove('confirm'); btn.title = lang === 'en' ? 'Cancel the refresh' : 'Annuler l’actualisation'; }
   if (priceProgressText) { const txt = $('#progressTxt'); if (txt) txt.textContent = priceProgressText; }
 }
 function hideProgress() {
@@ -8171,7 +8163,7 @@ function wireProgressCancel() {
     if (!priceRefreshCancelArmed) {
       priceRefreshCancelArmed = true;
       clearTimeout(priceRefreshCancelTimer);
-      $('#progressTxt').textContent = lang === 'en' ? 'Cancel the price refresh?' : 'Annuler l’actualisation ?';
+      $('#progressTxt').textContent = lang === 'en' ? 'Cancel the refresh?' : 'Annuler l’actualisation ?';
       btn.classList.add('confirm');
       btn.title = lang === 'en' ? 'Click again to confirm' : 'Cliquez à nouveau pour confirmer';
       priceRefreshCancelTimer = setTimeout(resetProgressCancel, 5000);
@@ -8221,63 +8213,81 @@ function applyOfferRefresh(cur, offers, withFlags) {
   }
   return ch;
 }
-async function refreshPrices(quiet) {
+async function refreshPageData(quiet, opts = {}) {
   if (priceRefreshRunning) return;
-  // every fiche (selected + alternatives), fetches deduplicated by /prix/ URL
-  const byUrl = new Map();
+  const skipPrices = !!opts.skipPrices;
+  const tasks = [];
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
-    (s.products || []).forEach(p => {
-      if (p && !p.ordered && /idealo\.fr\/prix\//i.test(p.idealo || '')) {
-        if (!byUrl.has(p.idealo)) byUrl.set(p.idealo, []);
-        byUrl.get(p.idealo).push({ id, pid: p.id });
-      }
-    });
+    const chosen = sel(s);
+    if (chosen && chosen.ordered) {
+      if (chosen.tracking && chosen.tstatus !== 'delivered') tasks.push({ kind: 'tracking', id, p: chosen });
+      return;
+    }
+    if (skipPrices || typeof Idealo === 'undefined') return;
+    const products = (s.products || []).filter(x => x && !x.ordered
+      && /idealo\.fr\/prix\//i.test(x.idealo || '')
+      && !(editingPid && editingPid === x.id));
+    if (products.length) tasks.push({ kind: 'price', id, products });
   });
-  const urls = [...byUrl.keys()];
-  if (!urls.length || typeof Idealo === 'undefined') { finishPageRefresh(false); return; }
+  if (!tasks.length) return;
   priceRefreshRunning = true;
   priceRefreshCancel = false;
-  const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
-  if (!quiet) showProgress(`${prog} (0/${urls.length})…`, { cancelable: true });
-  let updated = 0, failed = 0;
-  for (let i = 0; i < urls.length; i++) {
+  const prog = lang === 'en' ? 'Refreshing components' : 'Actualisation des composants';
+  if (!quiet) showProgress(`${prog} (0/${tasks.length})…`, { cancelable: true });
+  let priceUpdated = 0, priceFailed = 0, statusUpdated = 0, statusFailed = 0;
+  const offersByUrl = new Map();
+  for (let i = 0; i < tasks.length; i++) {
     if (priceRefreshCancel) break;
-    const url = urls[i];
-    const entries = byUrl.get(url).filter(e => {
-      const s = state.slots[e.id];
-      return s && s.products.some(x => x.id === e.pid && !x.ordered);
-    });
-    if (!entries.length) continue;
-    entries.forEach(e => refreshingPids.add(e.pid));
-    renderSlots(); renderSummary();
-    if (!quiet) showProgress(`${prog} (${i + 1}/${urls.length})…`, { cancelable: true });
-    try {
-      const r = await Idealo.offers(url, true);
-      if (priceRefreshCancel) { entries.forEach(e => refreshingPids.delete(e.pid)); break; }
-      if (r.error || !r.offers.length) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
-      else {
-        entries.forEach(({ id, pid }) => {
-          const s = state.slots[id];
-          const cur = s && s.products.find(x => x.id === pid);
-          if (!cur || cur.ordered || (editingPid && editingPid === pid)) return;
-          refreshFailed.delete(pid);
-          if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
-        });
+    const task = tasks[i];
+    if (!quiet) showProgress(`${prog} (${i + 1}/${tasks.length})…`, { cancelable: true });
+    if (task.kind === 'tracking') {
+      const r = await refreshProductTracking(task.p, true);
+      if (r && r.status) statusUpdated++;
+      else if (r && !r.busy && r.error) statusFailed++;
+      continue;
+    }
+    for (const item of task.products) {
+      if (priceRefreshCancel) break;
+      const s = state.slots[task.id]; if (!s) break;
+      const cur = s.products.find(x => x.id === item.id);
+      if (!cur || cur.ordered || (editingPid && editingPid === cur.id)) continue;
+      refreshingPids.add(cur.id); renderSlots(); renderSummary();
+      try {
+        let offersPromise = offersByUrl.get(cur.idealo);
+        if (!offersPromise) { offersPromise = Idealo.offers(cur.idealo, true); offersByUrl.set(cur.idealo, offersPromise); }
+        const r = await offersPromise;
+        if (priceRefreshCancel) continue;
+        if (r.error || !r.offers.length) { priceFailed++; refreshFailed.add(cur.id); continue; }
+        const live = s.products.find(x => x.id === cur.id);
+        if (!live || live.ordered || (editingPid && editingPid === live.id)) continue;
+        refreshFailed.delete(live.id);
+        if (applyOfferRefresh(live, r.offers, sel(s) === live)) priceUpdated++;
+      } catch {
+        if (!priceRefreshCancel) { priceFailed++; refreshFailed.add(cur.id); }
+      } finally {
+        refreshingPids.delete(cur.id);
       }
-    } catch { if (!priceRefreshCancel) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); } }
-    entries.forEach(e => refreshingPids.delete(e.pid));
+    }
+    renderSlots(); renderSummary();
   }
   const cancelled = priceRefreshCancel;
   refreshingPids.clear();
   persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
-  if (!cancelled) for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
-  if (cancelled) { toast(lang === 'en' ? 'Price refresh cancelled' : 'Actualisation annulée'); finishPageRefresh(true); return; }
-  toast(updated
-    ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
-    : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prix déjà à jour' : 'Prix déjà à jour')));
-  finishPageRefresh(false);
+  if (!cancelled) {
+    for (const id of state.order) {
+      const s = state.slots[id], p = s && sel(s);
+      if (p && p.ordered) continue;
+      queueAlternativeData(id);
+    }
+  }
+  if (cancelled) { toast(lang === 'en' ? 'Refresh cancelled' : 'Actualisation annulée'); return; }
+  const parts = [];
+  if (priceUpdated || priceFailed) parts.push(`${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${priceUpdated})${priceFailed ? ' · ' + priceFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
+  if (statusUpdated || statusFailed) parts.push(`${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${statusUpdated})${statusFailed ? ' · ' + statusFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
+  if (parts.length) toast(parts.join(' · '));
+  else if (tasks.some(t => t.kind === 'price')) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
 const EXPORT_PARTS = [
