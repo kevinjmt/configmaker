@@ -616,6 +616,7 @@ function customTutorialLabel(item) {
 }
 function normalizeStateExtras(st) {
   if (!st || typeof st !== 'object') return st;
+  const migrateTrackingOrder = !st.deliveryOrderedMigrated;
   st.customTutorials = Array.isArray(st.customTutorials) ? st.customTutorials.filter(x => x && x.url).map(x => ({
     ...x,
     id: String(x.id || uid()),
@@ -638,11 +639,16 @@ function normalizeStateExtras(st) {
       if (!p || typeof p !== 'object') return;
       p.ordered = !!p.ordered;
       p.orderedAt = Number(p.orderedAt) || 0;
+      if (migrateTrackingOrder && p.tracking && !p.ordered) {
+        p.ordered = true;
+        p.orderedAt = p.orderedAt || Date.now();
+      }
       p.library = normalizeLibrary(p.library);
     });
     const selectedProduct = s.products.find(p => p && p.id === s.selectedId);
     if (selectedProduct && selectedProduct.noComponent) { s.selectedId = null; s.none = true; }
   });
+  if (migrateTrackingOrder) st.deliveryOrderedMigrated = true;
   return st;
 }
 function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
@@ -1521,6 +1527,8 @@ function slotCard(id) {
   const el = document.createElement('div');
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
+  const trackingChecking = !!(p && trackingRefreshingPids.has(p.id));
+  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(p.tstatus) ? ' st-' + p.tstatus : '';
   const stale = !!(p && refreshFailed.has(p.id));
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
@@ -1582,7 +1590,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag" title="${esc(p.tstatusMsg || '')}"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</div>` : ''}` : ''}
+    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid fa-truck-fast"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
     </div>
     ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
@@ -4860,6 +4868,13 @@ const STATUSES = ['', 'ordered', 'preparing', 'shipped', 'transit', 'out', 'deli
 const TRACKING_READER = 'https://r.jina.ai/';
 const TRACKING_TTL = 10 * 60 * 1000;
 const trackingBusy = new Set();
+const trackingRefreshingPids = new Set();
+const DELIVERY_PROGRESS = { ordered: 12, preparing: 28, shipped: 48, transit: 68, out: 88, delivered: 100, issue: 100 };
+function deliveryProgress(p) {
+  if (!p) return 0;
+  if (DELIVERY_PROGRESS[p.tstatus] != null) return DELIVERY_PROGRESS[p.tstatus];
+  return p.tracking ? 6 : 0;
+}
 function statusLabel(s, hasTracking) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (hasTracking ? (lang === 'en' ? 'Status unknown' : 'Statut inconnu') : (lang === 'en' ? 'No tracking' : 'Pas de suivi')); }
 function trackingUrl(carrier, number) {
   const n = String(number || '').trim();
@@ -4950,7 +4965,38 @@ function deliveryStatusHtml(p) {
     ${when ? `<small>${lang === 'en' ? 'Checked' : 'Vérifié'} ${esc(when)}</small>` : ''}`;
 }
 function shouldAutoCheckTracking(p) {
-  return !!(p && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
+  return !!(p && p.ordered && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
+}
+async function refreshOrderedTracking(force = false, onlyPid = null) {
+  if (!state || !Array.isArray(state.order)) return { updated: 0, failed: 0 };
+  const targets = [], seen = new Set();
+  state.order.forEach(id => {
+    const s = state.slots[id]; if (!s) return;
+    (s.products || []).forEach(p => {
+      if (!p || !p.ordered || !p.tracking) return;
+      if (onlyPid && p.id !== onlyPid) return;
+      if (!force && !shouldAutoCheckTracking(p)) return;
+      if (p.tstatus === 'delivered' || seen.has(p.id)) return;
+      seen.add(p.id);
+      targets.push(p);
+    });
+  });
+  let updated = 0, failed = 0;
+  for (const p of targets) {
+    trackingRefreshingPids.add(p.id); renderSlots();
+    let r;
+    try { r = await refreshTrackingStatus(p, force); }
+    finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+    if (r && r.status) updated++;
+    else if (r && !r.busy && r.error) failed++;
+  }
+  if (updated || failed) {
+    const msg = updated
+      ? `${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${updated})${failed ? ` · ${failed} ${lang === 'en' ? 'failed' : 'en échec'}` : ''}`
+      : (lang === 'en' ? 'Delivery status check failed — retry later' : 'Échec vérification livraison — réessayez plus tard');
+    toast(msg);
+  }
+  return { updated, failed };
 }
 function openDelivery(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
@@ -4996,20 +5042,28 @@ function openDelivery(slotId) {
   $('#d_check').onclick = () => runCheck(true);
   $('#d_save').onclick = () => {
     const car = $('#d_car').value, num = $('#d_tr').value.trim(), st = $('#d_st').value;
+    const oldStatus = p.tstatus, statusChanged = st !== oldStatus;
     const changed = car !== p.carrier || num !== p.tracking;
     p.carrier = car;
     p.tracking = num;
     if (changed) {
-      p.tstatus = st;
+      p.tstatus = statusChanged ? st : '';
       p.tstatusAt = 0;
       p.tstatusMsg = '';
-      p.tstatusSource = st ? 'manual' : '';
-    } else if (st !== p.tstatus) {
+      p.tstatusSource = statusChanged && st ? 'manual' : '';
+    } else if (statusChanged) {
       p.tstatus = st;
       p.tstatusAt = Date.now();
       p.tstatusSource = st ? 'manual' : '';
     }
+    if (num) {
+      if (!p.ordered) p.ordered = true;
+      if (!p.orderedAt) p.orderedAt = Date.now();
+      refreshFailed.delete(p.id);
+    }
+    const autoCheck = !!num && !p.tstatus && p.tstatusSource !== 'manual';
     persist(); closeModal(); refresh();
+    if (autoCheck) refreshOrderedTracking(true, p.id);
   };
   if (shouldAutoCheckTracking(p)) runCheck(false);
 }
@@ -8058,12 +8112,28 @@ function importConfig(obj, opts) {
 /* ---------- Background price refresh (same vendor, else cheapest) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
 let priceRefreshCancel = false, priceRefreshCancelArmed = false, priceRefreshCancelTimer = null, priceProgressText = '';
+let refreshTrackingAfterPrices = false;
 const refreshingPids = new Set();
 const refreshFailed = new Set();
 function schedulePriceRefresh(delay = 1200, quiet = false) {
   clearTimeout(priceRefreshTimer);
   if (prefs.noPriceRefresh === true) return;
   priceRefreshTimer = setTimeout(() => refreshPrices(quiet), delay);
+}
+function finishPageRefresh(cancelled) {
+  if (!refreshTrackingAfterPrices) return;
+  refreshTrackingAfterPrices = false;
+  if (!cancelled) refreshOrderedTracking(true);
+}
+function schedulePageRefresh(delay = 2500) {
+  if (prefs.noPriceRefresh === true) {
+    clearTimeout(priceRefreshTimer);
+    refreshTrackingAfterPrices = false;
+    priceRefreshTimer = setTimeout(() => refreshOrderedTracking(true), delay);
+    return;
+  }
+  refreshTrackingAfterPrices = true;
+  schedulePriceRefresh(delay);
 }
 function showProgress(txt, opts = {}) {
   const pp = $('#progressPop'); if (!pp) return;
@@ -8165,7 +8235,7 @@ async function refreshPrices(quiet) {
     });
   });
   const urls = [...byUrl.keys()];
-  if (!urls.length || typeof Idealo === 'undefined') return;
+  if (!urls.length || typeof Idealo === 'undefined') { finishPageRefresh(false); return; }
   priceRefreshRunning = true;
   priceRefreshCancel = false;
   const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
@@ -8203,10 +8273,11 @@ async function refreshPrices(quiet) {
   persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
   if (!cancelled) for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
-  if (cancelled) { toast(lang === 'en' ? 'Price refresh cancelled' : 'Actualisation annulée'); return; }
+  if (cancelled) { toast(lang === 'en' ? 'Price refresh cancelled' : 'Actualisation annulée'); finishPageRefresh(true); return; }
   toast(updated
     ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
-    : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));
+    : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prix déjà à jour' : 'Prix déjà à jour')));
+  finishPageRefresh(false);
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
 const EXPORT_PARTS = [
@@ -9837,7 +9908,7 @@ function bind() {
     guardUnsaved(() => { try { importConfig(shareObj, { share: true }); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
   } else {
     maybeWelcome();
-    schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
+    schedulePageRefresh(2500); // refresh stored prices, then ordered delivery statuses
   }
   maybeConsentBar();
 })();

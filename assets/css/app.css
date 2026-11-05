@@ -414,7 +414,14 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-item .mini-btn{padding:10px 11px;font-size:.78rem}
 .alt-ds-spin{color:var(--muted-2);font-size:.75rem;margin-left:4px}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
-.delivery-tag{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 10px 84px}
+.delivery-tag{position:relative;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 15px 84px}
+.delivery-tag .delivery-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.delivery-tag .delivery-bar{position:absolute;left:84px;right:14px;bottom:7px;height:3px;border-radius:999px;background:color-mix(in srgb,var(--info) 16%,var(--line));overflow:hidden}
+.delivery-tag .delivery-bar>span{display:block;height:100%;border-radius:inherit;background:var(--info);transition:width .3s ease}
+.delivery-tag.st-delivered .delivery-bar>span{background:var(--success)}
+.delivery-tag.st-issue .delivery-bar>span{background:var(--danger)}
+.delivery-tag.checking .delivery-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 25%,rgba(255,255,255,.55) 50%,transparent 75%);background-size:250% 100%;animation:sk 1.2s infinite}
+html[data-anim="off"] .delivery-tag.checking .delivery-bar::after{animation:none}
 .delivery-status{border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);padding:11px 13px;margin:0 0 12px;font-size:.82rem;line-height:1.4}
 .delivery-status-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .delivery-status-head strong{font-size:.9rem}
@@ -1610,6 +1617,7 @@ html[data-glass="off"] .btn-primary,html[data-glass="off"] .bubble-btn,html[data
   .slot-compat{padding-left:14px}
   .slot-badges{padding-left:14px}
   .delivery-tag{padding-left:14px}
+  .delivery-tag .delivery-bar{left:14px}
   .fold-btn{display:inline-flex;align-items:center;gap:8px;margin:10px auto 0 auto;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-pill);padding:8px 16px;font-weight:800;color:var(--muted);cursor:pointer}
   #summaryPanel{display:flex;flex-direction:column;align-items:center}
   #summaryBody.collapsed{display:none}
