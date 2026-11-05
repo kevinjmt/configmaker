@@ -1,11 +1,11 @@
-/* ConfigMaker v2.0.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.1.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const APP_URL = 'https://kevinjmt.github.io/configmaker';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
@@ -179,6 +179,9 @@ const SLOT_DEFS = [
   { id: 'mouse', sec: 'setup', icon: 'lucide:mouse', q: 'souris', w: 2 },
   { id: 'pad', sec: 'setup', icon: 'lucide:square', q: 'tapis de souris XXL', w: 0 },
   { id: 'headset', sec: 'setup', icon: 'lucide:headset', q: 'casque gaming', w: 3 },
+  { id: 'micro', sec: 'setup', icon: 'lucide:mic', q: 'microphone USB XLR', w: 2, extra: true },
+  { id: 'iem', sec: 'setup', icon: 'lucide:ear', q: 'écouteurs intra-auriculaires IEM', w: 0, extra: true },
+  { id: 'kvm', sec: 'setup', icon: 'lucide:network', q: 'commutateur KVM', w: 5, extra: true },
   { id: 'gamepad', sec: 'setup', icon: 'lucide:gamepad-2', q: 'manette jeu', w: 3, extra: true },
   { id: 'ups', sec: 'setup', icon: 'lucide:battery-charging', q: 'onduleur', w: 0, extra: true },
   { id: 'multiprise', sec: 'setup', icon: 'lucide:plug', q: 'multiprise parafoudre', w: 0, extra: true },
@@ -269,7 +272,7 @@ const I18N = {
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauvegarder', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
-    'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.',
+    'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.', 'tut.custom': 'Mes tutoriels', 'tut.add': 'Ajouter',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Ouvrez une playlist complète sur YouTube ou choisissez un composant pour afficher les tutoriels correspondants.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'Montage PC · 18 vidéos', 'tut.materielSub': 'Montage PC · 16 vidéos',
     'tut.back': 'Retour aux playlists', 'tut.open': 'Ouvrir sur YouTube', 'tut.approx': 'Correspondance approximative', 'tut.sources': 'TopAchat + Materiel.net',
@@ -318,7 +321,7 @@ const I18N = {
     'compare.openIdealo': 'Idealo',
     'compare.openMerchant': 'Marchand',
     'compare.noAlt': 'Aucune alternative',
-    'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche',
+    'picker.search': 'Filtrer mes fiches…', 'picker.new': 'Nouvelle fiche', 'picker.none': 'Aucun',
     'picker.fiches': 'Mes fiches', 'picker.idealoPh': 'Rechercher sur idealo.fr…', 'picker.filterPh': 'Filtrer les résultats…',
     'picker.urlPh': "Collez l'URL exacte de la fiche /prix/…", 'picker.choose': 'Choisir ce composant', 'picker.chooseBtn': 'Choisir', 'picker.addMode': "Ajout d'une alternative", 'picker.detail': 'Fiche du composant', 'picker.openIdealo': 'Ouvrir sur Idealo',
     'picker.more': 'Charger plus', 'picker.retry': 'Réessayer', 'picker.from': 'à partir de', 'picker.offers': 'offres',
@@ -414,7 +417,7 @@ const I18N = {
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
     'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
-    'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.',
+    'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.', 'tut.custom': 'My tutorials', 'tut.add': 'Add',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Open a full playlist on YouTube or select a component to show the matching tutorials.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'PC build · 18 videos', 'tut.materielSub': 'PC build · 16 videos',
     'tut.back': 'Back to playlists', 'tut.open': 'Open on YouTube', 'tut.approx': 'Approximate match', 'tut.sources': 'TopAchat + Materiel.net',
@@ -463,7 +466,7 @@ const I18N = {
     'compare.openIdealo': 'Idealo',
     'compare.openMerchant': 'Merchant',
     'compare.noAlt': 'No alternative',
-    'picker.search': 'Filter my entries…', 'picker.new': 'New entry',
+    'picker.search': 'Filter my entries…', 'picker.new': 'New entry', 'picker.none': 'None',
     'picker.fiches': 'My entries', 'picker.idealoPh': 'Search on idealo.fr…', 'picker.filterPh': 'Filter results…',
     'picker.urlPh': 'Paste the exact /prix/ listing URL', 'picker.choose': 'Use this component', 'picker.chooseBtn': 'Select', 'picker.addMode': 'Adding an alternative', 'picker.detail': 'Component details', 'picker.openIdealo': 'Open on Idealo',
     'picker.more': 'Load more', 'picker.retry': 'Retry', 'picker.from': 'from', 'picker.offers': 'offers',
@@ -547,8 +550,8 @@ const I18N = {
   }
 };
 const SLOT_NAMES = {
-  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Disque dur externe', extssd: 'SSD externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
-  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External hard drive', extssd: 'External SSD', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
+  fr: { cpu: 'Processeur', mb: 'Carte mère', ram: 'RAM', cooler: 'Refroidissement', thermal: 'Pâte thermique', ssd1: 'SSD', hdd: 'Disque dur', gpu: 'Carte graphique', case: 'Boîtier', fans: 'Ventilateurs', psu: 'Alimentation', psucables: "Câbles d'alim.", os: 'OS', soft: 'Logiciels', desk: 'Bureau', chair: 'Chaise', screen1: 'Écran', keyboard: 'Clavier', mouse: 'Souris', pad: 'Tapis', headset: 'Casque', micro: 'Microphone', iem: 'Écouteurs IEM', kvm: 'Commutateur KVM', gamepad: 'Manette', ups: 'Onduleur', multiprise: 'Multiprise', switch: 'Switch', router: 'Routeur', nas: 'NAS', graphictab: 'Tablette graphique', usbstick: 'Clés USB', memcard: 'Cartes mémoire', hub: 'Hub USB', dock: "Station d'accueil", printer: 'Imprimante', extstorage: 'Disque dur externe', extssd: 'SSD externe', speakers: 'Enceintes', webcam: 'Webcam', soundcard: 'Carte son ext.', capture: "Boîtier d'acquisition", netcard: 'Carte réseau', monitorarm: 'Support écran', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Autres' },
+  en: { cpu: 'CPU', mb: 'Motherboard', ram: 'RAM', cooler: 'Cooling', thermal: 'Thermal paste', ssd1: 'SSD', hdd: 'HDD', gpu: 'Graphics card', case: 'Case', fans: 'Fans', psu: 'Power supply', psucables: 'PSU cables', os: 'OS', soft: 'Software', desk: 'Desk', chair: 'Chair', screen1: 'Monitor', keyboard: 'Keyboard', mouse: 'Mouse', pad: 'Mouse pad', headset: 'Headset', micro: 'Microphone', iem: 'IEM earphones', kvm: 'KVM switch', gamepad: 'Gamepad', ups: 'UPS', multiprise: 'Power strip', switch: 'Switch', router: 'Router', nas: 'NAS', graphictab: 'Drawing tablet', usbstick: 'USB sticks', memcard: 'Memory cards', hub: 'USB hub', dock: 'Docking station', printer: 'Printer', extstorage: 'External hard drive', extssd: 'External SSD', speakers: 'Speakers', webcam: 'Webcam', soundcard: 'Ext. sound card', capture: 'Capture card', netcard: 'Network card', monitorarm: 'Monitor arm', opt1: 'Option 1', opt2: 'Option 2', opt3: 'Option 3', pc: 'PC', setup: 'Setup', others: 'Others' },
 };
 let lang = load(LS.prefs, {}).lang || 'fr';
 const t = k => (I18N[lang] && I18N[lang][k]) || I18N.fr[k] || k;
@@ -556,11 +559,116 @@ const slotName = id => { const s = state.slots[id]; if (s && s.customLabel) retu
 const secName = id => (SLOT_NAMES[lang] && SLOT_NAMES[lang][id]) || SLOT_NAMES.fr[id] || id;
 
 /* ---------- State ---------- */
-function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', best: null, promo: false, isBest: false, src: '', offerToken: '', ai: false }; }
+function blankLibrary() { return { manual: [], unboxing: [], review: [], installation: [] }; }
+const LIBRARY_TABS = [
+  { id: 'manual', icon: 'fa-solid fa-book', fr: 'Manuel', en: 'Manual' },
+  { id: 'unboxing', icon: 'fa-solid fa-box-open', fr: 'Unboxing', en: 'Unboxing' },
+  { id: 'review', icon: 'fa-solid fa-star', fr: 'Review', en: 'Review' },
+  { id: 'installation', icon: 'fa-solid fa-screwdriver-wrench', fr: 'Installation', en: 'Installation' },
+];
+function mediaKind(url) {
+  const u = String(url || '');
+  if (/youtu\.be|youtube\.com|vimeo\.com/i.test(u)) return 'video';
+  if (/\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(u)) return 'photo';
+  return 'link';
+}
+function normalizeLibrary(raw) {
+  const out = blankLibrary();
+  LIBRARY_TABS.forEach(tab => {
+    const list = raw && Array.isArray(raw[tab.id]) ? raw[tab.id] : [];
+    out[tab.id] = list.filter(it => it && it.url).map(it => ({
+      id: String(it.id || uid()),
+      title: String(it.title || ''),
+      url: String(it.url || ''),
+      kind: ['video', 'photo', 'link'].includes(it.kind) ? it.kind : mediaKind(it.url),
+      addedAt: Number(it.addedAt) || Date.now(),
+    }));
+  });
+  return out;
+}
+function productLibrary(p) {
+  if (!p) return blankLibrary();
+  if (!p.library || typeof p.library !== 'object') p.library = blankLibrary();
+  LIBRARY_TABS.forEach(tab => {
+    const raw = Array.isArray(p.library[tab.id]) ? p.library[tab.id] : [];
+    p.library[tab.id] = raw.filter(it => it && it.url).map(it => {
+      it.id = String(it.id || uid());
+      it.title = String(it.title || '');
+      it.url = String(it.url || '');
+      it.kind = ['video', 'photo', 'link'].includes(it.kind) ? it.kind : mediaKind(it.url);
+      it.addedAt = Number(it.addedAt) || Date.now();
+      return it;
+    });
+  });
+  return p.library;
+}
+function libraryManualUrl(p) {
+  if (!p) return '';
+  const lib = productLibrary(p);
+  return (lib.manual.find(it => it.url) || {}).url || p.manual || '';
+}
+function customTutorials() {
+  if (!Array.isArray(state.customTutorials)) state.customTutorials = [];
+  return state.customTutorials;
+}
+function customTutorialLabel(item) {
+  return (item && (item.label || (item.slotId ? slotName(item.slotId) : ''))) || (lang === 'en' ? 'Custom tutorial' : 'Tutoriel perso');
+}
+function normalizeStateExtras(st) {
+  if (!st || typeof st !== 'object') return st;
+  const migrateTrackingOrder = !st.deliveryOrderedMigrated;
+  st.customTutorials = Array.isArray(st.customTutorials) ? st.customTutorials.filter(x => x && x.url).map(x => ({
+    ...x,
+    id: String(x.id || uid()),
+    title: String(x.title || ''),
+    url: String(x.url || ''),
+    kind: ['video', 'photo', 'link'].includes(x.kind) ? x.kind : mediaKind(x.url),
+    source: x.source === 'library' ? 'library' : 'custom',
+    slotId: String(x.slotId || ''),
+    slotDefId: String(x.slotDefId || ''),
+    label: String(x.label || ''),
+  })) : [];
+  Object.values(st.slots || {}).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    if (!Array.isArray(s.products)) s.products = [];
+    const hasSel = s.selectedId && s.products.some(p => p.id === s.selectedId);
+    if (s.none && !hasSel) { s.none = true; s.selectedId = null; }
+    else if (!hasSel) { s.selectedId = s.products[0]?.id || null; s.none = false; }
+    else s.none = false;
+    s.products.forEach(p => {
+      if (!p || typeof p !== 'object') return;
+      p.ordered = !!p.ordered;
+      p.orderedAt = Number(p.orderedAt) || 0;
+      if (migrateTrackingOrder && p.tracking && !p.ordered) {
+        p.ordered = true;
+        p.orderedAt = p.orderedAt || Date.now();
+      }
+      p.library = normalizeLibrary(p.library);
+    });
+    const selectedProduct = s.products.find(p => p && p.id === s.selectedId);
+    if (selectedProduct && selectedProduct.noComponent) { s.selectedId = null; s.none = true; }
+  });
+  if (migrateTrackingOrder) st.deliveryOrderedMigrated = true;
+  return st;
+}
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function setOfferPromo(target, offer, opts = {}) {
+  if (!target || !offer) return false;
+  let changed = false;
+  if (offer.promo) {
+    if (!target.promo) { target.promo = true; changed = true; }
+    if (offer.promoCode && target.promoCode !== offer.promoCode) { target.promoCode = offer.promoCode; changed = true; }
+    if (offer.promoDesc && target.promoDesc !== offer.promoDesc) { target.promoDesc = offer.promoDesc; changed = true; }
+    if (!offer.promoCode && opts.clear && (target.promoCode || target.promoDesc)) { target.promoCode = ''; target.promoDesc = ''; changed = true; }
+  } else if (opts.clear && (target.promo || target.promoCode || target.promoDesc)) {
+    target.promo = false; target.promoCode = ''; target.promoDesc = ''; changed = true;
+  }
+  return changed;
+}
 function defaultState() {
   const slots = {};
-  SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null }; });
-  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage() };
+  SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null, none: false }; });
+  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage(), customTutorials: [] };
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
@@ -570,10 +678,11 @@ if (!state.usage) {
   try { const p = load(LS.prefs, {}); if (p && (p.usage || p.tarif || p.priceHP || p.priceHC)) seeded = p; } catch { /* ignore */ }
   state.usage = normUsage(seeded || {});
 }
+normalizeStateExtras(state);
 let activeSlot = null, phMode = 'total', sumTab = 'desc';
 let cmpCardsState = null; // open side-by-side component cards popup
 let cmpOptAnchor = null; // trigger of the compact alternatives popover
-let tutSelected = null, tutCloseTimer = null;
+let tutSelected = null, tutSelectedCustomId = null, tutCloseTimer = null;
 let sheetHideTimer = null;
 const openAlts = new Set();
 const openVariants = new Set(); // slotIds with expanded variant selector
@@ -862,7 +971,10 @@ async function ensureAlternativeData(slotId) {
   // refreshingPids (row shimmer) and dsLoading (grey datasheet pill).
   const s = state.slots[slotId];
   if (!s || typeof Idealo === 'undefined') return;
+  const chosen = sel(s);
+  const lockAltPrices = !!(chosen && chosen.ordered);
   const targets = (s.products || []).filter(x => x.id !== s.selectedId
+    && !x.ordered
     && /idealo\.fr\/prix\//i.test(x.idealo || '')
     && (!x.price || !x.datasheet)
     && !(editingPid && editingPid === x.id));
@@ -870,7 +982,7 @@ async function ensureAlternativeData(slotId) {
     const cur = s.products.find(x => x.id === t.id);
     if (!cur || altAttempted.has(cur.id)) continue;
     altAttempted.add(cur.id);
-    if (!cur.price) {
+    if (!cur.price && !lockAltPrices) {
       refreshingPids.add(cur.id); renderSlots();
       try {
         const r = await Idealo.offers(cur.idealo, true);
@@ -1173,6 +1285,53 @@ function buyUrlFor(p) {
   if (p.idealo && /idealo\.fr/i.test(p.idealo)) return p.idealo;
   return '';
 }
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fall through */ }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { /* ignore */ }
+  ta.remove();
+  return ok;
+}
+function openPromoModal({ code, desc, merchant, url } = {}) {
+  code = String(code || '').trim();
+  if (!code) return false;
+  desc = String(desc || '').trim();
+  merchant = String(merchant || '').trim();
+  url = String(url || '').trim();
+  openModal(lang === 'en' ? 'Promo code' : 'Code promo', `
+    <div class="promo-modal">
+      <p class="hint">${merchant ? esc(lang === 'en' ? `Use this code on ${merchant}.` : `Utilisez ce code chez ${merchant}.`) : esc(lang === 'en' ? 'Use this code on the merchant site.' : 'Utilisez ce code sur le site du marchand.')}</p>
+      <div class="promo-code" id="promoCode">${esc(code)}</div>
+      ${desc ? `<p class="promo-desc">${esc(desc)}</p>` : ''}
+      <div class="btn-row">
+        <button class="btn btn-primary" id="promoCopy"><i class="fa-solid fa-copy"></i> <span>${lang === 'en' ? 'Copy code' : 'Copier le code'}</span></button>
+        ${url ? `<button class="btn" id="promoGo"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${lang === 'en' ? 'Open merchant' : 'Ouvrir le marchand'}</button>` : ''}
+      </div>
+      <p class="hint promo-hint">${lang === 'en' ? 'Copy it before leaving for the merchant site.' : 'Copiez-le avant d’ouvrir le site du marchand.'}</p>
+    </div>`, 'modal-promo');
+  const copy = $('#promoCopy');
+  if (copy) copy.onclick = async () => {
+    const ok = await copyText(code);
+    const label = copy.querySelector('span');
+    if (label) label.textContent = ok ? (lang === 'en' ? 'Copied!' : 'Copié !') : (lang === 'en' ? 'Copy failed' : 'Copie impossible');
+    if (ok) toast(lang === 'en' ? 'Promo code copied' : 'Code promo copié');
+    setTimeout(() => { if (label) label.textContent = lang === 'en' ? 'Copy code' : 'Copier le code'; }, 1800);
+  };
+  const go = $('#promoGo');
+  if (go) go.onclick = () => {
+    window.open(url, '_blank', 'noopener');
+    closeModal();
+  };
+  return true;
+}
 /* ---------- Idealo variants on slot cards ---------- */
 const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 /* The raw name stays the real model/variant name (used by compatibility/bench
@@ -1308,7 +1467,7 @@ async function selectVariant(slotId, url, cardPrice) {
       if (o.price) cur.price = o.price;
       if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) cur.store = o.url;
-      if (o.promo) cur.promo = true;
+      setOfferPromo(cur, o, { clear: true });
     } else if (cardPrice > 0) cur.price = cardPrice;
     cur.verified = [];
     persist(); compatCache = null; refresh();
@@ -1357,7 +1516,7 @@ async function addVariantAsAlt(slotId, url, cardPrice, cardName, cardImg) {
       if (o.price) cur.price = o.price;
       if (o.delivered > 0 && o.price) cur.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) cur.store = o.url;
-      if (o.promo) cur.promo = true;
+      setOfferPromo(cur, o, { clear: true });
     }
     persist(); compatCache = null; refresh();
     dsUpgradeAttempted.delete(cur.id);
@@ -1370,17 +1529,20 @@ function slotCard(id) {
   const el = document.createElement('div');
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
+  const trackingChecking = !!(p && trackingRefreshingPids.has(p.id));
+  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(p.tstatus) ? ' st-' + p.tstatus : '';
   const stale = !!(p && refreshFailed.has(p.id));
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '');
+  const noComponent = !p && !!s.none;
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '');
   el.dataset.slot = id;
   if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
   if (cst === 'err') el.classList.add('has-err'); else if (cst === 'warn') el.classList.add('has-warn');
   const visual = p && p.image ? `<img src="${esc(p.image)}" alt="" onerror="this.remove()">` : iconHtml(d.icon);
-  const title = p ? esc(productDisplayName(p)) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
-  const specs = p ? esc(productQuickSpecs(p)) : esc(slotName(id));
+  const title = p ? esc(productDisplayName(p)) : noComponent ? esc((lang === 'en' ? 'No ' : 'Aucun ') + slotName(id)) : (lang === 'en' ? `Add ${esc(slotName(id))}` : `Ajouter ${esc(slotName(id))}`);
+  const specs = p ? esc(productQuickSpecs(p)) : noComponent ? (lang === 'en' ? 'No component selected' : 'Aucun composant sélectionné') : esc(slotName(id));
   const mlbl = (fr, en) => `<span class="mini-lbl">${esc(lang === 'en' ? en : fr)}</span>`;
   let priceDiv = `<div class="slot-price">—</div>`, vendorDiv = `<div class="slot-vendor">${esc(slotName(id))}</div>`, delivDiv = '';
   if (p) {
@@ -1389,7 +1551,7 @@ function slotCard(id) {
     const discounted = !!(p.promo || hasDiscount(p));
     const bestPrice = !!p.isBest;
     const betterTip = lang === 'en' ? 'A better price is available' : 'Un meilleur prix est disponible';
-    const promoTip = lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo';
+    const promoTip = p && p.promoCode ? 'Code : ' + p.promoCode : (lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo');
     priceDiv = `<div class="slot-price${bestPrice ? ' best' : (discounted ? ' promo' : '')}">${old}${countNum(p.price, 'eur', 0, '', 'slot-price:' + id)}${badge}${discounted ? ` <span class="promo-badge" title="${promoTip}">%</span>` : ''}${p.best ? ` <span class="better-badge" title="${betterTip}">€</span>` : ''}</div>`;
     vendorDiv = `<div class="slot-vendor">${esc(p.vendor || (lang === 'en' ? 'Vendor: —' : 'Vendeur : —'))}</div>`;
     delivDiv = `<div class="slot-deliv">${lang === 'en' ? 'incl. delivery' : 'livraison incl.'} ${countNum(unitTotal(p), 'eur', 0, '', 'slot-total:' + id)}</div>`;
@@ -1414,7 +1576,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Ordered' : 'Commandé') : (lang === 'en' ? 'Not ordered' : 'Non commandé')}</span></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1425,17 +1587,19 @@ function slotCard(id) {
       <button class="mini-btn" data-act="buy" ${hasBuy ? `title="${lang === 'en' ? 'Open this store page' : 'Ouvrir la page de cette boutique'}"` : `disabled title="${buyTip}"`}><i class="fa-solid fa-cart-shopping"></i>${mlbl('Acheter', 'Buy')}</button>
       ${['mb', 'ssd1', 'gpu', 'soundcard', 'capture', 'netcard'].includes(d.id) ? `<button class="mini-btn" data-act="pcie" title="${lang === 'en' ? 'PCIe Simulator — send full config' : 'Simulateur PCIe — envoyer la config complète'}"><i class="fa-solid fa-chart-column"></i>${mlbl('PCIe', 'PCIe')}</button>` : ''}
       ${d.id === 'psu' ? `<button class="mini-btn" data-act="psucompare" title="${lang === 'en' ? 'PSU quality & reliability (tier list 2025)' : 'Qualité & fiabilité alim (tier list 2025)'}"><i class="fa-solid fa-ranking-star"></i>${mlbl('Qualité', 'Tier')}</button>` : ''}
-      ${p && p.manual ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i>${mlbl('Manuel', 'Manual')}</button>` : ''}
+      <button class="mini-btn" data-act="library" title="${lang === 'en' ? 'Open product library' : 'Ouvrir la bibliothèque du produit'}"><i class="fa-solid fa-book-open"></i>${mlbl('Bibliothèque', 'Library')}</button>
+      ${libraryManualUrl(p) ? `<button class="mini-btn" data-act="manual" title="${lang === 'en' ? 'Open product manual' : 'Ouvrir le manuel'}"><i class="fa-solid fa-book"></i>${mlbl('Manuel', 'Manual')}</button>` : ''}
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag"><i class="fa-solid fa-truck-fast"></i> ${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus))}</div>` : ''}` : ''}
+    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
     </div>
-    ${p ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.act === 'fav') { if (p) { toggleFavorite(p, slotCatKey(id)); syncFavoriteViews(); } return; }
+    if (b.dataset.act === 'ordered') { if (p) { p.ordered = !p.ordered; p.orderedAt = p.ordered ? Date.now() : 0; if (p.ordered) refreshFailed.delete(p.id); persist(); renderSlots(); toast(p.ordered ? (lang === 'en' ? 'Marked as ordered — price refresh locked' : 'Marqué comme commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Order mark removed' : 'Marque de commande retirée')); } return; }
     if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
     if (b.dataset.act === 'variants') { openVariants.has(id) ? openVariants.delete(id) : openVariants.add(id); if (openVariants.has(id)) ensureVariantAttrs(id); renderSlots(); return; }
@@ -1461,35 +1625,68 @@ function slotCard(id) {
   if (alts) renderAlts(alts, s, id);
   return el;
 }
+function noneAltLabel(slotId) {
+  const name = slotName(slotId);
+  return lang === 'en' ? `No ${name}` : `Aucun ${name}`;
+}
+function addNoneAlternative(slotId) {
+  const s = state.slots[slotId];
+  if (!s) return;
+  let p = (s.products || []).find(x => x && x.noComponent);
+  const existed = !!p;
+  if (!p) {
+    p = blankProduct();
+    p.name = p.baseName = noneAltLabel(slotId);
+    p.noComponent = true;
+    s.products.push(p);
+  }
+  persist(); refresh();
+  toast(existed
+    ? (lang === 'en' ? '“No component” is already in alternatives' : '« Aucun composant » est déjà dans les alternatives')
+    : (lang === 'en' ? '“No component” added to alternatives' : '« Aucun composant » ajouté aux alternatives'));
+}
 function renderAlts(host, s, slotId) {
   const cur = sel(s);
   const sorted = [...s.products].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
   host.innerHTML = sorted.length ? '' : `<p class="hint">${lang === 'en' ? 'No alternatives yet — pick one from the Idealo results or create a fiche.' : 'Aucune alternative — choisissez-en une depuis les résultats Idealo ou créez une fiche.'}</p>`;
   sorted.forEach(p => {
+    const noComp = !!p.noComponent;
+    const isCurrent = noComp ? !cur && s.none : cur && p.id === cur.id;
     const diff = cur ? (Number(p.price) - Number(cur.price)) * (Number(p.qty) || 1) : 0;
-    const cls = !cur || p.id === cur.id ? 'same' : diff > 0 ? 'up' : 'down';
-    const lbl = !cur || p.id === cur.id ? (lang === 'en' ? 'current' : 'actuel') : `${diff > 0 ? '+' : ''}${eur(diff)}`;
+    const cls = isCurrent ? 'same' : !cur ? 'same' : diff > 0 ? 'up' : 'down';
+    const lbl = noComp
+      ? (s.none && !cur ? (lang === 'en' ? 'current' : 'actuel') : '')
+      : isCurrent ? (lang === 'en' ? 'current' : 'actuel') : !cur ? '' : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
-    const rowSpin = refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
-    row.className = 'alt-item' + (cur && p.id === cur.id ? ' current' : '') + (rowSpin ? ' refreshing' : '');
-    row.innerHTML = `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
+    const rowSpin = !noComp && refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
+    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '');
+    row.innerHTML = noComp
+      ? `<span class="grow"><strong><i class="fa-regular fa-square"></i> ${esc(noneAltLabel(slotId))}</strong></span><span class="diff ${cls}">${lbl}</span>`
+      : `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
     row.style.cursor = 'pointer';
-    row.onclick = () => { s.selectedId = p.id; persist(); refresh(); };
+    row.onclick = () => {
+      if (noComp) { s.selectedId = null; s.none = true; }
+      else { s.selectedId = p.id; s.none = false; }
+      persist(); refresh();
+    };
     const acts = document.createElement('div');
     acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
-    const open = document.createElement('button');
-    open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
-    open.title = 'Idealo';
-    open.onclick = e => { e.stopPropagation(); window.open(p.idealo || idealoSearchUrl(p.name), '_blank', 'noopener'); };
-    const edit = document.createElement('button');
-    edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
-    edit.title = lang === 'en' ? 'Edit' : 'Modifier';
-    edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
+    if (!noComp) {
+      const open = document.createElement('button');
+      open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
+      open.title = 'Idealo';
+      open.onclick = e => { e.stopPropagation(); window.open(p.idealo || idealoSearchUrl(p.name), '_blank', 'noopener'); };
+      const edit = document.createElement('button');
+      edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
+      edit.title = lang === 'en' ? 'Edit' : 'Modifier';
+      edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
+      acts.append(open, edit);
+    }
     const del = document.createElement('button');
     del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
     del.title = lang === 'en' ? 'Remove' : 'Supprimer';
     del.onclick = e => { e.stopPropagation(); altRemove(slotId, p.id); };
-    acts.append(open, edit, del);
+    acts.append(del);
     row.appendChild(acts);
     host.appendChild(row);
   });
@@ -1498,30 +1695,250 @@ function altRemove(slotId, pid) {
   const s = state.slots[slotId]; if (!s) return;
   if (!confirm(lang === 'en' ? 'Delete this entry?' : 'Supprimer cette fiche ?')) return;
   s.products = s.products.filter(x => x.id !== pid);
-  if (s.selectedId === pid) s.selectedId = s.products[0]?.id || null;
+  if (s.selectedId === pid) { s.selectedId = s.products[0]?.id || null; s.none = false; }
+  removeProductTutorials(pid);
   if (!s.products.length) openAlts.delete(slotId);
   persist(); refresh();
 }
 function slotAction(id, act) {
   const s = state.slots[id], p = sel(s);
   if (act === 'pick') openPicker(id, 'replace');
-  else if (act === 'details') { if (p) { openPicker(id); openPickerDetail(p); } }
+  else if (act === 'details') { if (p) { openPicker(id); openPickerDetail(p, { closePicker: true }); } }
   else if (act === 'edit') openProductForm(id, p);
   else if (act === 'addalt') openPicker(id, 'add');
   else if (act === 'idealo') { if (p && p.idealo && /idealo\.fr/i.test(p.idealo)) window.open(p.idealo, '_blank', 'noopener'); else openPicker(id); }
   else if (act === 'store') openMerchants(id);
   else if (act === 'buy') {
     const u = buyUrlFor(p);
-    if (u) { window.open(u, '_blank', 'noopener'); return; }
+    if (u) {
+      if (p && p.promoCode) { openPromoModal({ code: p.promoCode, desc: p.promoDesc, merchant: p.vendor, url: u }); return; }
+      window.open(u, '_blank', 'noopener');
+      return;
+    }
     toast('issue is known, i am trying to fix it :)');
   }
   else if (act === 'pcie') openPcieSim();
   else if (act === 'psucompare') openPsuCompare(id);
-  else if (act === 'manual') { if (p && p.manual) window.open(p.manual, '_blank', 'noopener'); }
+  else if (act === 'library') { if (p) openLibrary(id); }
+  else if (act === 'manual') { const u = libraryManualUrl(p); if (u) window.open(u, '_blank', 'noopener'); }
   else if (act === 'delivery') openDelivery(id);
   else if (act === 'refetch') refreshOnePrice(id);
   else if (act === 'compat') openCompatDetail(id);
-  else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; persist(); refresh(); } }
+  else if (act === 'del') { if (confirm(lang === 'en' ? 'Remove selection?' : 'Retirer la sélection ?')) { s.selectedId = null; s.none = false; persist(); refresh(); } }
+}
+
+
+/* ---------- Per-product library ---------- */
+function libKindIcon(kind) {
+  return kind === 'video' ? 'fa-solid fa-circle-play' : kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link';
+}
+function syncLibraryTutorial(slotId, p, item) {
+  if (!p || !item || !item.url) return;
+  const list = customTutorials();
+  let tut = list.find(t => t.source === 'library' && t.productId === p.id && t.libraryItemId === item.id);
+  const data = {
+    slotId,
+    slotDefId: (state.slots[slotId] && state.slots[slotId].defId) || '',
+    label: slotName(slotId),
+    productId: p.id,
+    libraryItemId: item.id,
+    title: item.title || (lang === 'en' ? 'Installation' : 'Installation'),
+    url: item.url,
+    kind: item.kind || mediaKind(item.url),
+    source: 'library',
+    updatedAt: Date.now(),
+  };
+  if (tut) Object.assign(tut, data);
+  else list.push({ id: 'lib_' + uid(), ...data });
+}
+function removeLibraryTutorial(productId, itemId) {
+  state.customTutorials = customTutorials().filter(t => !(t.source === 'library' && t.productId === productId && t.libraryItemId === itemId));
+  if (tutSelectedCustomId && !customTutorials().some(t => t.id === tutSelectedCustomId)) tutSelectedCustomId = null;
+}
+function removeProductTutorials(productId) {
+  if (!productId) return;
+  state.customTutorials = customTutorials().filter(t => !(t.source === 'library' && t.productId === productId));
+  if (tutSelectedCustomId && !customTutorials().some(t => t.id === tutSelectedCustomId)) tutSelectedCustomId = null;
+}
+function libraryExportPayload(slotId, p) {
+  const s = state.slots[slotId];
+  return {
+    app: 'ConfigMaker',
+    version: APP_VERSION,
+    kind: 'library',
+    exportedAt: new Date().toISOString(),
+    slot: { id: slotId, label: slotName(slotId), type: s ? defOf(s).id : '' },
+    product: { id: p.id, name: p.name },
+    library: JSON.parse(JSON.stringify(productLibrary(p))),
+  };
+}
+function exportLibraryJson(slotId, p) {
+  const name = (state.name || 'config') + ' - ' + (p.name || slotName(slotId)) + ' - bibliotheque.json';
+  download(name.replace(/[\\/:*?"<>|]+/g, '-'), JSON.stringify(libraryExportPayload(slotId, p), null, 2), 'application/json');
+}
+function prLibraryBody(p) {
+  const lib = productLibrary(p);
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+  const blocks = LIBRARY_TABS.map(tab => {
+    const items = lib[tab.id] || [];
+    if (!items.length) return '';
+    return `<h3 class="pr-h3"><i class="${tab.icon}"></i> ${esc(lang === 'en' ? tab.en : tab.fr)}</h3>
+      <div class="pr-lib-list">${items.map(it => `<a href="${esc(it.url)}" target="_blank" rel="noopener"><i class="${libKindIcon(it.kind)}"></i> ${esc(it.title || it.url)}</a>`).join('')}</div>`;
+  }).join('');
+  if (!blocks && p.manual) {
+    return `<h3 class="pr-h3"><i class="fa-solid fa-book"></i> ${esc(L('Manual', 'Manuel'))}</h3><div class="pr-lib-list"><a href="${esc(p.manual)}" target="_blank" rel="noopener"><i class="fa-solid fa-link"></i> ${esc(p.manual)}</a></div>`;
+  }
+  return blocks || `<p class="hint">${esc(L('No links saved in this library.', 'Aucun lien enregistré dans cette bibliothèque.'))}</p>`;
+}
+function exportLibraryPdf(slotId, p) {
+  const root = printRoot();
+  root.innerHTML = '';
+  const sec = prSection(root, (lang === 'en' ? 'Library — ' : 'Bibliothèque — ') + (p.name || slotName(slotId)), 'fa-solid fa-book-open');
+  sec.insertAdjacentHTML('beforeend', prLibraryBody(p));
+  document.body.classList.add('printing');
+  window.print();
+}
+function openLibrary(slotId) {
+  const s = state.slots[slotId], p = s && sel(s);
+  if (!p) return;
+  const lib = productLibrary(p);
+  let tab = 'manual', editing = null, dragId = null;
+  openModal((lang === 'en' ? 'Library — ' : 'Bibliothèque — ') + (p.name || slotName(slotId)), '<div id="libRoot"></div>', 'modal-wide');
+  const host = $('#modalBody');
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+
+  const paint = () => {
+    const tabDef = LIBRARY_TABS.find(x => x.id === tab) || LIBRARY_TABS[0];
+    const items = lib[tab] || [];
+    const tabsHtml = LIBRARY_TABS.map(x => {
+      const n = (lib[x.id] || []).length;
+      return `<button type="button" class="usage-tab${x.id === tab ? ' active' : ''}" data-lib-tab="${x.id}"><i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="lib-tab-count">${n}</span>` : ''}</button>`;
+    }).join('');
+    const rows = items.map((it, idx) => `
+      <div class="lib-row" draggable="true" data-lib-id="${esc(it.id)}">
+        <span class="lib-drag" title="${esc(L('Drag to reorder', 'Glisser pour réordonner'))}"><i class="fa-solid fa-grip-vertical"></i></span>
+        <span class="lib-kind"><i class="${libKindIcon(it.kind)}"></i></span>
+        <span class="lib-main"><a href="${esc(it.url)}" target="_blank" rel="noopener"><strong>${esc(it.title || it.url)}</strong></a><small>${esc(it.url)}</small></span>
+        <span class="lib-actions">
+          <button class="mini-btn" data-lib-move="up" data-lib-id="${esc(it.id)}" ${idx === 0 ? 'disabled' : ''} title="${esc(L('Move up', 'Monter'))}"><i class="fa-solid fa-arrow-up"></i></button>
+          <button class="mini-btn" data-lib-move="down" data-lib-id="${esc(it.id)}" ${idx === items.length - 1 ? 'disabled' : ''} title="${esc(L('Move down', 'Descendre'))}"><i class="fa-solid fa-arrow-down"></i></button>
+          <button class="mini-btn" data-lib-edit="${esc(it.id)}" title="${esc(L('Edit', 'Modifier'))}"><i class="fa-solid fa-pen"></i></button>
+          <button class="mini-btn danger" data-lib-del="${esc(it.id)}" title="${esc(L('Delete', 'Supprimer'))}"><i class="fa-solid fa-trash"></i></button>
+        </span>
+      </div>`).join('');
+    const fallback = tab === 'manual' && p.manual && !items.some(it => it.url === p.manual) ? `
+      <div class="lib-fallback"><span><i class="fa-solid fa-link"></i> ${esc(L('Existing manual link:', 'Lien manuel de la fiche :'))} <a href="${esc(p.manual)}" target="_blank" rel="noopener">${esc(p.manual)}</a></span>
+      <button class="mini-btn" data-lib-importfallback><i class="fa-solid fa-plus"></i> ${esc(L('Add to library', 'Ajouter à la bibliothèque'))}</button></div>` : '';
+    const form = editing ? (() => {
+      const it = editing.mode === 'edit' ? items.find(x => x.id === editing.id) || {} : {};
+      return `<div class="lib-form">
+        <div class="fld"><label>${esc(L('Title', 'Titre'))}</label><input id="libTitle" value="${esc(it.title || '')}" placeholder="${esc(L('Installation video, review…', 'Vidéo d’installation, test…'))}"></div>
+        <div class="fld"><label>URL</label><input id="libUrl" type="url" value="${esc(it.url || '')}" placeholder="https://…"></div>
+        <div class="fld"><label>${esc(L('Type', 'Type'))}</label><select id="libKind">
+          <option value="link"${(it.kind || 'link') === 'link' ? ' selected' : ''}>${esc(L('Link', 'Lien'))}</option>
+          <option value="video"${it.kind === 'video' ? ' selected' : ''}>${esc(L('Video', 'Vidéo'))}</option>
+          <option value="photo"${it.kind === 'photo' ? ' selected' : ''}>${esc(L('Photo', 'Photo'))}</option>
+        </select></div>
+        <div class="btn-row"><button class="btn btn-sm" data-lib-cancel>${esc(L('Cancel', 'Annuler'))}</button><button class="btn btn-sm btn-primary" data-lib-save><i class="fa-solid fa-check"></i> ${esc(L('Save', 'Enregistrer'))}</button></div>
+      </div>`;
+    })() : '';
+    let root = host.querySelector('#libRoot');
+    if (!root || !root.querySelector('.lib-tabs')) {
+      host.innerHTML = `<div id="libRoot">
+        <div class="usage-tabs lib-tabs">${tabsHtml}</div>
+        <div class="se-picker lib-picker"></div>
+        <div class="lib-foot">
+          <button class="mini-btn" data-lib-pdf><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <button class="mini-btn" data-lib-json><i class="fa-solid fa-file-code"></i> JSON</button>
+          <span class="grow"></span>
+          <button class="btn btn-sm" data-lib-close>${esc(L('Close', 'Fermer'))}</button>
+          <button class="btn btn-sm btn-primary" data-lib-add><i class="fa-solid fa-plus"></i> ${esc(L('Add', 'Ajouter'))}</button>
+        </div>
+      </div>`;
+      root = host.querySelector('#libRoot');
+    }
+    const tabsEl = root.querySelector('.lib-tabs');
+    LIBRARY_TABS.forEach(x => {
+      const b = tabsEl.querySelector(`[data-lib-tab="${x.id}"]`);
+      if (!b) return;
+      const n = (lib[x.id] || []).length;
+      b.classList.toggle('active', x.id === tab);
+      b.innerHTML = `<i class="${x.icon}"></i> ${esc(lang === 'en' ? x.en : x.fr)}${n ? ` <span class="lib-tab-count">${n}</span>` : ''}`;
+    });
+    root.querySelector('.lib-picker').innerHTML = `
+        <div class="se-picker-head">
+          <h4><i class="${tabDef.icon}"></i> ${esc(lang === 'en' ? tabDef.en : tabDef.fr)}</h4>
+          <span class="se-picker-state">${items.length} ${esc(L(items.length === 1 ? 'link' : 'links', items.length === 1 ? 'lien' : 'liens'))}</span>
+        </div>
+        <p class="hint">${esc(L('Links saved for this component only. Installation links are mirrored in “My tutorials”.', 'Liens enregistrés pour ce composant uniquement. Les liens d’installation sont repris dans « Mes tutoriels ».'))}</p>
+        ${form}
+        ${fallback}
+        <div class="lib-list">${rows || `<p class="hint lib-empty">${esc(L('No link yet in this tab.', 'Aucun lien dans cet onglet pour le moment.'))}</p>`}</div>
+        <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(L('Use PDF or JSON to export this component’s library only.', 'Utilisez PDF ou JSON pour exporter uniquement la bibliothèque de ce composant.'))}</p>`;
+    refreshIcons(host);
+    schedulePillSliders();
+    const activeTab = tabsEl.querySelector('.usage-tab.active');
+    if (activeTab && tabsEl.scrollWidth > tabsEl.clientWidth) {
+      tabsEl.scrollLeft = Math.max(0, activeTab.offsetLeft - (tabsEl.clientWidth - activeTab.offsetWidth) / 2);
+    }
+
+    const q = sel => host.querySelector(sel);
+    host.querySelectorAll('[data-lib-tab]').forEach(b => b.onclick = () => { tab = b.dataset.libTab; editing = null; paint(); });
+    host.querySelectorAll('[data-lib-move]').forEach(b => b.onclick = () => {
+      const arr = lib[tab], i = arr.findIndex(x => x.id === b.dataset.libId), j = i + (b.dataset.libMove === 'up' ? -1 : 1);
+      if (i < 0 || j < 0 || j >= arr.length) return;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      persist(); paint();
+    });
+    host.querySelectorAll('[data-lib-edit]').forEach(b => b.onclick = () => { editing = { mode: 'edit', id: b.dataset.libEdit }; paint(); });
+    host.querySelectorAll('[data-lib-del]').forEach(b => b.onclick = () => {
+      const it = items.find(x => x.id === b.dataset.libDel); if (!it) return;
+      if (!confirm(L('Delete this link?', 'Supprimer ce lien ?'))) return;
+      lib[tab] = lib[tab].filter(x => x.id !== it.id);
+      if (tab === 'installation') removeLibraryTutorial(p.id, it.id);
+      persist(); paint(); renderSlots();
+    });
+    const addBtn = q('[data-lib-add]'); if (addBtn) addBtn.onclick = () => { editing = { mode: 'add' }; paint(); };
+    const cancel = q('[data-lib-cancel]'); if (cancel) cancel.onclick = () => { editing = null; paint(); };
+    const save = q('[data-lib-save]');
+    if (save) save.onclick = () => {
+      const title = $('#libTitle').value.trim(), url = $('#libUrl').value.trim(), kind = $('#libKind').value;
+      if (!url) { toast(L('URL required', 'URL requise')); return; }
+      const item = { id: editing.mode === 'edit' ? editing.id : uid(), title: title || url, url, kind: kind || mediaKind(url), addedAt: Date.now() };
+      if (editing.mode === 'edit') {
+        const idx = lib[tab].findIndex(x => x.id === editing.id);
+        if (idx >= 0) lib[tab][idx] = item; else lib[tab].push(item);
+      } else lib[tab].push(item);
+      if (tab === 'installation') syncLibraryTutorial(slotId, p, item);
+      editing = null;
+      persist(); paint(); renderSlots();
+      if (tab === 'installation') toast(L('Added to “My tutorials”', 'Ajouté à « Mes tutoriels »'));
+    };
+    const fallbackBtn = q('[data-lib-importfallback]');
+    if (fallbackBtn) fallbackBtn.onclick = () => {
+      const item = { id: uid(), title: L('Manual', 'Manuel'), url: p.manual, kind: mediaKind(p.manual), addedAt: Date.now() };
+      lib.manual.push(item); persist(); paint(); renderSlots();
+    };
+    const pdf = q('[data-lib-pdf]'); if (pdf) pdf.onclick = () => exportLibraryPdf(slotId, p);
+    const json = q('[data-lib-json]'); if (json) json.onclick = () => exportLibraryJson(slotId, p);
+    const close = q('[data-lib-close]'); if (close) close.onclick = closeModal;
+
+    host.querySelectorAll('.lib-row').forEach(row => {
+      row.addEventListener('dragstart', e => { dragId = row.dataset.libId; row.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); } catch { /* ignore */ } });
+      row.addEventListener('dragend', () => { dragId = null; row.classList.remove('dragging'); host.querySelectorAll('.lib-row').forEach(r => r.classList.remove('drag-over')); });
+      row.addEventListener('dragover', e => { if (!dragId || dragId === row.dataset.libId) return; e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', e => {
+        e.preventDefault();
+        const target = row.dataset.libId, arr = lib[tab];
+        const from = arr.findIndex(x => x.id === dragId), to = arr.findIndex(x => x.id === target);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1); arr.splice(to, 0, moved);
+        dragId = null; persist(); paint();
+      });
+    });
+  };
+  paint();
 }
 
 /* ---------- PSU quality & reliability (community PSU tier list, 2025) ---------- */
@@ -1582,6 +1999,7 @@ function openPsuCompare(slotId) {
 }
 async function refreshOnePrice(slotId) {
   const s = state.slots[slotId]; const p = s && sel(s); if (!p) return;
+  if (p.ordered) { toast(lang === 'en' ? 'Ordered component — price refresh is locked' : 'Composant commandé — actualisation du prix bloquée'); return; }
   if (!/idealo\.fr\/prix\//i.test(p.idealo || '') || typeof Idealo === 'undefined') return;
   if (editingPid && editingPid === p.id) return;
   refreshingPids.add(p.id); renderSlots(); renderSummary();
@@ -1589,7 +2007,9 @@ async function refreshOnePrice(slotId) {
   try {
     const r = await Idealo.offers(p.idealo, true);
     const cur = s.products.find(x => x.id === p.id);
-    if (cur && !r.error && r.offers.length) {
+    if (cur && cur.ordered) {
+      /* locked while the request was in flight — keep the saved price */
+    } else if (cur && !r.error && r.offers.length) {
       const changed = applyOfferRefresh(cur, r.offers, true);
       refreshFailed.delete(cur.id);
       toast(changed
@@ -1600,14 +2020,15 @@ async function refreshOnePrice(slotId) {
       toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
     }
   } catch {
-    refreshFailed.add(p.id);
-    toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
+    const cur = s.products.find(x => x.id === p.id);
+    if (cur && !cur.ordered) refreshFailed.add(p.id);
+    if (!cur || !cur.ordered) toast(lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard');
   }
   refreshingPids.delete(p.id);
   persist(); refresh(); hideProgress();
 }
 const PC_ORDER = ['cpu', 'mb', 'ram', 'cooler', 'thermal', 'ssd1', 'hdd', 'gpu', 'case', 'fans', 'psu', 'psucables', 'netcard', 'os', 'soft'];
-const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extssd', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
+const SETUP_ORDER = ['desk', 'chair', 'webcam', 'screen1', 'keyboard', 'mouse', 'pad', 'headset', 'micro', 'iem', 'kvm', 'gamepad', 'ups', 'multiprise', 'switch', 'router', 'nas', 'graphictab', 'usbstick', 'memcard', 'dock', 'printer', 'extssd', 'extstorage', 'speakers', 'soundcard', 'capture', 'monitorarm'];
 function openAddPopup(sec) {
   const order = sec === 'pc' ? PC_ORDER : sec === 'setup' ? SETUP_ORDER : ['opt1'];
   const byId = Object.fromEntries(SLOT_DEFS.map(d => [d.id, d]));
@@ -1673,6 +2094,7 @@ function addSlotByDef(defId) {
 function removeSlot(slotId) {
   if (!state.slots[slotId] || !slotId.includes('_')) return;
   if (!confirm(lang === 'en' ? 'Remove this component?' : 'Supprimer ce composant ?')) return;
+  (state.slots[slotId].products || []).forEach(p => removeProductTutorials(p.id));
   delete state.slots[slotId];
   state.order = state.order.filter(x => x !== slotId);
   openAlts.delete(slotId);
@@ -1705,6 +2127,9 @@ const IDEALO_CATS = [
   { key: 'mouse', label: 'Souris', url: 'https://www.idealo.fr/cat/3046/souris-pc.html' },
   { key: 'pad', label: 'Tapis de souris', url: 'https://www.idealo.fr/cat/10472/tapis-de-souris.html' },
   { key: 'headset', label: 'Casques gamer', url: 'https://www.idealo.fr/cat/5172F1160494/casques-gamer.html' },
+  { key: 'micro', label: 'Microphones', url: 'https://www.idealo.fr/cat/5712F942997/micros.html?q=microphone' },
+  { key: 'iem', label: 'Écouteurs intra-auriculaires', url: 'https://www.idealo.fr/cat/5172F106764479/casques-gamer.html' },
+  { key: 'kvm', label: 'Commutateurs KVM', url: 'https://www.idealo.fr/cat/18318/commutateurs-kvm.html' },
   { key: 'thermal', label: 'Pâte thermique', url: 'https://www.idealo.fr/liste/122968612/pate-thermique-cpu.html' },
   { key: 'hdd', label: 'Disques durs', url: 'https://www.idealo.fr/cat/3011/disques-durs.html' },
   { key: 'fans', label: 'Ventilateurs PC', url: 'https://www.idealo.fr/cat/5155/ventilateurs-pour-pc.html' },
@@ -1730,7 +2155,7 @@ const IDEALO_CATS = [
   { key: 'capture', label: 'Acquisition vidéo', url: 'https://www.idealo.fr/cat/3208/acquisition-video.html' },
   { key: 'monitorarm', label: 'Supports écran', url: 'https://www.idealo.fr/cat/18457/supports-pour-moniteur.html' },
 ];
-const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', extssd: 'extssd', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
+const SLOT_CAT = { cpu: 'cpu', mb: 'mb', ram: 'ram', cooler: 'cooler', ssd1: 'ssd', gpu: 'gpu', case: 'case', psu: 'psu', os: 'os', desk: 'desk', chair: 'chair', screen1: 'screen', keyboard: 'keyboard', mouse: 'mouse', pad: 'pad', headset: 'headset', micro: 'micro', iem: 'iem', kvm: 'kvm', gamepad: 'gamepad', thermal: 'thermal', hdd: 'hdd', fans: 'fans', psucables: 'psucables', netcard: 'netcard', soft: 'soft', ups: 'ups', multiprise: 'multiprise', switch: 'switch', router: 'router', nas: 'nas', graphictab: 'graphictab', usbstick: 'usbstick', memcard: 'memcard', hub: 'usbstick', dock: 'dock', printer: 'printer', extstorage: 'extstorage', extssd: 'extssd', speakers: 'speakers', webcam: 'webcam', soundcard: 'soundcard', capture: 'capture', monitorarm: 'monitorarm' };
 let currentCatKey = 'root', currentCatLabel = 'Informatique', currentIdealoUrl = IDEALO_CATS[0].url;
 let pickerSeq = 0; // invalidates a pending dynamic-default resolution when the picker changes
 let idealBase = '', idealUrl = '', idealPool = [], idealFetched = {}, idealShown = 12, idealNextUrl = null, idealSort = 'rel', idealQ = '', idealBusy = false, idealCached = false, idealErr = '', idealToken = 0, idealLoadingMore = false;
@@ -1827,6 +2252,9 @@ function favoriteSnapshot(item, cat) {
     delivery: Number(item && item.delivery) || 0,
     url: String((item && (item.url || item.idealo)) || ''),
     store: String((item && item.store) || ''),
+    promo: !!(item && item.promo),
+    promoCode: String((item && item.promoCode) || ''),
+    promoDesc: String((item && item.promoDesc) || ''),
     src: String((item && item.src) || ''),
     savedAt: Date.now(),
   };
@@ -1857,6 +2285,7 @@ function favoritePickerItems(cat) {
     .map(r => ({
       name: r.name, img: r.image, images: r.images || [], specs: r.specs, summary: r.summary,
       price: r.price, vendor: r.vendor, delivery: r.delivery, url: r.url, store: r.store,
+      promo: !!r.promo, promoCode: r.promoCode || '', promoDesc: r.promoDesc || '',
       src: r.src, _favorite: true, _savedAt: r.savedAt,
     }));
 }
@@ -1953,6 +2382,11 @@ const RAM_TYPE_CATS = {
   DDR4: 'https://www.idealo.fr/cat/4552F102193212/barrettes-de-ram.html',
 };
 function catUrl(key) { return (IDEALO_CATS.find(x => x.key === key) || IDEALO_CATS[0]).url; }
+const LEGACY_CAT_URLS = {
+  'https://www.idealo.fr/prechcat.html?q=microphone': 'https://www.idealo.fr/cat/5712F942997/micros.html?q=microphone',
+  'https://www.idealo.fr/prechcat.html?q=commutateur%20kvm': 'https://www.idealo.fr/cat/18318/commutateurs-kvm.html',
+};
+function migrateCatUrl(url) { return LEGACY_CAT_URLS[String(url || '')] || url; }
 /* Older saved SSD listings predate the internal-drive facet; keep extra SSD slots on internal drives too. */
 function internalSsdUrl(url) {
   const s = String(url || '');
@@ -2140,9 +2574,11 @@ function renderIdealo() {
     const desc = pickerItemDescription(it);
     card.innerHTML = `
       <span class="pick-media">${it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" onerror="this.remove()">` : `<img src="./assets/icons/configmakericon.png" alt="">`}</span>
-      <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span>${kjHeartHtml(stKj.fav, 'pick-fav')}<span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
-      ${pills ? `<span class="pick-badges">${pills}</span>` : ''}
-      <span class="pick-desc">${esc(desc)}</span>
+      <span class="pick-body">
+        <span class="pick-head"><span class="pick-title">${esc(it.name)}${noPage ? ` <i class="fa-solid fa-store direct-badge" title="${directTip}"></i>` : ''}</span>${kjHeartHtml(stKj.fav, 'pick-fav')}<span class="pick-price">${it.price ? eur(it.price) : '—'}</span></span>
+        ${pills ? `<span class="pick-badges">${pills}</span>` : ''}
+        <span class="pick-desc">${esc(desc)}</span>
+      </span>
       <span class="pick-actions"></span>`;
     card.onclick = e => { if (e.target.closest('.pick-actions') || e.target.closest('.pick-fav')) return; if (noPage && it.src) { window.open(it.src, '_blank', 'noopener'); return; } openPickerDetail(it); };
     card.onkeydown = e => {
@@ -2221,6 +2657,8 @@ function pickerItemProduct(it) {
   np.watts = Number(it.watts) || 0;
   np.capW = Number(it.capW) || 0;
   np.promo = !!it.promo;
+  np.promoCode = String(it.promoCode || '');
+  np.promoDesc = String(it.promoDesc || '');
   np.isBest = !!it.isBest;
   np.best = it.best == null ? null : it.best;
   np.dsClean = !!it.dsClean;
@@ -2296,7 +2734,9 @@ function mergeOfferData(p, o, opts = {}) {
     changed = true;
   }
   if (o.url && same('store')) { p.store = o.url; changed = true; }
-  if (o.promo && !p.promo) { p.promo = true; changed = true; }
+  if (o.promo && (!missing || !p.promo || !p.promoCode)) {
+    if (setOfferPromo(p, o)) changed = true;
+  }
   if (o.price) p.isBest = Number(o.price) <= Number(opts.itemPrice || o.price) || !!p.isBest;
   return changed;
 }
@@ -2503,9 +2943,9 @@ function pdOffersMask(st) {
   const rows = sorted.map(o => {
     const tot = totalOf(o);
     const isBest = bestTotal > 0 && Math.abs(tot - bestTotal) < 0.005;
-    const details = [o.title && o.title !== o.merchant ? o.title : '', o.delivery || ''].filter(Boolean).join(' · ');
-    return `<a class="pd-offer${isBest ? ' is-best' : ''}" href="${esc(o.url || '')}" data-pd-act="offer" target="_blank" rel="noopener">
-      <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
+    const details = [o.promoCode ? `Code ${o.promoCode}` : '', o.title && o.title !== o.merchant ? o.title : '', o.delivery || ''].filter(Boolean).join(' · ');
+    return `<a class="pd-offer${isBest ? ' is-best' : ''}" href="${esc(o.url || '')}" data-pd-act="offer" data-offer-url="${esc(o.url || '')}" data-promo-code="${esc(o.promoCode || '')}" data-promo-desc="${esc(o.promoDesc || '')}" data-merchant="${esc(o.merchant || '')}" target="_blank" rel="noopener">
+      <span class="pd-offer-main"><strong>${isBest ? `<span class="better-badge" title="${pdTxt('Meilleur prix total', 'Best total price')}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${o.promoCode ? 'Code : ' + esc(o.promoCode) : pdTxt('Bon plan Idealo', 'Idealo deal')}">%</span> ` : ''}${esc(o.merchant || pdTxt('Marchand', 'Merchant'))}${o.rating ? ` <small class="pd-offer-rating">★ ${esc(o.rating)}</small>` : ''}</strong>${details ? `<small>${esc(details.slice(0, 110))}</small>` : (o.delivered ? `<small>${pdTxt('livraison incluse', 'delivery included')}</small>` : '')}</span>
       <span class="pd-offer-price"><strong>${countNum(o.price, 'eur')}</strong>${o.delivered > 0 ? `<small>${countNum(o.delivered, 'eur')} ${pdTxt('livr. incl.', 'incl. delivery')}</small>` : ''}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
   }).join('');
   const empty = st.loading
@@ -2564,7 +3004,7 @@ function renderPickerDetail(resetScroll) {
   const quick = pdQuickParts(it, st.details);
   const offersCount = st.offers ? st.offers.length : (Number(it.offers) || 0);
   const store = it.store || (st.offers && st.offers[0] && st.offers[0].url) || '';
-  const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promo ? pdTxt('Promo', 'Promo') : ''].filter(Boolean).join(' · ');
+  const meta = [it.vendor || '', it.delivery ? `+ ${eur(it.delivery)}` : '', it.promoCode ? `Code ${it.promoCode}` : (it.promo ? pdTxt('Promo', 'Promo') : '')].filter(Boolean).join(' · ');
   const stKj = kjStatusFor(it, activeSlot ? slotCatKey(activeSlot) : '');
   const kjTint = kjTintClass(stKj);
   const KJ_TINTS = ['kj-tint-fav', 'kj-tint-top', 'kj-tint-rec', 'kj-tint-tested', 'kj-tint-avoid'];
@@ -2646,6 +3086,15 @@ function fitPickerDetail() {
   const top = Math.max(0, panel.getBoundingClientRect().top);
   panel.style.height = Math.max(460, Math.round(innerHeight - top - 16)) + 'px';
 }
+function syncPickerDetailBack(closePickerOnBack) {
+  const btn = $('#pickerDetailBack');
+  if (!btn) return;
+  const label = closePickerOnBack ? pdTxt('Fermer', 'Close') : pdTxt('Retour', 'Back');
+  btn.innerHTML = `<i class="fa-solid ${closePickerOnBack ? 'fa-xmark' : 'fa-arrow-left'}"></i>`;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.onclick = closePickerOnBack ? closePicker : closePickerDetail;
+}
 function openPickerDetail(it, opts = {}) {
   if (!activeSlot || !it) return;
   pdSeq++;
@@ -2665,6 +3114,7 @@ function openPickerDetail(it, opts = {}) {
   panel.scrollTop = 0;
   detail.classList.remove('hidden');
   detail.scrollTop = 0;
+  syncPickerDetailBack(!!opts.closePicker);
   renderPickerDetail(true);
   fitPickerDetail();
   requestAnimationFrame(fitPickerDetail);
@@ -2747,6 +3197,7 @@ async function loadPickerDetailData() {
         if (o.merchant) st.item.vendor = o.merchant;
         if (o.delivered > 0 && o.price) st.item.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
         if (o.url) st.item.store = o.url;
+        setOfferPromo(st.item, o, { clear: true });
       }
     } else {
       st.offersError = (off && off.error) ? off.error : pdTxt('Offres indisponibles pour le moment.', 'Offers unavailable right now.');
@@ -2869,6 +3320,15 @@ function onPickerDetailClick(e) {
       break;
     }
     case 'offer':
+      if (b.dataset.promoCode) {
+        e.preventDefault();
+        openPromoModal({
+          code: b.dataset.promoCode,
+          desc: b.dataset.promoDesc,
+          merchant: b.dataset.merchant,
+          url: b.dataset.offerUrl || b.getAttribute('href') || '',
+        });
+      }
       break;
   }
 }
@@ -2922,7 +3382,7 @@ function commitPickerItem(it) {
   const existing = findExistingProduct(s, it);
   if (existing) {
     let changed = false;
-    if (!addOnly && s.selectedId !== existing.id) { s.selectedId = existing.id; changed = true; }
+    if (!addOnly && s.selectedId !== existing.id) { s.selectedId = existing.id; s.none = false; changed = true; }
     closePickerDetail();
     closePicker();
     if (changed) {
@@ -2943,8 +3403,8 @@ function commitPickerItem(it) {
     if (ds) { np.datasheet = sanitizeDs(ds); np.dsClean = true; }
   }
   s.products.push(np);
-  if (!addOnly || !s.selectedId) s.selectedId = np.id;
-  if (!addOnly && prevSelected && prevSelected !== np.id) s.products = s.products.filter(x => x.id !== prevSelected);
+  if (!addOnly || !s.selectedId) { s.selectedId = np.id; s.none = false; }
+  if (!addOnly && prevSelected && prevSelected !== np.id) { removeProductTutorials(prevSelected); s.products = s.products.filter(x => x.id !== prevSelected); }
   persist(); compatCache = null;
   closePickerDetail();
   closePicker();
@@ -2983,6 +3443,7 @@ function openPicker(id, mode = 'replace') {
   $('#idealoFilter').value = ''; idealQ = ''; idealSort = 'rel'; $('#idealoSort').value = 'rel';
   const key = slotCatKey(id);
   let remembered = id.includes('_') ? ((load(LS.prefs, {}).idealLastByCat || {})[key] || null) : null;
+  if (remembered) remembered = migrateCatUrl(remembered);
   if (remembered && key === 'ssd') remembered = internalSsdUrl(remembered);
   const seq = ++pickerSeq;
   loadCategory(key);
@@ -3004,6 +3465,8 @@ function openPicker(id, mode = 'replace') {
     openCard.classList.add('kj-open');
     setTimeout(() => openCard.classList.remove('kj-open'), 1100);
   }
+  const noneBtn = $('#pickerNoneBtn');
+  if (noneBtn) noneBtn.classList.remove('hidden');
   const chip = $('#pickerModeChip');
   if (chip) {
     chip.classList.toggle('hidden', pickerMode !== 'add');
@@ -4316,8 +4779,9 @@ function openProductForm(slotId, p, opts = {}) {
     compatCache = null;
     const s = state.slots[slotId];
     if (!s.products.find(x => x.id === p.id)) s.products.push(p);
-    if (!opts.addOnly || !s.selectedId) s.selectedId = p.id;
+    if (!opts.addOnly || !s.selectedId) { s.selectedId = p.id; s.none = false; }
     if (!alreadyListed && !opts.addOnly && prevSelected && prevSelected !== p.id) {
+      removeProductTutorials(prevSelected);
       s.products = s.products.filter(x => x.id !== prevSelected); // replace mode: drop the previous fiche
     }
     persist(); closeEditorPanel(); refresh(); renderPicker();
@@ -4330,8 +4794,9 @@ function openProductForm(slotId, p, opts = {}) {
   const dp = $('#f_delP');
   if (dp) dp.onclick = () => {
     const s = state.slots[slotId];
+    removeProductTutorials(p.id);
     s.products = s.products.filter(x => x.id !== p.id);
-    if (s.selectedId === p.id) s.selectedId = s.products[0]?.id || null;
+    if (s.selectedId === p.id) { s.selectedId = s.products[0]?.id || null; s.none = false; }
     if (pdState && pdState.item && pdState.item.id === p.id) closePickerDetail();
     persist(); closeEditorPanel(); refresh(); renderPicker();
   };
@@ -4364,8 +4829,8 @@ async function openMerchants(slotId) {
     return r.offers.map((o, i) => {
     const tot = o.price + ship(o);
     return `
-      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${tot === bestTotal ? `<span class="better-badge" title="${lang === 'en' ? 'Best total price' : 'Meilleur prix total'}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo'}">%</span> ` : ''}${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
-      <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}</small></span>
+      <div class="list-row merchant-row" data-i="${i}"><span class="grow"><strong>${tot === bestTotal ? `<span class="better-badge" title="${lang === 'en' ? 'Best total price' : 'Meilleur prix total'}">€</span> ` : ''}${o.promo ? `<span class="promo-badge" title="${o.promoCode ? 'Code : ' + esc(o.promoCode) : (lang === 'en' ? 'Idealo deal' : 'Bon plan Idealo')}">%</span> ` : ''}${esc(o.merchant || (lang === 'en' ? 'Merchant' : 'Marchand'))}</strong>${o.rating ? ` <small style="color:var(--muted)">★ ${esc(o.rating)}</small>` : ''}<br>
+      <small style="color:var(--muted)">${esc(o.title).slice(0, 80)}${o.delivery ? ' · ' + esc(o.delivery).slice(0, 60) : ''}${o.promoCode ? ` · Code ${esc(o.promoCode)}` : ''}</small></span>
       <span style="text-align:right"><strong>${eur(o.price)}</strong>${o.delivered ? `<br><small style="color:var(--muted)">${eur(o.delivered)} ${lang === 'en' ? 'incl. delivery' : 'livr. incl.'}</small>` : ''}</span></div>`; }).join('')})()}</div>
     <div class="btn-row"><button class="btn btn-sm" id="m_manual"><i class="fa-solid fa-pen"></i> ${lang === 'en' ? 'Edit manually' : 'Modifier manuellement'}</button></div>`);
   $$('#modalBody .merchant-row').forEach(row => row.onclick = () => {
@@ -4374,7 +4839,7 @@ async function openMerchants(slotId) {
     p.price = o.price || p.price;
     if (o.delivered > 0) p.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
     p.store = o.url || p.store;
-    p.promo = !!o.promo;
+    setOfferPromo(p, o, { clear: true });
     const ship = x => Math.max(0, ((x.delivered > 0 ? x.delivered : x.price) - x.price));
     const minTotal = Math.min(...r.offers.filter(x => x.price).map(x => x.price + ship(x)));
     p.isBest = (o.price + ship(o)) <= minTotal + 1e-9;
@@ -4413,7 +4878,143 @@ function openPcieSim() {
 /* ---------- Delivery ---------- */
 const CARRIERS = ['Chronopost', 'Colissimo', 'DHL', 'UPS', 'FedEx', 'Mondial Relay', 'Relais Colis', 'Amazon Logistics', 'Autre'];
 const STATUSES = ['', 'ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'];
-function statusLabel(s) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (lang === 'en' ? 'No tracking' : 'Pas de suivi'); }
+const TRACKING_READER = 'https://r.jina.ai/';
+const TRACKING_TTL = 10 * 60 * 1000;
+const trackingBusy = new Set();
+const trackingRefreshingPids = new Set();
+const DELIVERY_PROGRESS = { ordered: 12, preparing: 28, shipped: 48, transit: 68, out: 88, delivered: 100, issue: 100 };
+const DELIVERY_ICONS = { ordered: 'fa-clipboard-check', preparing: 'fa-cart-flatbed', shipped: 'fa-truck-ramp-box', transit: 'fa-truck-plane', out: 'fa-truck-fast', delivered: 'fa-house-circle-check', issue: 'fa-triangle-exclamation' };
+function deliveryIcon(p) { return (p && DELIVERY_ICONS[p.tstatus]) || 'fa-truck-fast'; }
+function deliveryProgress(p) {
+  if (!p) return 0;
+  if (DELIVERY_PROGRESS[p.tstatus] != null) return DELIVERY_PROGRESS[p.tstatus];
+  return p.tracking ? 6 : 0;
+}
+function statusLabel(s, hasTracking) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (hasTracking ? (lang === 'en' ? 'Status unknown' : 'Statut inconnu') : (lang === 'en' ? 'No tracking' : 'Pas de suivi')); }
+function trackingUrl(carrier, number) {
+  const n = String(number || '').trim();
+  if (!n) return '';
+  const q = encodeURIComponent(n);
+  if (carrier === 'Chronopost') return `https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${q}`;
+  if (carrier === 'Colissimo') return `https://www.laposte.fr/outils/suivre-vos-envois?code=${q}`;
+  if (carrier === 'DHL') return `https://www.dhl.com/fr-fr/home/tracking/tracking-express.html?submit=1&tracking-id=${q}`;
+  if (carrier === 'UPS') return `https://www.ups.com/track?loc=fr_FR&tracknum=${q}`;
+  if (carrier === 'FedEx') return `https://www.fedex.com/fedextrack/?trknbr=${q}`;
+  if (carrier === 'Mondial Relay') return `https://www.mondialrelay.fr/suivi-de-colis?numeroExpedition=${q}`;
+  if (carrier === 'Relais Colis') return `https://www.relaiscolis.com/suivi-de-colis/?numero=${q}`;
+  if (carrier === 'Amazon Logistics') return `https://track.amazon.fr/tracking/${q}`;
+  return `https://t.17track.net/fr#nums=${q}`;
+}
+function trackingStatusFromText(text) {
+  const clean = String(text || '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[#>*_`|]/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/[^\S\r\n]+/g, ' ');
+  const lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const strong = clean.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
+  if (strong) return { status: 'delivered', msg: strong[0] };
+  const dated = lines.filter(l => /\b\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}\b/.test(l) && /\b\d{1,2}:\d{2}\b/.test(l));
+  const pool = dated.length ? dated.slice(0, 8) : lines.filter(l => /statut|status|état|derni[eè]re|dernier|suivi|tracking/i.test(l)).slice(0, 20);
+  const detect = line => {
+    const noIssue = /(aucun incident|no issue|sans incident)/i.test(line);
+    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
+    if (/(livr[ée]|remis|delivered)/i.test(line)) return 'delivered';
+    if (/(en cours de livraison|out for delivery|en livraison)/i.test(line)) return 'out';
+    if (/(acheminement|en transit|in transit|transit)/i.test(line)) return 'transit';
+    if (/(pris en charge|expédi|expedie|collected|shipped|déposé|depose)/i.test(line)) return 'shipped';
+    if (/(prépar|preparing|en attente|pending)/i.test(line)) return 'preparing';
+    if (/(commandé|commande|ordered)/i.test(line)) return 'ordered';
+    return '';
+  };
+  for (const line of pool) {
+    const status = detect(line);
+    if (status) return { status, msg: line.slice(0, 180) };
+  }
+  const notFound = /(introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(clean);
+  return { status: '', msg: notFound ? (lang === 'en' ? 'Tracking number not found' : 'Numéro de suivi introuvable') : '' };
+}
+async function checkTrackingStatus(carrier, number) {
+  const url = trackingUrl(carrier, number);
+  if (!url) return { error: 'missing' };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    return { ...trackingStatusFromText(text), url };
+  } catch (e) {
+    return { error: String((e && e.message) || e), url };
+  } finally { clearTimeout(timer); }
+}
+async function refreshTrackingStatus(p, force) {
+  if (!p || !p.tracking) return { error: 'missing' };
+  if (!force && p.tstatusSource === 'manual') return { skipped: true };
+  const carrier = p.carrier, number = p.tracking;
+  const key = p.id + '|' + carrier + '|' + number;
+  if (trackingBusy.has(key)) return { busy: true };
+  trackingBusy.add(key);
+  try {
+    const r = await checkTrackingStatus(carrier, number);
+    if (p.carrier !== carrier || p.tracking !== number) return { stale: true };
+    p.tstatusAt = Date.now();
+    if (r.status) {
+      p.tstatus = r.status;
+      p.tstatusMsg = r.msg || '';
+      p.tstatusSource = 'auto';
+    } else if (r.error) {
+      p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
+    } else {
+      p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
+    }
+    persist();
+    return r;
+  } finally { trackingBusy.delete(key); }
+}
+function deliveryStatusHtml(p) {
+  const when = p.tstatusAt ? new Date(p.tstatusAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
+  return `<div class="delivery-status-head"><strong>${esc(statusLabel(p.tstatus, !!p.tracking))}</strong>${p.tstatus && p.tstatusSource === 'auto' ? `<span class="delivery-auto">${lang === 'en' ? 'auto' : 'auto'}</span>` : ''}</div>
+    ${p.tstatusMsg ? `<p>${esc(p.tstatusMsg)}</p>` : ''}
+    ${when ? `<small>${lang === 'en' ? 'Checked' : 'Vérifié'} ${esc(when)}</small>` : ''}`;
+}
+function shouldAutoCheckTracking(p) {
+  return !!(p && p.ordered && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
+}
+async function refreshProductTracking(p, force) {
+  trackingRefreshingPids.add(p.id); renderSlots();
+  try { return await refreshTrackingStatus(p, force); }
+  finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+}
+async function refreshOrderedTracking(force = false, onlyPid = null) {
+  if (!state || !Array.isArray(state.order)) return { updated: 0, failed: 0 };
+  const targets = [], seen = new Set();
+  state.order.forEach(id => {
+    const s = state.slots[id]; if (!s) return;
+    (s.products || []).forEach(p => {
+      if (!p || !p.ordered || !p.tracking) return;
+      if (onlyPid && p.id !== onlyPid) return;
+      if (!force && !shouldAutoCheckTracking(p)) return;
+      if (p.tstatus === 'delivered' || seen.has(p.id)) return;
+      seen.add(p.id);
+      targets.push(p);
+    });
+  });
+  let updated = 0, failed = 0;
+  for (const p of targets) {
+    const r = await refreshProductTracking(p, force);
+    if (r && r.status) updated++;
+    else if (r && !r.busy && r.error) failed++;
+  }
+  if (updated || failed) {
+    const msg = updated
+      ? `${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${updated})${failed ? ` · ${failed} ${lang === 'en' ? 'failed' : 'en échec'}` : ''}`
+      : (lang === 'en' ? 'Delivery status check failed — retry later' : 'Échec vérification livraison — réessayez plus tard');
+    toast(msg);
+  }
+  return { updated, failed };
+}
 function openDelivery(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
   openModal((lang === 'en' ? 'Delivery tracker — ' : 'Suivi colis — ') + p.name, `
@@ -4422,9 +5023,66 @@ function openDelivery(slotId) {
       <div class="fld"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}"></div>
       <div class="fld full"><label>Status</label><select id="d_st">${STATUSES.map(x => `<option value="${x}" ${p.tstatus === x ? 'selected' : ''}>${x ? statusLabel(x) : '—'}</option>`).join('')}</select></div>
     </div>
+    <div class="delivery-status" id="d_statusBox" data-slot="${esc(slotId)}">${deliveryStatusHtml(p)}</div>
     <div class="btn-row"><button class="btn btn-primary" id="d_save"><i class="fa-solid fa-check"></i> OK</button>
-    ${p.tracking ? `<a class="btn" target="_blank" rel="noopener" href="https://t.17track.net/#nums=${encodeURIComponent(p.tracking)}"><i class="fa-solid fa-truck-fast"></i> 17track</a>` : ''}</div>`);
-  $('#d_save').onclick = () => { p.carrier = $('#d_car').value; p.tracking = $('#d_tr').value.trim(); p.tstatus = $('#d_st').value; persist(); closeModal(); refresh(); };
+    <button class="btn" id="d_check"${p.tracking ? '' : ' disabled'}><i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}</button>
+    <a class="btn" id="d_open" target="_blank" rel="noopener" href="${esc(trackingUrl(p.carrier, p.tracking))}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> ${lang === 'en' ? 'Open tracking' : 'Ouvrir le suivi'}</a>
+    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${p.tracking ? esc('https://t.17track.net/fr#nums=' + encodeURIComponent(p.tracking)) : '#'}"${p.tracking ? '' : ' hidden'}>17track</a></div>`);
+  let checking = false;
+  const syncLink = () => {
+    const car = $('#d_car').value, num = $('#d_tr').value.trim();
+    const link = trackingUrl(car, num);
+    const open = $('#d_open'), alt = $('#d_17'), check = $('#d_check');
+    if (open) { open.href = link || '#'; open.hidden = !num; }
+    if (alt) { alt.href = num ? 'https://t.17track.net/fr#nums=' + encodeURIComponent(num) : '#'; alt.hidden = !num; }
+    if (check) check.disabled = !num;
+  };
+  $('#d_car').onchange = syncLink;
+  $('#d_tr').oninput = syncLink;
+  const runCheck = async force => {
+    if (checking || !p.tracking) return;
+    checking = true;
+    const check = $('#d_check'), box = $('#d_statusBox');
+    if (check) { check.disabled = true; check.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking…' : 'Vérification…'}`; }
+    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking carrier status…' : 'Vérification du statut…'}</div>`;
+    const r = await refreshTrackingStatus(p, force);
+    checking = false;
+    if (check) { check.disabled = !p.tracking; check.innerHTML = `<i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}`; }
+    const live = $('#d_statusBox');
+    if (live && live.dataset.slot === String(slotId)) {
+      live.innerHTML = deliveryStatusHtml(p);
+      const st = $('#d_st'); if (st) st.value = p.tstatus || '';
+    }
+    if (r && r.status) { refresh(); toast(lang === 'en' ? 'Status updated' : 'Statut mis à jour'); }
+    else if (r && r.error) toast(lang === 'en' ? 'Automatic status unavailable' : 'Statut automatique indisponible');
+  };
+  $('#d_check').onclick = () => runCheck(true);
+  $('#d_save').onclick = () => {
+    const car = $('#d_car').value, num = $('#d_tr').value.trim(), st = $('#d_st').value;
+    const oldStatus = p.tstatus, statusChanged = st !== oldStatus;
+    const changed = car !== p.carrier || num !== p.tracking;
+    p.carrier = car;
+    p.tracking = num;
+    if (changed) {
+      p.tstatus = statusChanged ? st : '';
+      p.tstatusAt = 0;
+      p.tstatusMsg = '';
+      p.tstatusSource = statusChanged && st ? 'manual' : '';
+    } else if (statusChanged) {
+      p.tstatus = st;
+      p.tstatusAt = Date.now();
+      p.tstatusSource = st ? 'manual' : '';
+    }
+    if (num) {
+      if (!p.ordered) p.ordered = true;
+      if (!p.orderedAt) p.orderedAt = Date.now();
+      refreshFailed.delete(p.id);
+    }
+    const autoCheck = !!num && !p.tstatus && p.tstatusSource !== 'manual';
+    persist(); closeModal(); refresh();
+    if (autoCheck) refreshOrderedTracking(true, p.id);
+  };
+  if (shouldAutoCheckTracking(p)) runCheck(false);
 }
 
 /* ---------- Summary ---------- */
@@ -4949,7 +5607,8 @@ function drawPrices() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const W = cssW, H = cssH;
   ctx.clearRect(0, 0, W, H);
-  const dark = document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const themeMode = document.documentElement.dataset.theme;
+  const dark = themeMode === 'dark' || themeMode === 'black' || (themeMode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   const grid = dark ? '#333' : '#e3e8e3', axis = dark ? '#9aa0a6' : '#666';
   const h = hist()[state.name] || [];
   const leg = $('#priceLegend'); leg.className = 'legend' + (phMode === 'per' ? ' groups' : ''); leg.innerHTML = '';
@@ -6466,7 +7125,7 @@ async function cmpSelectVariant(col, slotId, item, opts = {}) {
       if (o.price) np.price = o.price;
       if (o.delivered > 0 && o.price) np.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
       if (o.url) np.store = o.url;
-      if (o.promo) np.promo = true;
+      setOfferPromo(np, o, { clear: true });
     }
     s.products.push(np);
     s.selectedId = np.id;
@@ -6655,6 +7314,7 @@ function restoreSnapshot(snap, name, enMsg, frMsg) {
   state = JSON.parse(JSON.stringify(snap));
   if (name) state.name = name;
   state.usage = normUsage(state.usage || {});
+  normalizeStateExtras(state);
   persist(); lastSavedJson = JSON.stringify(state); closeModal(); refresh(); schedulePriceRefresh();
   toast(lang === 'en' ? enMsg : frMsg);
 }
@@ -7097,10 +7757,10 @@ async function importAiProduct(slotId, it, link) {
   if (!s) return { ok: false, reason: 'slot' };
   const existing = findExistingProduct(s, np);
   if (existing) {
-    s.selectedId = existing.id;
+    s.selectedId = existing.id; s.none = false;
     return { ok: true, item: existing, existing: true };
   }
-  s.products.push(np); s.selectedId = np.id;
+  s.products.push(np); s.selectedId = np.id; s.none = false;
   /* Finish exactly like a manual pick: same fields, same background datasheet
      upgrade and same alternative enrichment, without refetching the two
      responses we already have for the price gate. */
@@ -7432,11 +8092,12 @@ function importConfig(obj, opts) {
   if (!state.order) state.order = Object.keys(state.slots);
   if (!state.name) state.name = 'Ma Config';
   state.usage = normUsage(state.usage || {});
+  normalizeStateExtras(state);
   if (typeof state.budget !== 'number') state.budget = parseFloat(state.budget) || 0;
   Object.values(state.slots).forEach(s => {
     if (!s || typeof s !== 'object') return;
     if (!Array.isArray(s.products)) s.products = [];
-    if (!(s.selectedId && s.products.some(p => p.id === s.selectedId))) s.selectedId = s.products[0]?.id || null;
+    if (!s.none && !(s.selectedId && s.products.some(p => p.id === s.selectedId))) s.selectedId = s.products[0]?.id || null;
   });
   try { openAlts.clear(); } catch { /* ignore */ }
   try { openVariants.clear(); } catch { /* ignore */ }
@@ -7465,7 +8126,7 @@ function importConfig(obj, opts) {
     schedulePriceRefresh(600, true);
   } else schedulePriceRefresh();
 }
-/* ---------- Background price refresh (same vendor, else cheapest) ---------- */
+/* ---------- Background component refresh (prices or delivery, in slot order) ---------- */
 let priceRefreshRunning = false, priceRefreshTimer = null;
 let priceRefreshCancel = false, priceRefreshCancelArmed = false, priceRefreshCancelTimer = null, priceProgressText = '';
 const refreshingPids = new Set();
@@ -7473,7 +8134,11 @@ const refreshFailed = new Set();
 function schedulePriceRefresh(delay = 1200, quiet = false) {
   clearTimeout(priceRefreshTimer);
   if (prefs.noPriceRefresh === true) return;
-  priceRefreshTimer = setTimeout(() => refreshPrices(quiet), delay);
+  priceRefreshTimer = setTimeout(() => refreshPageData(quiet), delay);
+}
+function schedulePageRefresh(delay = 2500) {
+  clearTimeout(priceRefreshTimer);
+  priceRefreshTimer = setTimeout(() => refreshPageData(false, { skipPrices: prefs.noPriceRefresh === true }), delay);
 }
 function showProgress(txt, opts = {}) {
   const pp = $('#progressPop'); if (!pp) return;
@@ -7485,7 +8150,7 @@ function showProgress(txt, opts = {}) {
     if (!priceRefreshCancelArmed) {
       btn.disabled = false;
       btn.classList.remove('confirm');
-      btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation';
+      btn.title = lang === 'en' ? 'Cancel the refresh' : 'Annuler l’actualisation';
     }
   }
   pp.classList.toggle('cancelable', !!opts.cancelable);
@@ -7495,7 +8160,7 @@ function resetProgressCancel() {
   clearTimeout(priceRefreshCancelTimer);
   priceRefreshCancelArmed = false;
   const btn = $('#progressCancel');
-  if (btn) { btn.disabled = false; btn.classList.remove('confirm'); btn.title = lang === 'en' ? 'Cancel the price refresh' : 'Annuler l’actualisation'; }
+  if (btn) { btn.disabled = false; btn.classList.remove('confirm'); btn.title = lang === 'en' ? 'Cancel the refresh' : 'Annuler l’actualisation'; }
   if (priceProgressText) { const txt = $('#progressTxt'); if (txt) txt.textContent = priceProgressText; }
 }
 function hideProgress() {
@@ -7511,7 +8176,7 @@ function wireProgressCancel() {
     if (!priceRefreshCancelArmed) {
       priceRefreshCancelArmed = true;
       clearTimeout(priceRefreshCancelTimer);
-      $('#progressTxt').textContent = lang === 'en' ? 'Cancel the price refresh?' : 'Annuler l’actualisation ?';
+      $('#progressTxt').textContent = lang === 'en' ? 'Cancel the refresh?' : 'Annuler l’actualisation ?';
       btn.classList.add('confirm');
       btn.title = lang === 'en' ? 'Click again to confirm' : 'Cliquez à nouveau pour confirmer';
       priceRefreshCancelTimer = setTimeout(resetProgressCancel, 5000);
@@ -7549,7 +8214,7 @@ function applyOfferRefresh(cur, offers, withFlags) {
     offers.forEach(x => {
       if (!x.price) return;
       const t = x.price * qty + shipOf(x);
-      if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, total: t };
+      if (!best || t < best.total - 1e-9) best = { price: x.price, delivered: x.delivered, merchant: x.merchant, url: x.url, promo: !!x.promo, promoCode: x.promoCode || '', promoDesc: x.promoDesc || '', total: t };
     });
     if (best && best.total < curTotal - 0.005) {
       if (!cur.best || cur.best.total !== best.total || cur.best.merchant !== best.merchant) { cur.best = best; ch = true; }
@@ -7557,67 +8222,85 @@ function applyOfferRefresh(cur, offers, withFlags) {
     const noBetter = !best || best.total >= curTotal - 0.005;
     if (!!cur.isBest !== noBetter) { cur.isBest = noBetter; ch = true; }
     const ref = o;
-    const promo = !!(ref && ref.promo);
-    if (!!cur.promo !== promo) { cur.promo = promo; ch = true; }
+    if (ref && setOfferPromo(cur, ref, { clear: true })) ch = true;
   }
   return ch;
 }
-async function refreshPrices(quiet) {
+async function refreshPageData(quiet, opts = {}) {
   if (priceRefreshRunning) return;
-  // every fiche (selected + alternatives), fetches deduplicated by /prix/ URL
-  const byUrl = new Map();
+  const skipPrices = !!opts.skipPrices;
+  const tasks = [];
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
-    (s.products || []).forEach(p => {
-      if (p && /idealo\.fr\/prix\//i.test(p.idealo || '')) {
-        if (!byUrl.has(p.idealo)) byUrl.set(p.idealo, []);
-        byUrl.get(p.idealo).push({ id, pid: p.id });
-      }
-    });
+    const chosen = sel(s);
+    if (chosen && chosen.ordered) {
+      if (chosen.tracking) tasks.push({ kind: 'tracking', id, p: chosen });
+      return;
+    }
+    if (skipPrices || typeof Idealo === 'undefined') return;
+    const products = (s.products || []).filter(x => x && !x.ordered
+      && /idealo\.fr\/prix\//i.test(x.idealo || '')
+      && !(editingPid && editingPid === x.id));
+    if (products.length) tasks.push({ kind: 'price', id, products });
   });
-  const urls = [...byUrl.keys()];
-  if (!urls.length || typeof Idealo === 'undefined') return;
+  if (!tasks.length) return;
   priceRefreshRunning = true;
   priceRefreshCancel = false;
-  const prog = lang === 'en' ? 'Refreshing prices' : 'Actualisation des prix';
-  if (!quiet) showProgress(`${prog} (0/${urls.length})…`, { cancelable: true });
-  let updated = 0, failed = 0;
-  for (let i = 0; i < urls.length; i++) {
+  const prog = lang === 'en' ? 'Refreshing components' : 'Actualisation des composants';
+  if (!quiet) showProgress(`${prog} (0/${tasks.length})…`, { cancelable: true });
+  let priceUpdated = 0, priceFailed = 0, statusUpdated = 0, statusFailed = 0;
+  const offersByUrl = new Map();
+  for (let i = 0; i < tasks.length; i++) {
     if (priceRefreshCancel) break;
-    const url = urls[i];
-    const entries = byUrl.get(url).filter(e => {
-      const s = state.slots[e.id];
-      return s && s.products.some(x => x.id === e.pid);
-    });
-    if (!entries.length) continue;
-    entries.forEach(e => refreshingPids.add(e.pid));
-    renderSlots(); renderSummary();
-    if (!quiet) showProgress(`${prog} (${i + 1}/${urls.length})…`, { cancelable: true });
-    try {
-      const r = await Idealo.offers(url, true);
-      if (priceRefreshCancel) { entries.forEach(e => refreshingPids.delete(e.pid)); break; }
-      if (r.error || !r.offers.length) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); }
-      else {
-        entries.forEach(({ id, pid }) => {
-          const s = state.slots[id];
-          const cur = s && s.products.find(x => x.id === pid);
-          if (!cur || (editingPid && editingPid === pid)) return;
-          refreshFailed.delete(pid);
-          if (applyOfferRefresh(cur, r.offers, sel(s) === cur)) updated++;
-        });
+    const task = tasks[i];
+    if (!quiet) showProgress(`${prog} (${i + 1}/${tasks.length})…`, { cancelable: true });
+    if (task.kind === 'tracking') {
+      const r = await refreshProductTracking(task.p, true);
+      if (r && r.status) statusUpdated++;
+      else if (r && !r.busy && r.error) statusFailed++;
+      continue;
+    }
+    for (const item of task.products) {
+      if (priceRefreshCancel) break;
+      const s = state.slots[task.id]; if (!s) break;
+      const cur = s.products.find(x => x.id === item.id);
+      if (!cur || cur.ordered || (editingPid && editingPid === cur.id)) continue;
+      refreshingPids.add(cur.id); renderSlots(); renderSummary();
+      try {
+        let offersPromise = offersByUrl.get(cur.idealo);
+        if (!offersPromise) { offersPromise = Idealo.offers(cur.idealo, true); offersByUrl.set(cur.idealo, offersPromise); }
+        const r = await offersPromise;
+        if (priceRefreshCancel) continue;
+        if (r.error || !r.offers.length) { priceFailed++; refreshFailed.add(cur.id); continue; }
+        const live = s.products.find(x => x.id === cur.id);
+        if (!live || live.ordered || (editingPid && editingPid === live.id)) continue;
+        refreshFailed.delete(live.id);
+        if (applyOfferRefresh(live, r.offers, sel(s) === live)) priceUpdated++;
+      } catch {
+        if (!priceRefreshCancel) { priceFailed++; refreshFailed.add(cur.id); }
+      } finally {
+        refreshingPids.delete(cur.id);
       }
-    } catch { if (!priceRefreshCancel) { failed++; entries.forEach(e => refreshFailed.add(e.pid)); } }
-    entries.forEach(e => refreshingPids.delete(e.pid));
+    }
+    renderSlots(); renderSummary();
   }
   const cancelled = priceRefreshCancel;
   refreshingPids.clear();
   persist(); refresh(); hideProgress();
   priceRefreshRunning = false;
-  if (!cancelled) for (const id of state.order) queueAlternativeData(id); // then datasheets for alternatives still missing them
-  if (cancelled) { toast(lang === 'en' ? 'Price refresh cancelled' : 'Actualisation annulée'); return; }
-  toast(updated
-    ? `${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${updated})${failed ? ' · ' + failed + (lang === 'en' ? ' failed' : ' en échec') : ''}`
-    : (failed ? (lang === 'en' ? 'Price refresh failed — retry later' : 'Échec actualisation — réessayez plus tard') : (lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour')));
+  if (!cancelled) {
+    for (const id of state.order) {
+      const s = state.slots[id], p = s && sel(s);
+      if (p && p.ordered) continue;
+      queueAlternativeData(id);
+    }
+  }
+  if (cancelled) { toast(lang === 'en' ? 'Refresh cancelled' : 'Actualisation annulée'); return; }
+  const parts = [];
+  if (priceUpdated || priceFailed) parts.push(`${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${priceUpdated})${priceFailed ? ' · ' + priceFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
+  if (statusUpdated || statusFailed) parts.push(`${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${statusUpdated})${statusFailed ? ' · ' + statusFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
+  if (parts.length) toast(parts.join(' · '));
+  else if (tasks.some(t => t.kind === 'price')) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
 const EXPORT_PARTS = [
@@ -7626,7 +8309,8 @@ const EXPORT_PARTS = [
   { id: 'graphs', icon: 'fa-solid fa-chart-pie', fr: 'Graphiques', en: 'Graphs', hintFr: 'Répartition du budget et données des graphiques.', hintEn: 'Budget allocation and chart data.', pdf: true, json: true },
   { id: 'consumption', icon: 'fa-solid fa-bolt', fr: 'Consommation', en: 'Power draw', hintFr: 'Puissance, calendriers d’usage et tarification.', hintEn: 'Power, usage calendars and pricing.', pdf: true, json: true },
   { id: 'compatibility', icon: 'fa-solid fa-shield-halved', fr: 'Compatibilité', en: 'Compatibility', hintFr: 'Vérifications, alertes et justifications.', hintEn: 'Checks, warnings and explanations.', pdf: true, json: true },
-  { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés et playlists.', hintEn: 'Selected-component tutorials and playlists.', pdf: true, json: true },
+  { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés, tutoriels perso et playlists.', hintEn: 'Selected-component tutorials, custom tutorials and playlists.', pdf: true, json: true },
+  { id: 'library', icon: 'fa-solid fa-book-open', fr: 'Bibliothèques produits', en: 'Product libraries', hintFr: 'Manuels, unboxings, reviews et installations par composant.', hintEn: 'Manuals, unboxings, reviews and installations per component.', pdf: true, json: true },
   { id: 'priceHistory', icon: 'fa-solid fa-clock-rotate-left', fr: 'Historique des prix', en: 'Price history', hintFr: 'Courbes et points de prix enregistrés.', hintEn: 'Saved curves and price points.', pdf: true, json: true },
   { id: 'savedVersions', icon: 'fa-solid fa-box-archive', fr: 'Sauvegardes', en: 'Saved versions', hintFr: 'Versions sauvegardées de cette config (JSON uniquement).', hintEn: 'Saved versions of this config (JSON only).', pdf: false, json: true },
 ];
@@ -7895,14 +8579,18 @@ function prComponentCard(id) {
   if (src) srcEl = src.querySelector('.slot[data-slot="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
   const node = prStripIds(srcEl ? srcEl.cloneNode(true) : document.createElement('div'));
   node.classList.add('pr-slot');
-  node.querySelectorAll('.slot-remove, .slot-refetch, .slot-alt-tab, .compat-more').forEach(n => n.remove());
+  node.querySelectorAll('.slot-remove, .slot-refetch, .slot-alt-tab, .compat-more, .kj-heart').forEach(n => n.remove());
   const s = state.slots[id], p = s ? sel(s) : null;
+  if (p && p.ordered) {
+    const badges = node.querySelector('.slot-badges');
+    if (badges) badges.insertAdjacentHTML('beforeend', `<span class="pr-badge"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Ordered' : 'Commandé')}</span>`);
+  }
   const acts = node.querySelector('.slot-actions');
   if (acts) {
     acts.textContent = '';
     const idealoOk = !!(p && p.idealo && /idealo\.fr/i.test(p.idealo));
     const links = p ? [
-      { href: String(p.manual || '').trim(), icon: 'fa-solid fa-book', label: lang === 'en' ? 'Manual' : 'Manuel' },
+      { href: String(libraryManualUrl(p) || '').trim(), icon: 'fa-solid fa-book', label: lang === 'en' ? 'Manual' : 'Manuel' },
       { href: idealoOk ? p.idealo : '', icon: 'fa-solid fa-arrow-up-right-from-square', label: 'Idealo' },
       { href: buyUrlFor(p) || '', icon: 'fa-solid fa-cart-shopping', label: lang === 'en' ? 'Merchant' : 'Marchand' },
     ] : [];
@@ -8080,7 +8768,11 @@ function buildPrintReport(parts) {
       ids.forEach(id => grp.appendChild(prComponentCard(id)));
       comps.appendChild(grp);
     });
-    if (!anyComp) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
+    const noneIds = state.order.filter(id => { const sl = state.slots[id]; return sl && sl.none && !sel(sl); });
+    if (noneIds.length) {
+      comps.insertAdjacentHTML('beforeend', `<div class="pr-none-list"><h3 class="pr-h3"><i class="fa-solid fa-ban"></i> ${esc(L('No component', 'Aucun composant'))}</h3><ul>${noneIds.map(id => `<li><strong>${esc(slotName(id))}</strong> — ${esc(L('intentionally left empty', 'volontairement laissé vide'))}</li>`).join('')}</ul></div>`);
+    }
+    if (!anyComp && !noneIds.length) comps.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('Nothing selected.', 'Rien de sélectionné.'))}</p>`);
   }
 
   /* 5 — consumption: usage & pricing config + power charts/totals */
@@ -8148,11 +8840,32 @@ function buildPrintReport(parts) {
     } else {
       tut.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No selected component has a matching tutorial.', 'Aucun composant sélectionné n’a de tutoriel correspondant.'))}</p>`);
     }
+    const customs = customTutorials();
+    if (customs.length) {
+      tut.insertAdjacentHTML('beforeend', `<h3 class="pr-h3"><i class="fa-solid fa-folder-plus"></i> ${esc(L('My tutorials', 'Mes tutoriels'))}</h3>
+        <div class="pr-tut-list">${customs.map(item => `<div class="pr-tut-item"><div class="pr-tut-head"><strong>${esc(customTutorialLabel(item))}</strong><span>${esc(item.title || item.url)}</span></div><a href="${esc(item.url)}" target="_blank" rel="noopener"><i class="${item.kind === 'video' ? 'fa-brands fa-youtube' : item.kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link'}"></i> ${esc(item.url)}</a></div>`).join('')}</div>`);
+    }
     tut.insertAdjacentHTML('beforeend', `<h3 class="pr-h3"><i class="fa-brands fa-youtube"></i> ${esc(L('Full playlists', 'Playlists complètes'))}</h3>
       <div class="pr-tut-playlists">
         <a href="${esc(TUT_PLAYLISTS.topachat.url)}" target="_blank" rel="noopener"><strong>TopAchat</strong><span>${esc(L('PC build · 18 videos', 'Montage PC · 18 vidéos'))}</span></a>
         <a href="${esc(TUT_PLAYLISTS.materiel.url)}" target="_blank" rel="noopener"><strong>Materiel.net</strong><span>${esc(L('PC build · 16 videos', 'Montage PC · 16 vidéos'))}</span></a>
       </div>`);
+  }
+
+  /* 8b — product libraries */
+  if (show('library')) {
+    const libs = prSection(root, L('Product libraries', 'Bibliothèques produits'), 'fa-solid fa-book-open');
+    let anyLib = false;
+    state.order.forEach(id => {
+      const sl = state.slots[id], p = sl ? sel(sl) : null;
+      if (!p) return;
+      const lib = productLibrary(p);
+      const total = LIBRARY_TABS.reduce((n, tab) => n + (lib[tab.id] || []).length, 0);
+      if (!total && !p.manual) return;
+      anyLib = true;
+      libs.insertAdjacentHTML('beforeend', `<div class="pr-lib-block"><div class="pr-lib-head"><strong>${esc(slotName(id))}</strong><span>${esc(p.name || '')}</span></div>${prLibraryBody(p)}</div>`);
+    });
+    if (!anyLib) libs.insertAdjacentHTML('beforeend', `<p class="hint">${esc(L('No library link saved.', 'Aucun lien de bibliothèque enregistré.'))}</p>`);
   }
 
   /* 9 — price history (three charts as images) */
@@ -8266,7 +8979,16 @@ function exportTutorialData() {
     const item = TUTORIALS.find(x => x.slot === id) || TUTORIALS.find(x => x.slot === sl.defId);
     if (item) items.push({ slot: id, label: slotName(id), component: p.name || '', videos: item });
   });
-  return { items, playlists: TUT_PLAYLISTS };
+  return { items, custom: customTutorials(), playlists: TUT_PLAYLISTS };
+}
+function exportLibraryData() {
+  const items = [];
+  state.order.forEach(id => {
+    const sl = state.slots[id]; const p = sl ? sel(sl) : null;
+    if (!p) return;
+    items.push({ slot: id, label: slotName(id), component: p.name || '', library: JSON.parse(JSON.stringify(productLibrary(p))) });
+  });
+  return { items };
 }
 /* JSON export of the currently selected config. Configuration is always
    present so the file stays re-importable; the selection controls the rest. */
@@ -8285,6 +9007,7 @@ function exportConfigJson(parts) {
   if (chosen.has('consumption')) obj.consumption = exportConsumptionData();
   if (chosen.has('compatibility')) obj.compatibility = exportCompatibilityData();
   if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
+  if (chosen.has('library')) obj.library = exportLibraryData();
   if (chosen.has('priceHistory')) obj.prices = load(LS.hist, {})[name] || [];
   if (chosen.has('savedVersions')) obj.history = load(LS.configs, {})[name] || [];
   download(name + '.configmaker.json', JSON.stringify(obj, null, 2), 'application/json');
@@ -8300,6 +9023,11 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.1.0 — Commandes, bibliothèque et nouvelles catégories</h3>
+      <p class="hint"><strong>Ajouts :</strong> bouton « Commandé » à gauche du bouton favori, avec verrouillage de l’actualisation des prix et carte composant grisée, ainsi que les boutons « Commandé » / « Non commandé ». Thème « Black Month » activé par défaut en novembre. Option « Aucun &lt;type de composant&gt; » dans la sélection, à côté de « Nouvelle fiche ». Bouton « Ajouter un tutoriel » dans la section Tutoriels pour enregistrer des vidéos et les réorganiser. Mini-bouton « Bibliothèque » : ouverture de la bibliothèque comme les tutoriels, onglets Manuel / Unboxing / Review / Installation, ajout, édition, réorganisation et suppression de vidéos, photos et liens ; le bouton Manuel ouvre le premier lien manuel et les éléments Installation sont automatiquement ajoutés aux tutoriels ; la bibliothèque peut être exportée en PDF et JSON via la popup d’export. Actualisation automatique du suivi de livraison.</p>
+      <p class="hint"><strong>Correctifs :</strong> bouton des pastilles KJ dans la sélection de composants ; bouton retour remplacé par un bouton fermer dans la fiche composant ; fonds des cartes composants sur mobile ; slots PCIe.</p>
+      <p class="hint"><strong>Nouvelles catégories :</strong> micros, commutateurs KVM et IEM.</p>
+    </div>
     <div class="chlog"><h3>v2.0.0 — Release officielle, installation mobile et liens canoniques</h3><p class="hint">ConfigMaker passe en v2.0.0 avec un README de présentation, un lien officiel unique pour la webapp, les partages et les PDF, et une installation PWA renforcée sur Android et iOS. L’application s’ouvre désormais comme une vraie app depuis l’écran d’accueil, avec le plein écran et les zones sûres iOS, tandis que les liens GitHub du projet et des issues restent centralisés. Toutes les fonctions de la v2.69 sont conservées.</p></div>
     <div class="chlog"><h3>v2.69 — Soutien au projet, exports à la carte et benchmarks moyens</h3><p class="hint">Deux nouveaux blocs avant les fichiers Excel mettent en avant le projet et remercient Idealo, avec une section complète des services externes et leurs liens en pied de page. Les exports PDF et JSON partagent désormais un sélecteur compact : tout, données actuelles, configuration + performances, configuration seule ou choix libre, avec la configuration toujours incluse et un aperçu verrouillé tout coché dans Partager. Le PDF place les publicités ConfigMaker et Idealo puis le résumé d’usage horizontal sur la première page, supprime le doublon plus loin, reprend les sections IObit et usage quotidien dans les mêmes encadrés que les blocs lourds et peut inclure les tutoriels. Les benchmarks 3DMark et Geekbench utilisent la moyenne de tous les runs disponibles, plafonnée à 1 000 échantillons. L’actualisation des prix peut être annulée en deux clics, un réglage permet de la désactiver, les avertissements couvrent l’absence de GPU avec un CPU sans graphique intégré et l’absence de ventirad avec un CPU sans ventilateur fourni, et le favicon reprend le logo ConfigMaker.</p></div>
     <div class="chlog"><h3>v2.68 — Fiche composant, compteurs et offres fiabilisées</h3><p class="hint">La fiche composant s’ouvre en lecture seule depuis « Infos » et le crayon reste disponible pour modifier la fiche sélectionnée. Les offres affichent toujours « N offres · dès X € », s’ouvrent au bon endroit et séparent leur erreur de celle de la fiche technique avec un bouton Réessayer. L’aperçu passe avant les variantes, avec des raccourcis vers les variantes et la fiche technique. Les compteurs n’animent que les valeurs modifiées, depuis leur ancienne valeur, et restent statiques sans animation. La création par IA tient sur une seule ligne de progression. Les panneaux Partager/Exporter reprennent une liste verticale compacte. Les offres Idealo sont récupérées dans le HTML brut quand le Markdown les omet, les contrôles actifs restent lisibles en thème sombre et le comparateur mobile ne déborde plus horizontalement.</p></div>
@@ -8373,6 +9101,118 @@ function openChangelog() {
 function tutorialBySlot(id) {
   return TUTORIALS.find(x => x.slot === id) || null;
 }
+function youtubeVideoId(url) {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  return m ? m[1] : '';
+}
+function customTutorialBlock(item) {
+  const L = (en, fr) => (lang === 'en' ? en : fr);
+  const source = item.source === 'library' ? L('Product library', 'Bibliothèque produit') : L('My tutorials', 'Mes tutoriels');
+  const watch = '<a href="' + esc(item.url) + '" target="_blank" rel="noopener"><span>' + esc(L('Open', 'Ouvrir')) + '</span> <i class="fa-solid fa-arrow-up-right-from-square"></i></a>';
+  if (item.kind === 'video' && youtubeVideoId(item.url)) {
+    const id = youtubeVideoId(item.url);
+    return `<div class="tut-video-block">
+      <div class="tut-video-label"><span class="tut-video-source"><i class="fa-brands fa-youtube"></i> ${esc(source)}</span>${watch}</div>
+      <div class="video-embed"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0" title="${esc(item.title || '')}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>
+      <p class="tut-video-caption">${esc(item.title || item.url)}</p></div>`;
+  }
+  if (item.kind === 'photo') {
+    return `<div class="tut-video-block">
+      <div class="tut-video-label"><span class="tut-video-source"><i class="fa-solid fa-image"></i> ${esc(source)}</span>${watch}</div>
+      <div class="tut-photo"><img src="${esc(item.url)}" alt="${esc(item.title || '')}" loading="lazy"></div>
+      <p class="tut-video-caption">${esc(item.title || item.url)}</p></div>`;
+  }
+  return `<div class="tut-video-block">
+    <div class="tut-video-label"><span class="tut-video-source"><i class="fa-solid fa-link"></i> ${esc(source)}</span>${watch}</div>
+    <div class="tut-link-card"><i class="fa-solid fa-link"></i><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title || item.url)}</a></div></div>`;
+}
+function renderCustomTutorialList() {
+  const host = $('#customTutorialList');
+  if (!host) return;
+  const list = customTutorials();
+  if (!list.length) {
+    host.innerHTML = `<p class="hint">${esc(lang === 'en' ? 'Add your own tutorial for any component of this config.' : 'Ajoutez votre propre tutoriel pour un composant de cette config.')}</p>`;
+    return;
+  }
+  host.innerHTML = list.map((item, idx) => {
+    const active = item.id === tutSelectedCustomId;
+    const defId = item.slotDefId || (state.slots[item.slotId] && state.slots[item.slotId].defId);
+    const def = SLOT_DEFS.find(x => x.id === defId) || { icon: 'fa-solid fa-link' };
+    const label = customTutorialLabel(item);
+    const src = item.source === 'library' ? (lang === 'en' ? 'Library' : 'Bibliothèque') : (lang === 'en' ? 'Mine' : 'Perso');
+    return `<div class="slot tut-slot tut-custom${active ? ' sel' : ''}" draggable="true" data-tut-custom="${esc(item.id)}">
+      <button class="slot-main tut-slot-main" type="button" data-tut-open="${esc(item.id)}" aria-pressed="${active ? 'true' : 'false'}">
+        <span class="slot-visual">${iconHtml(def.icon)}</span>
+        <span class="slot-info"><span class="slot-type">${esc(label)} · ${esc(src)}</span><span class="slot-name">${esc(item.title || item.url)}</span><span class="slot-specs">${esc(item.kind === 'video' ? (lang === 'en' ? 'Video' : 'Vidéo') : item.kind === 'photo' ? (lang === 'en' ? 'Photo' : 'Photo') : 'Lien')}</span></span>
+        <span class="slot-side tut-play-ico"><i class="${item.kind === 'video' ? 'fa-solid fa-play' : item.kind === 'photo' ? 'fa-solid fa-image' : 'fa-solid fa-link'}"></i></span>
+      </button>
+      <div class="tut-custom-actions">
+        <span class="tut-drag" title="${esc(lang === 'en' ? 'Drag to reorder' : 'Glisser pour réordonner')}"><i class="fa-solid fa-grip-vertical"></i></span>
+        <button class="mini-btn" data-tut-move="up" data-tut-id="${esc(item.id)}" ${idx === 0 ? 'disabled' : ''} title="${esc(lang === 'en' ? 'Move up' : 'Monter')}"><i class="fa-solid fa-arrow-up"></i></button>
+        <button class="mini-btn" data-tut-move="down" data-tut-id="${esc(item.id)}" ${idx === list.length - 1 ? 'disabled' : ''} title="${esc(lang === 'en' ? 'Move down' : 'Descendre')}"><i class="fa-solid fa-arrow-down"></i></button>
+        ${item.source === 'library' ? `<span class="kj-pill">${esc(lang === 'en' ? 'From library' : 'Via bibliothèque')}</span>` : `<button class="mini-btn" data-tut-edit="${esc(item.id)}" title="${esc(lang === 'en' ? 'Edit' : 'Modifier')}"><i class="fa-solid fa-pen"></i></button><button class="mini-btn danger" data-tut-del="${esc(item.id)}" title="${esc(lang === 'en' ? 'Delete' : 'Supprimer')}"><i class="fa-solid fa-trash"></i></button>`}
+      </div>
+    </div>`;
+  }).join('');
+  refreshIcons(host);
+  let dragId = null;
+  host.querySelectorAll('[data-tut-custom]').forEach(row => {
+    row.addEventListener('dragstart', e => { dragId = row.dataset.tutCustom; row.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); } catch { /* ignore */ } });
+    row.addEventListener('dragend', () => { dragId = null; row.classList.remove('dragging'); host.querySelectorAll('[data-tut-custom]').forEach(r => r.classList.remove('drag-over')); });
+    row.addEventListener('dragover', e => { if (!dragId || dragId === row.dataset.tutCustom) return; e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      const arr = customTutorials(), from = arr.findIndex(x => x.id === dragId), to = arr.findIndex(x => x.id === row.dataset.tutCustom);
+      if (from < 0 || to < 0 || from === to) return;
+      const [moved] = arr.splice(from, 1); arr.splice(to, 0, moved);
+      dragId = null; persist(); renderTutorialList();
+    });
+  });
+}
+function moveCustomTutorial(id, dir) {
+  const arr = customTutorials(), i = arr.findIndex(x => x.id === id), j = i + (dir === 'up' ? -1 : 1);
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  persist(); renderTutorialList();
+}
+function deleteCustomTutorial(id) {
+  const item = customTutorials().find(x => x.id === id);
+  if (!item || item.source === 'library') return;
+  if (!confirm(lang === 'en' ? 'Delete this tutorial?' : 'Supprimer ce tutoriel ?')) return;
+  state.customTutorials = customTutorials().filter(x => x.id !== id);
+  if (tutSelectedCustomId === id) tutSelectedCustomId = null;
+  persist(); renderTutorialList(); renderTutorialRight();
+}
+function openCustomTutorialForm(id) {
+  const list = customTutorials();
+  const item = id ? list.find(x => x.id === id) : null;
+  if (item && item.source === 'library') return;
+  const ids = state.order.filter(sid => state.slots[sid]);
+  if (item && item.slotId && !ids.includes(item.slotId)) ids.unshift(item.slotId);
+  const options = ids.map(sid => `<option value="${esc(sid)}"${((item && item.slotId) || activeSlot) === sid ? ' selected' : ''}>${esc(slotName(sid))}</option>`).join('');
+  openModal(item ? (lang === 'en' ? 'Edit tutorial' : 'Modifier le tutoriel') : (lang === 'en' ? 'Add a tutorial' : 'Ajouter un tutoriel'), `
+    <div class="lib-form">
+      <div class="fld"><label>${esc(lang === 'en' ? 'Component' : 'Composant')}</label><select id="ct_slot">${options}</select></div>
+      <div class="fld"><label>${esc(lang === 'en' ? 'Title' : 'Titre')}</label><input id="ct_title" value="${esc(item ? item.title : '')}" placeholder="${esc(lang === 'en' ? 'My installation video' : 'Ma vidéo d’installation')}"></div>
+      <div class="fld"><label>URL</label><input id="ct_url" type="url" value="${esc(item ? item.url : '')}" placeholder="https://…"></div>
+      <div class="fld"><label>${esc(lang === 'en' ? 'Type' : 'Type')}</label><select id="ct_kind">
+        <option value="video"${item && item.kind === 'video' ? ' selected' : ''}>${esc(lang === 'en' ? 'Video' : 'Vidéo')}</option>
+        <option value="photo"${item && item.kind === 'photo' ? ' selected' : ''}>${esc(lang === 'en' ? 'Photo' : 'Photo')}</option>
+        <option value="link"${!item || item.kind === 'link' ? ' selected' : ''}>${esc(lang === 'en' ? 'Link' : 'Lien')}</option>
+      </select></div>
+      <div class="btn-row"><button class="btn btn-sm" id="ct_cancel">${esc(lang === 'en' ? 'Cancel' : 'Annuler')}</button><button class="btn btn-sm btn-primary" id="ct_save"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Save' : 'Enregistrer')}</button></div>
+    </div>`);
+  $('#ct_cancel').onclick = closeModal;
+  $('#ct_save').onclick = () => {
+    const slotId = $('#ct_slot').value, url = $('#ct_url').value.trim();
+    if (!slotId || !url) { toast(lang === 'en' ? 'Component and URL required' : 'Composant et URL requis'); return; }
+    const data = { slotId, slotDefId: state.slots[slotId] ? state.slots[slotId].defId : '', label: slotName(slotId), title: $('#ct_title').value.trim() || url, url, kind: $('#ct_kind').value || mediaKind(url), source: 'custom', updatedAt: Date.now() };
+    if (item) Object.assign(item, data); else list.push({ id: uid(), ...data });
+    persist(); closeModal(); renderTutorialList();
+    if (tutSelectedCustomId) renderTutorialRight();
+  };
+}
 function tutorialPlaylistLinks() {
   const top = $('#tutPlaylistTop');
   const materiel = $('#tutPlaylistMateriel');
@@ -8384,7 +9224,7 @@ function renderTutorialList() {
   if (!host) return;
   host.innerHTML = TUTORIALS.map(item => {
     const def = SLOT_DEFS.find(x => x.id === item.slot) || { icon: 'fa-solid fa-box' };
-    const active = item.slot === tutSelected;
+    const active = item.slot === tutSelected && !tutSelectedCustomId;
     return `<div class="slot tut-slot${active ? ' sel' : ''}" data-tut-slot="${item.slot}">
       <button class="slot-main tut-slot-main" type="button" aria-pressed="${active ? 'true' : 'false'}">
         <span class="slot-visual">${iconHtml(def.icon)}</span>
@@ -8398,6 +9238,9 @@ function renderTutorialList() {
     </div>`;
   }).join('');
   refreshIcons(host);
+  renderCustomTutorialList();
+  const count = $('#tutCount');
+  if (count) count.textContent = String(TUTORIALS.length + customTutorials().length);
 }
 function tutorialVideoBlock(source, video, approx) {
   const label = source === 'topachat' ? t('tut.topachat') : t('tut.materiel');
@@ -8415,8 +9258,9 @@ function tutorialVideoBlock(source, video, approx) {
 function renderTutorialRight() {
   const playlists = $('#tutorialPlaylists'), panel = $('#tutorialVideoPanel'), body = $('#tutorialVideos');
   if (!playlists || !panel || !body) return;
-  const item = tutSelected ? tutorialBySlot(tutSelected) : null;
-  if (!item) {
+  const custom = tutSelectedCustomId ? customTutorials().find(x => x.id === tutSelectedCustomId) : null;
+  const item = !custom && tutSelected ? tutorialBySlot(tutSelected) : null;
+  if (!custom && !item) {
     playlists.classList.remove('hidden');
     panel.classList.add('hidden');
     body.innerHTML = '';
@@ -8424,9 +9268,15 @@ function renderTutorialRight() {
   }
   playlists.classList.add('hidden');
   panel.classList.remove('hidden');
-  $('#tutorialSlotType').textContent = slotName(item.slot);
-  $('#tutorialTitle').textContent = item.top.title;
-  body.innerHTML = tutorialVideoBlock('topachat', item.top, !!item.approx) + tutorialVideoBlock('materiel', item.materiel, !!item.approx);
+  if (custom) {
+    $('#tutorialSlotType').textContent = custom.label || slotName(custom.slotId);
+    $('#tutorialTitle').textContent = custom.title || custom.url;
+    body.innerHTML = customTutorialBlock(custom);
+  } else {
+    $('#tutorialSlotType').textContent = slotName(item.slot);
+    $('#tutorialTitle').textContent = item.top.title;
+    body.innerHTML = tutorialVideoBlock('topachat', item.top, !!item.approx) + tutorialVideoBlock('materiel', item.materiel, !!item.approx);
+  }
   refreshIcons(body);
 }
 function showTutorials() {
@@ -8444,7 +9294,15 @@ function clearTutorialVideos() {
 function selectTutorial(slot) {
   if (!tutorialBySlot(slot)) return;
   clearTimeout(tutCloseTimer);
-  tutSelected = slot;
+  tutSelected = slot; tutSelectedCustomId = null;
+  renderTutorialList();
+  renderTutorialRight();
+  if (isMobileView()) openTutorialSheet();
+}
+function selectCustomTutorial(id) {
+  if (!customTutorials().some(x => x.id === id)) return;
+  clearTimeout(tutCloseTimer);
+  tutSelected = null; tutSelectedCustomId = id;
   renderTutorialList();
   renderTutorialRight();
   if (isMobileView()) openTutorialSheet();
@@ -8454,7 +9312,7 @@ function closeTutorialVideo() {
   closeTutorialSheet();
   clearTimeout(tutCloseTimer);
   const finish = () => {
-    tutSelected = null;
+    tutSelected = null; tutSelectedCustomId = null;
     renderTutorialList();
     renderTutorialRight();
   };
@@ -8577,11 +9435,21 @@ function renderExternalServices() {
 }
 
 /* ---------- Theme / lang ---------- */
+function defaultThemeForNow() {
+  return new Date().getMonth() === 10 ? 'black' : 'system';
+}
 function applyTheme() {
-  document.documentElement.dataset.theme = prefs.theme || 'system';
+  const mode = prefs.theme || defaultThemeForNow();
+  document.documentElement.dataset.theme = mode;
   const ic = $('#themeBtn i');
-  ic.className = prefs.theme === 'light' ? 'fa-solid fa-sun' : prefs.theme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-circle-half-stroke';
-  $('#themeBtn').title = 'Thème : ' + (prefs.theme || 'système');
+  ic.className = mode === 'light' ? 'fa-solid fa-sun' : mode === 'black' ? 'fa-solid fa-circle' : mode === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-circle-half-stroke';
+  const names = lang === 'en'
+    ? { light: 'light', dark: 'dark', black: 'black', system: 'system' }
+    : { light: 'clair', dark: 'sombre', black: 'noir', system: 'système' };
+  $('#themeBtn').title = (lang === 'en' ? 'Theme: ' : 'Thème : ') + (names[mode] || names.system);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    m.content = mode === 'black' ? '#000000' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
+  });
 }
 function applyLang() {
   document.documentElement.lang = lang;
@@ -8599,6 +9467,7 @@ function applyLang() {
     const tutorialPage = $('#page-tutorials');
     if (tutorialPage && !tutorialPage.classList.contains('hidden')) renderTutorialRight();
   }
+  applyTheme();
 }
 function applyUiPrefs() {
   const root = document.documentElement;
@@ -8761,6 +9630,19 @@ function bind() {
     const row = e.target.closest('[data-tut-slot]');
     if (row) selectTutorial(row.dataset.tutSlot);
   };
+  const customTutorialList = $('#customTutorialList');
+  if (customTutorialList) customTutorialList.onclick = e => {
+    const edit = e.target.closest('[data-tut-edit]');
+    if (edit) { e.stopPropagation(); openCustomTutorialForm(edit.dataset.tutEdit); return; }
+    const del = e.target.closest('[data-tut-del]');
+    if (del) { e.stopPropagation(); deleteCustomTutorial(del.dataset.tutDel); return; }
+    const move = e.target.closest('[data-tut-move]');
+    if (move) { e.stopPropagation(); moveCustomTutorial(move.dataset.tutId, move.dataset.tutMove); return; }
+    const row = e.target.closest('[data-tut-open]');
+    if (row) selectCustomTutorial(row.dataset.tutOpen);
+  };
+  const tutAddBtn = $('#tutAddBtn');
+  if (tutAddBtn) tutAddBtn.onclick = () => openCustomTutorialForm(null);
   const tutorialBack = $('#tutorialBack');
   if (tutorialBack) tutorialBack.onclick = closeTutorialVideo;
   $('#cmpAll').onclick = () => { cmpState.mode = 'all'; renderCompare(); };
@@ -8820,6 +9702,23 @@ function bind() {
     else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); galleryMove(1); }
   });
   $('#pickerNewBtn').onclick = () => openProductForm(activeSlot, null, pickerMode === 'add' ? { addOnly: true } : {});
+  $('#pickerNoneBtn').onclick = () => {
+    const slotId = activeSlot, sl = slotId && state.slots[slotId];
+    if (!sl) return;
+    if (pickerMode === 'add') {
+      addNoneAlternative(slotId);
+      closePicker();
+      return;
+    }
+    const prevSelected = sl.selectedId;
+    sl.selectedId = null; sl.none = true;
+    if (prevSelected) {
+      removeProductTutorials(prevSelected);
+      sl.products = (sl.products || []).filter(x => x.id !== prevSelected);
+    }
+    persist(); closePicker(); refresh();
+    toast(lang === 'en' ? 'Component removed' : 'Composant retiré');
+  };
   const goIdealo = () => {
     const q = $('#idealoQuery').value.trim() || slotName(activeSlot);
     const url = idealoSearchUrl(q);
@@ -8909,7 +9808,7 @@ function bind() {
         if (o.price) it.price = o.price;
         if (o.delivered > 0 && o.price) it.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
         if (o.url) it.store = o.url;
-        if (o.promo) it.promo = true;
+        setOfferPromo(it, o, { clear: true });
       }
       if (!it.name) { toast(lang === 'en' ? 'Could not read this page' : 'Lecture de la page impossible'); return; }
       $('#idealoUrl').value = '';
@@ -8928,7 +9827,7 @@ function bind() {
   $('#benchCopy').onclick = () => { navigator.clipboard?.writeText(benchQuery()); toast(lang === 'en' ? 'Copied' : 'Copié'); };
   $('#benchExtraGo').onclick = () => { benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); };
   $('#benchExtra').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); benchYtKey = ''; loadBenchYt(benchQuery(), benchRun); } };
-  $('#themeBtn').onclick = () => { prefs.theme = prefs.theme === 'light' ? 'dark' : prefs.theme === 'dark' ? 'system' : 'light'; save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang }); applyTheme(); };
+  $('#themeBtn').onclick = () => { const order = ['light', 'dark', 'black', 'system']; const cur = prefs.theme || defaultThemeForNow(); prefs.theme = order[(Math.max(0, order.indexOf(cur)) + 1) % order.length]; save(LS.prefs, { ...load(LS.prefs, {}), theme: prefs.theme, lang }); applyTheme(); };
   $('#langBtn').onclick = () => { lang = lang === 'fr' ? 'en' : 'fr'; save(LS.prefs, { ...load(LS.prefs, {}), lang, theme: prefs.theme }); applyLang(); refresh(); };
   $('#installBtn').onclick = openInstall;
   $('#modalClose').onclick = closeModal;
@@ -9023,8 +9922,9 @@ function bind() {
     ]);
     if (r && r.adopted) state = load(LS.state, null) || state;
   } catch { /* LS seed already rendered below */ }
+  normalizeStateExtras(state);
   const storedPrefs = load(LS.prefs, {});
-  prefs = { ...prefs, ...storedPrefs, theme: storedPrefs.theme || prefs.theme || 'system' };
+  prefs = { ...prefs, ...storedPrefs, theme: storedPrefs.theme || prefs.theme || defaultThemeForNow() };
   lang = storedPrefs.lang || lang;
   // load from share link
   baselineSaved(); // draft restored as-is; dirty iff different from last save
@@ -9036,7 +9936,7 @@ function bind() {
     guardUnsaved(() => { try { importConfig(shareObj, { share: true }); toast(lang === 'en' ? 'Config loaded from link' : 'Config chargée depuis le lien'); } catch { /* ignore */ } });
   } else {
     maybeWelcome();
-    schedulePriceRefresh(2500); // refresh stored prices shortly after (draft restored)
+    schedulePageRefresh(2500); // refresh stored prices, then ordered delivery statuses
   }
   maybeConsentBar();
 })();

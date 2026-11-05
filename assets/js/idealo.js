@@ -680,6 +680,30 @@ const Idealo = (() => {
     return String(slug || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
       .split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
   }
+  function offerKeyFromUrl(url) {
+    const m = String(url || '').replace(/&amp;/gi, '&').match(/[?&]offerKey=([^&#]+)/i);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function vouchersFromHtml(html) {
+    const map = new Map();
+    const re = /data-overlay-trigger="([^"]+)"/gi;
+    let m;
+    while ((m = re.exec(String(html || ''))) !== null) {
+      let j;
+      try { j = JSON.parse(b64utf8(htmlText(m[1]))); } catch { continue; }
+      const v = j && j.voucher;
+      if (!v || !v.code) continue;
+      const key = offerKeyFromUrl(j.relocateUrl || '') || String(j.offerKey || '');
+      if (!key) continue;
+      map.set(key, { promoCode: String(v.code), promoDesc: String(v.description || '') });
+    }
+    return map;
+  }
+  function withVoucher(offer, map) {
+    const v = offer && map && map.get(offer.offerKey);
+    if (!v) return offer;
+    return { ...offer, promo: true, promoCode: v.promoCode, promoDesc: v.promoDesc };
+  }
   function parseOffers(md) {
     const offers = [];
     const re = /\n\* +\[([^\]\n]{2,200})\]\(((?:https:\/\/www\.idealo\.fr)?\/relocator\/[^)\s]+)\)([\s\S]*?)(?=\n\* +\[|\n## |$)/g;
@@ -704,9 +728,10 @@ const Idealo = (() => {
       offers.push({
         title, price, delivered, merchant,
         promo: /Code Promo/i.test(body),
+        promoCode: '', promoDesc: '',
         rating: rm ? rm[1] : '',
         delivery: lm ? lm[1].trim() : '',
-        sid, url: absUrl(relUrl),
+        sid, offerKey: offerKeyFromUrl(relUrl), url: absUrl(relUrl),
       });
     }
     const seen = new Set();
@@ -764,12 +789,14 @@ const Idealo = (() => {
       offers.push({
         title: title || merchant || 'Offre', price, delivered, merchant,
         promo: /Code Promo|Bon plan/i.test(chunk),
+        promoCode: '', promoDesc: '',
         rating: ratingM ? ratingM[1] : '',
-        delivery, sid, url: absUrl(relUrl),
+        delivery, sid, offerKey: offerKeyFromUrl(relUrl), url: absUrl(relUrl),
       });
     }
+    const vouchers = vouchersFromHtml(src);
     const seen = new Set();
-    return offers.filter(o => {
+    return offers.map(o => withVoucher(o, vouchers)).filter(o => {
       const k = o.sid + '|' + o.price + '|' + o.title;
       if (seen.has(k)) return false;
       seen.add(k);
@@ -792,6 +819,16 @@ const Idealo = (() => {
     }
   }
 
+  async function enrichOffers(items, url) {
+    if (!items.some(o => o.promo && !o.promoCode)) return items;
+    try {
+      const html = await getProductHtml(url);
+      const vouchers = vouchersFromHtml(html);
+      if (vouchers.size) return items.map(o => withVoucher(o, vouchers));
+    } catch { /* keep markdown offers */ }
+    return items;
+  }
+
   async function offers(url, force) {
     try {
       let { md, cached } = await cachedMd(url, force);
@@ -801,7 +838,7 @@ const Idealo = (() => {
         items = parseOffers(md);
         cached = false;
       }
-      if (items.length) return { offers: items, cached: !!cached };
+      if (items.length) return { offers: await enrichOffers(items, url), cached: !!cached };
       // Reader Markdown can omit the offer list while the raw HTML still has it.
       let html = await getProductHtml(url);
       items = parseOffersHtml(html);
