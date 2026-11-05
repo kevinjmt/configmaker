@@ -415,14 +415,18 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-ds-spin{color:var(--muted-2);font-size:.75rem;margin-left:4px}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
 .delivery-tag{position:relative;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 15px 84px}
+.delivery-tag.st-delivered{color:var(--success)}
+.delivery-tag.st-issue{color:var(--danger)}
 .delivery-tag .delivery-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.delivery-tag .delivery-bar{position:absolute;left:84px;right:14px;bottom:7px;height:3px;border-radius:999px;background:color-mix(in srgb,var(--info) 16%,var(--line));overflow:hidden}
-.delivery-tag .delivery-bar>span{display:block;height:100%;border-radius:inherit;background:var(--info);transition:width .3s ease}
-.delivery-tag.st-delivered .delivery-bar>span{background:var(--success)}
-.delivery-tag.st-issue .delivery-bar>span{background:var(--danger)}
+.delivery-tag .delivery-ico{flex:0 0 auto}
+.delivery-tag.st-preparing .delivery-ico,.delivery-tag.st-transit .delivery-ico,.delivery-tag.st-out .delivery-ico{animation:deliverySlide 1.4s ease-in-out infinite}
+@keyframes deliverySlide{0%,100%{transform:translateX(-2px)}50%{transform:translateX(2px)}}
+.delivery-tag .delivery-bar{position:absolute;left:84px;right:14px;bottom:7px;height:3px;border-radius:999px;background:color-mix(in srgb,currentColor 16%,var(--line));overflow:hidden}
+.delivery-tag .delivery-bar>span{display:block;height:100%;border-radius:inherit;background:currentColor;transition:width .3s ease}
 .delivery-tag.checking{border-radius:10px;overflow:hidden}
 .delivery-tag.checking::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 25%,rgba(128,128,128,.20) 50%,transparent 75%);background-size:250% 100%;animation:sk 1.4s infinite;z-index:1}
 html[data-anim="off"] .delivery-tag.checking::after{animation:none}
+@media (prefers-reduced-motion:reduce){.delivery-tag .delivery-ico{animation:none!important}}
 .delivery-status{border:1px solid var(--line);border-radius:12px;background:var(--bg-soft);padding:11px 13px;margin:0 0 12px;font-size:.82rem;line-height:1.4}
 .delivery-status-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .delivery-status-head strong{font-size:.9rem}

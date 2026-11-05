@@ -1592,7 +1592,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid fa-truck-fast"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
+    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
     </div>
     ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
@@ -4883,6 +4883,8 @@ const TRACKING_TTL = 10 * 60 * 1000;
 const trackingBusy = new Set();
 const trackingRefreshingPids = new Set();
 const DELIVERY_PROGRESS = { ordered: 12, preparing: 28, shipped: 48, transit: 68, out: 88, delivered: 100, issue: 100 };
+const DELIVERY_ICONS = { ordered: 'fa-clipboard-check', preparing: 'fa-cart-flatbed', shipped: 'fa-truck-ramp-box', transit: 'fa-truck-plane', out: 'fa-truck-fast', delivered: 'fa-house-circle-check', issue: 'fa-triangle-exclamation' };
+function deliveryIcon(p) { return (p && DELIVERY_ICONS[p.tstatus]) || 'fa-truck-fast'; }
 function deliveryProgress(p) {
   if (!p) return 0;
   if (DELIVERY_PROGRESS[p.tstatus] != null) return DELIVERY_PROGRESS[p.tstatus];
