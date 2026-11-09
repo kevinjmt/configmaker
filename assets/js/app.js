@@ -7535,6 +7535,14 @@ function guardUnsaved(run, onCancel) {
   };
 }
 function newConfig() { guardUnsaved(wipeToNew); }
+function openNews() {
+  const cfgs = load(LS.configs, {});
+  const names = Object.keys(cfgs);
+  openModal(lang === 'en' ? 'News' : 'News', `
+    <div class="btn-row" style="justify-content:start"></div>
+    <p class="hint">${lang === 'en' ? 'No news for now. :)' : 'Pas de news pour le moment. :)'}</p></div>`);
+    {/* <div id="l_list" style="margin-top:12px">${names.length ? '' : `<p class="hint">${lang === 'en' ? 'No news for now. :)' : 'Pas de news pour le moment. :)'}</p>`}</div>`); */}
+}
 function openLoad() {
   const cfgs = load(LS.configs, {});
   const names = Object.keys(cfgs);
@@ -9750,6 +9758,7 @@ function bind() {
   $('#historyBtn').onclick = openHistory;
   $('#shareBtn').onclick = () => openShareExport('share');
   $('#exportBtn').onclick = () => openShareExport('export');
+  $('#newsBtn').onclick = openNews;
   $('#settingsBtn').onclick = openSettings;
   wireProgressCancel();
   $('#footExport').onclick = e => { e.preventDefault(); exportAll(); };
