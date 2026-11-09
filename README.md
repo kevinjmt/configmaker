@@ -7,7 +7,7 @@
 **Build, compare and understand your PC setup — locally.**
 
 [![Open ConfigMaker](https://img.shields.io/badge/Open-ConfigMaker-1a8744?style=for-the-badge&logo=githubpages&logoColor=white)](https://kevinjmt.github.io/configmaker)
-[![Version](https://img.shields.io/badge/version-2.1.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-60a5fa?style=for-the-badge&logo=pwa&logoColor=white)](https://kevinjmt.github.io/configmaker)
 [![Issues](https://img.shields.io/badge/issues-welcome-ff6b6b?style=for-the-badge&logo=github&logoColor=white)](https://github.com/kevinjmt/configmaker/issues)
 
@@ -85,6 +85,17 @@ Open <http://localhost:8080>.
 - Nothing is uploaded to a ConfigMaker server. There is no ConfigMaker account.
 - External services are contacted only when you use the features that need them: prices, product data, benchmarks, tutorials, AI or web fonts.
 - Exporting JSON gives you a portable copy of your data. Clearing browser storage removes local data.
+
+### Release 2.2.0
+
+This release brings:
+
+- price alerts on components, alternatives and summary rows, with a target price, a ringing/blinking state, a pulsing card outline and a count badge in the Description tab when reached;
+- alerts checked only when prices are refreshed, never on page load or when saving the target;
+- a simple alert popup with the component photo, a short description, the target price, a remove action and a direct link to the Idealo product page;
+- a link to the Idealo account page for users who want a real-time alert.
+
+See the in-app **Changelog** for the full history.
 
 ### Release 2.1.0
 
@@ -198,6 +209,6 @@ Les rapports de bugs, idées et pull requests sont les bienvenus.
 
 <div align="center">
 
-**ConfigMaker v2.1.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
+**ConfigMaker v2.2.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
 
 </div>

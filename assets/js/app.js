@@ -1,11 +1,11 @@
-/* ConfigMaker v2.1.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.2.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const APP_URL = 'https://kevinjmt.github.io/configmaker';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
@@ -639,6 +639,8 @@ function normalizeStateExtras(st) {
       if (!p || typeof p !== 'object') return;
       p.ordered = !!p.ordered;
       p.orderedAt = Number(p.orderedAt) || 0;
+      const alert = normalizePriceAlert(p.priceAlert);
+      if (alert) p.priceAlert = alert; else delete p.priceAlert;
       if (migrateTrackingOrder && p.tracking && !p.ordered) {
         p.ordered = true;
         p.orderedAt = p.orderedAt || Date.now();
@@ -652,6 +654,43 @@ function normalizeStateExtras(st) {
   return st;
 }
 function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function roundMoney(value) { return Math.round((Number(value) || 0) * 100) / 100; }
+function normalizePriceAlert(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const target = Math.max(0, roundMoney(raw.target));
+  const enabled = raw.enabled === true;
+  if (!enabled && !(target > 0)) return null;
+  const createdAt = Number(raw.createdAt) || Date.now();
+  return {
+    enabled,
+    target,
+    hit: enabled && target > 0 && raw.hit === true,
+    hitAt: Number(raw.hitAt) || 0,
+    createdAt,
+    updatedAt: Number(raw.updatedAt) || createdAt,
+  };
+}
+function priceAlertOf(p) { return p && p.priceAlert && typeof p.priceAlert === 'object' ? p.priceAlert : null; }
+function priceAlertHit(p) { const a = priceAlertOf(p); return !!(a && a.enabled && a.target > 0 && a.hit); }
+function priceAlertEnabled(p) { const a = priceAlertOf(p); return !!(a && a.enabled && a.target > 0); }
+function evaluatePriceAlert(p) {
+  const a = priceAlertOf(p);
+  if (!a) return false;
+  const price = Number(p.price) || 0;
+  const hit = !!(a.enabled && a.target > 0 && price > 0 && price <= a.target + 1e-9);
+  if (!!a.hit === hit) return false;
+  a.hit = hit;
+  a.hitAt = hit ? Date.now() : 0;
+  a.updatedAt = Date.now();
+  return true;
+}
+function setPriceAlert(p, patch) {
+  if (!p) return null;
+  const previous = normalizePriceAlert(p.priceAlert) || {};
+  const next = normalizePriceAlert({ ...previous, ...patch, hit: false, hitAt: 0, updatedAt: Date.now() });
+  if (next) p.priceAlert = next; else delete p.priceAlert;
+  return next;
+}
 function setOfferPromo(target, offer, opts = {}) {
   if (!target || !offer) return false;
   let changed = false;
@@ -889,6 +928,65 @@ const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards', 'share-mode'];
 function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalBody').classList.remove('share-mode'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
 function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); box.style.removeProperty('--cmp-card-w'); } $('#modalBody').classList.remove('share-mode'); editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
 let editingPid = null;
+function findProductById(pid) {
+  for (const slotId of Object.keys(state.slots || {})) {
+    const slot = state.slots[slotId];
+    const p = slot && Array.isArray(slot.products) ? slot.products.find(x => x && x.id === pid) : null;
+    if (p) return { slotId, slot, p };
+  }
+  return null;
+}
+function priceAlertModalHtml(pid) {
+  const hit = findProductById(pid);
+  if (!hit) return '';
+  const p = hit.p, a = priceAlertOf(p);
+  const target = a && a.target > 0 ? a.target : (Number(p.price) > 0 ? Number(p.price) : '');
+  const current = Number(p.price) > 0
+    ? eur(p.price)
+    : (lang === 'en' ? 'No price yet' : 'Prix inconnu');
+  const state = a
+    ? `<p class="hint pa-state${a.hit ? ' hit' : ''}"><i class="fa-${a.hit ? 'solid' : 'regular'} fa-bell"></i> ${esc(a.hit ? (lang === 'en' ? 'Target reached' : 'Cible atteinte') : (lang === 'en' ? 'Watching' : 'En surveillance'))} · ${esc(eur(a.target))}</p>`
+    : '';
+  const idealo = p.idealo
+    ? `<a class="mini-btn" href="${esc(p.idealo)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>`
+    : '';
+  const desc = String(p.summary || p.specs || '').replace(/\s+/g, ' ').trim();
+  const descHtml = desc
+    ? `<span class="pa-desc">${esc(desc.length > 240 ? desc.slice(0, 237).trimEnd() + '…' : desc)}</span>`
+    : '';
+  const image = p.image || (Array.isArray(p.images) ? p.images[0] : '') || '';
+  const thumb = image
+    ? `<img class="pa-thumb" src="${esc(image)}" alt="${esc(p.name || '')}" loading="lazy" onerror="this.remove()">`
+    : `<span class="pa-thumb pa-noimg" aria-hidden="true"><i class="fa-solid fa-microchip"></i></span>`;
+  return `<div class="pa-wrap">
+    <div class="list-row">${thumb}<span class="grow"><strong>${esc(p.name || (lang === 'en' ? 'Component' : 'Composant'))}</strong><br><small style="color:var(--muted)">${esc(slotName(hit.slotId))} · ${esc(current)}</small>${descHtml}</span>${idealo}</div>
+    <p class="hint">${lang === 'en' ? 'The alert is checked only when prices are refreshed. For a real-time alert, create an Idealo account: <a href="https://account.idealo.fr/login" target="_blank" rel="noopener">account.idealo.fr/login</a>.' : 'L’alerte est vérifiée uniquement lors de l’actualisation des prix. Pour une alerte en temps réel, créez un compte Idealo : <a href="https://account.idealo.fr/login" target="_blank" rel="noopener">account.idealo.fr/login</a>.'}</p>
+    <div class="fld"><label for="paTarget">${esc(lang === 'en' ? 'Target price' : 'Prix cible')}</label><input type="number" min="0" step="0.01" inputmode="decimal" id="paTarget" value="${target > 0 ? Number(target).toFixed(2) : ''}" placeholder="${esc(lang === 'en' ? 'e.g. 499.00' : 'ex. 499,00')}"></div>
+    ${state}
+    <div class="btn-row"><button type="button" class="btn btn-primary" id="paSave"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Save' : 'Enregistrer')}</button>${a ? `<button type="button" class="btn" id="paClear"><i class="fa-solid fa-trash"></i> ${esc(lang === 'en' ? 'Remove' : 'Supprimer')}</button>` : ''}</div>
+  </div>`;
+}
+function openPriceAlert(slotId, pid) {
+  const hit = findProductById(pid);
+  if (!hit) return;
+  const p = hit.p;
+  openModal((lang === 'en' ? 'Price alert — ' : 'Alerte prix — ') + (p.name || (lang === 'en' ? 'Component' : 'Composant')), priceAlertModalHtml(pid));
+  const save = $('#paSave');
+  if (save) save.onclick = () => {
+    const raw = (($('#paTarget') || {}).value || '').replace(',', '.');
+    const target = Math.max(0, roundMoney(raw));
+    if (!(target > 0)) { toast(lang === 'en' ? 'Enter a target price' : 'Saisissez un prix cible'); return; }
+    setPriceAlert(p, { enabled: true, target });
+    persist(); refresh(); closeModal();
+    toast(lang === 'en' ? 'Price alert saved' : 'Alerte prix enregistrée');
+  };
+  const clear = $('#paClear');
+  if (clear) clear.onclick = () => {
+    delete p.priceAlert;
+    persist(); refresh(); closeModal();
+    toast(lang === 'en' ? 'Price alert removed' : 'Alerte prix supprimée');
+  };
+}
 
 let pillSlideRaf = 0;
 function syncPillSliders(root = document) {
@@ -994,6 +1092,7 @@ async function ensureAlternativeData(slotId) {
           if (o.delivered > 0 && o.price) c2.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
           if (o.url && !c2.store) c2.store = o.url;
           refreshFailed.delete(cur.id);
+          evaluatePriceAlert(c2);
         } else refreshFailed.add(cur.id);
       } catch { refreshFailed.add(cur.id); }
       refreshingPids.delete(cur.id);
@@ -1041,6 +1140,21 @@ function updateCompatBadge() {
   b.innerHTML = (err || warn)
     ? `${err ? `<span class="mini-count err" title="${err} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${err}</span>` : ''}${warn ? `<span class="mini-count warn" title="${warn} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${warn}</span>` : ''}`
     : '';
+}
+function priceAlertHitCount() {
+  let n = 0;
+  Object.values(state.slots || {}).forEach(s => {
+    (s && Array.isArray(s.products) ? s.products : []).forEach(p => { if (priceAlertHit(p)) n++; });
+  });
+  return n;
+}
+function updateAlertBadge() {
+  const b = $('#alertCount'); if (!b) return;
+  const n = priceAlertHitCount();
+  const title = lang === 'en'
+    ? `${n} price alert${n === 1 ? '' : 's'} reached`
+    : `${n} alerte${n === 1 ? '' : 's'} prix atteinte${n === 1 ? '' : 's'}`;
+  b.innerHTML = n ? `<span class="mini-count warn alert" title="${esc(title)}"><i class="fa-solid fa-bell"></i>${n}</span>` : '';
 }
 /* Pure helper: {err, warn} issue counts per section (pc/setup/others). Testable. */
 function compatCountsBySec(cc, slotsMap, secOf) {
@@ -1535,7 +1649,12 @@ function slotCard(id) {
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
   const noComponent = !p && !!s.none;
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '');
+  const alert = p ? priceAlertOf(p) : null;
+  const alertOn = priceAlertEnabled(p);
+  const alertHit = priceAlertHit(p);
+  const altAlertOn = s.products.some(x => priceAlertEnabled(x));
+  const altAlertHit = s.products.some(x => priceAlertHit(x));
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
   el.dataset.slot = id;
   if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
@@ -1576,7 +1695,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Ordered' : 'Commandé') : (lang === 'en' ? 'Not ordered' : 'Non commandé')}</span></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Ordered' : 'Commandé') : (lang === 'en' ? 'Not ordered' : 'Non commandé')}</span></button><button type="button" class="kj-heart slot-alert${alertOn ? ' on' : ''}${alertHit ? ' hit' : ''}" data-act="alert" aria-pressed="${alertOn ? 'true' : 'false'}" title="${esc(alertOn ? (alertHit ? (lang === 'en' ? `Price alert reached: ${eur(alert.target)}` : `Alerte prix atteinte : ${eur(alert.target)}`) : (lang === 'en' ? `Price alert: ${eur(alert.target)}` : `Alerte prix : ${eur(alert.target)}`)) : (lang === 'en' ? 'Set a price alert' : 'Créer une alerte prix'))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1594,11 +1713,12 @@ function slotCard(id) {
     </div>
     ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
     </div>
-    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}${altAlertOn ? ' has-price-alert' : ''}${altAlertHit ? ' price-alert-hit' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length})${altAlertOn ? ` <i class="fa-${altAlertHit ? 'solid' : 'regular'} fa-bell alt-alert-ico"></i>` : ''} <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.act === 'fav') { if (p) { toggleFavorite(p, slotCatKey(id)); syncFavoriteViews(); } return; }
+    if (b.dataset.act === 'alert') { if (p) openPriceAlert(id, p.id); return; }
     if (b.dataset.act === 'ordered') { if (p) { p.ordered = !p.ordered; p.orderedAt = p.ordered ? Date.now() : 0; if (p.ordered) refreshFailed.delete(p.id); persist(); renderSlots(); toast(p.ordered ? (lang === 'en' ? 'Marked as ordered — price refresh locked' : 'Marqué comme commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Order mark removed' : 'Marque de commande retirée')); } return; }
     if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
@@ -1659,7 +1779,9 @@ function renderAlts(host, s, slotId) {
       : isCurrent ? (lang === 'en' ? 'current' : 'actuel') : !cur ? '' : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
     const rowSpin = !noComp && refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
-    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '');
+    const alertOn = priceAlertEnabled(p);
+    const alertHit = priceAlertHit(p);
+    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
     row.innerHTML = noComp
       ? `<span class="grow"><strong><i class="fa-regular fa-square"></i> ${esc(noneAltLabel(slotId))}</strong></span><span class="diff ${cls}">${lbl}</span>`
       : `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
@@ -1672,6 +1794,13 @@ function renderAlts(host, s, slotId) {
     const acts = document.createElement('div');
     acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
     if (!noComp) {
+      const alertBtn = document.createElement('button');
+      alertBtn.className = 'mini-btn alt-alert' + (alertOn ? ' on' : '') + (alertHit ? ' hit' : '');
+      alertBtn.innerHTML = `<i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i>`;
+      alertBtn.title = alertOn
+        ? (alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))
+        : (lang === 'en' ? 'Set a price alert' : 'Créer une alerte prix');
+      alertBtn.onclick = e => { e.stopPropagation(); openPriceAlert(slotId, p.id); };
       const open = document.createElement('button');
       open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
       open.title = 'Idealo';
@@ -1680,7 +1809,7 @@ function renderAlts(host, s, slotId) {
       edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
       edit.title = lang === 'en' ? 'Edit' : 'Modifier';
       edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
-      acts.append(open, edit);
+      acts.append(alertBtn, open, edit);
     }
     const del = document.createElement('button');
     del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
@@ -5123,6 +5252,7 @@ function switchSum(which) {
 }
 function renderSummary() {
   const T = totals();
+  updateAlertBadge();
   const host = $('#sumDescPane'); host.innerHTML = '';
   const secs = [['pc', T.pc], ['setup', T.setup], ['others', T.others]];
   const cc = getCompat(), cnt = compatCountsBySec(cc, state.slots, s => defOf(s).sec);
@@ -5142,8 +5272,10 @@ function renderSummary() {
       const s = state.slots[id], p = sel(s);
       const row = document.createElement('div');
       const cst = getCompat().statusOf[id];
-      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
-      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + id)}</strong></span>`;
+      const alertOn = priceAlertEnabled(p);
+      const alertHit = priceAlertHit(p);
+      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
+      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price">${alertOn ? `<span class="di-alert${alertHit ? ' hit' : ''}" title="${esc(alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></span>` : ''}<strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + id)}</strong></span>`;
       row.style.cursor = 'pointer';
       row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
       row.onclick = () => focusComponent(id);
@@ -8224,6 +8356,7 @@ function applyOfferRefresh(cur, offers, withFlags) {
     const ref = o;
     if (ref && setOfferPromo(cur, ref, { clear: true })) ch = true;
   }
+  if (evaluatePriceAlert(cur)) ch = true;
   return ch;
 }
 async function refreshPageData(quiet, opts = {}) {
@@ -9023,6 +9156,9 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.2.0 — Alertes prix Idealo</h3>
+      <p class="hint"><strong>Ajouts :</strong> cloche d’alerte prix à côté du favori, sur les cartes, les alternatives et le résumé, avec objectif de prix, état orange, sonnerie, contour clignotant des cartes et pastille de comptage dans l’onglet Description quand la cible est atteinte. Une popup simple reprend la photo, une courte description et le prix du composant, permet de saisir le prix cible, de supprimer l’alerte et d’ouvrir directement la fiche du produit sur Idealo. Les alertes ne sont vérifiées que lors de l’actualisation des prix, jamais à l’ouverture ni à l’enregistrement de la cible ; un lien vers la connexion Idealo est proposé pour une alerte en temps réel. Le thème Black Month utilise désormais des surfaces ardoise plus claires, entre les thèmes clair et sombre.</p>
+    </div>
     <div class="chlog"><h3>v2.1.0 — Commandes, bibliothèque et nouvelles catégories</h3>
       <p class="hint"><strong>Ajouts :</strong> bouton « Commandé » à gauche du bouton favori, avec verrouillage de l’actualisation des prix et carte composant grisée, ainsi que les boutons « Commandé » / « Non commandé ». Thème « Black Month » activé par défaut en novembre. Option « Aucun &lt;type de composant&gt; » dans la sélection, à côté de « Nouvelle fiche ». Bouton « Ajouter un tutoriel » dans la section Tutoriels pour enregistrer des vidéos et les réorganiser. Mini-bouton « Bibliothèque » : ouverture de la bibliothèque comme les tutoriels, onglets Manuel / Unboxing / Review / Installation, ajout, édition, réorganisation et suppression de vidéos, photos et liens ; le bouton Manuel ouvre le premier lien manuel et les éléments Installation sont automatiquement ajoutés aux tutoriels ; la bibliothèque peut être exportée en PDF et JSON via la popup d’export. Actualisation automatique du suivi de livraison.</p>
       <p class="hint"><strong>Correctifs :</strong> bouton des pastilles KJ dans la sélection de composants ; bouton retour remplacé par un bouton fermer dans la fiche composant ; fonds des cartes composants sur mobile ; slots PCIe.</p>
@@ -9448,7 +9584,7 @@ function applyTheme() {
     : { light: 'clair', dark: 'sombre', black: 'noir', system: 'système' };
   $('#themeBtn').title = (lang === 'en' ? 'Theme: ' : 'Thème : ') + (names[mode] || names.system);
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
-    m.content = mode === 'black' ? '#000000' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
+    m.content = mode === 'black' ? '#273441' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
   });
 }
 function applyLang() {
