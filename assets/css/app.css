@@ -16,7 +16,7 @@
   --nav-h:68px; --max:1240px; --mobilebar-h:68px; --sheet-ease:cubic-bezier(.22,1,.36,1);
   --font:'Montserrat',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
-[data-theme="dark"]{
+[data-theme="black"]{
   --bg:#0a100d; --bg-soft:#101814; --surface:#131c17; --surface-2:#17211b;
   --ink:#eef4ef; --ink-2:#cfe0d3; --muted:#9db3a4; --muted-2:#71836f;
   --line:rgba(255,255,255,.10); --line-strong:rgba(255,255,255,.18);
@@ -24,7 +24,7 @@
   --kj-fav:#ff6b6b; --kj-rec:#60a5fa; --kj-avoid:#f87171; --kj-top:#fbbf24; --kj-tested:#4ade80;
   --active-bg:var(--ink); --active-fg:var(--bg); --active-link:#0f5c2c;
 }
-[data-theme="black"]{
+[data-theme="dark"]{
   --bg:#273441; --bg-soft:#2d3b49; --surface:#344352; --surface-2:#3b4b5b;
   --ink:#f3f7fa; --ink-2:#d5e1ea; --muted:#a4b5c3; --muted-2:#7f92a2;
   --line:rgba(255,255,255,.12); --line-strong:rgba(255,255,255,.21);
