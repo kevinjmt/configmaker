@@ -418,7 +418,9 @@ body.scrolled nav{top:12px;width:calc(100% - 24px);max-width:var(--max);margin:0
 .alt-item .mini-btn{padding:10px 11px;font-size:.78rem}
 .alt-ds-spin{color:var(--muted-2);font-size:.75rem;margin-left:4px}
 .diff.up{color:var(--danger)}.diff.down{color:var(--success)}.diff.same{color:var(--muted)}
-.delivery-tag{position:relative;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 15px 84px}
+.delivery-tag{position:relative;display:flex;align-items:center;gap:6px;width:100%;font-family:inherit;font-size:.72rem;font-weight:800;color:var(--info);padding:0 14px 15px 84px;border:0;border-radius:10px;background:transparent;text-align:left;text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease}
+.delivery-tag:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.delivery-tag:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .delivery-tag.st-delivered{color:var(--success)}
 .delivery-tag.st-issue{color:var(--danger)}
 .delivery-tag .delivery-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

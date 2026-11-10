@@ -653,7 +653,7 @@ function normalizeStateExtras(st) {
   if (migrateTrackingOrder) st.deliveryOrderedMigrated = true;
   return st;
 }
-function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
 function roundMoney(value) { return Math.round((Number(value) || 0) * 100) / 100; }
 function normalizePriceAlert(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -1644,7 +1644,18 @@ function slotCard(id) {
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
   const trackingChecking = !!(p && trackingRefreshingPids.has(p.id));
-  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(p.tstatus) ? ' st-' + p.tstatus : '';
+  const deliveryViewStatus = deliveryDisplayStatus(p);
+  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(deliveryViewStatus) ? ' st-' + deliveryViewStatus : '';
+  const deliveryTag = p && (p.tracking || p.tstatus) ? (() => {
+    const href = p.tracking ? trackingPageUrl(p.tracking) : '';
+    const cls = `delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}`;
+    const label = `${esc(p.tracking || '')}${p.tracking ? ' — ' : ''}${esc(statusLabel(deliveryViewStatus, !!p.tracking))}`;
+    const tip = p.tstatusMsg || (href ? (lang === 'en' ? 'Open on 17track' : 'Ouvrir sur 17track') : (lang === 'en' ? 'Delivery tracker' : 'Suivi colis'));
+    const inner = `<i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${label}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span>`;
+    return href
+      ? `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(tip)}"${trackingChecking ? ' aria-busy="true"' : ''}>${inner}</a>`
+      : `<button type="button" class="${cls}" data-act="delivery" title="${esc(tip)}"${trackingChecking ? ' aria-busy="true"' : ''}>${inner}</button>`;
+  })() : '';
   const stale = !!(p && refreshFailed.has(p.id));
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
@@ -1711,7 +1722,7 @@ function slotCard(id) {
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
+    ${deliveryTag}` : ''}
     </div>
     ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}${altAlertOn ? ' has-price-alert' : ''}${altAlertHit ? ' price-alert-hit' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length})${altAlertOn ? ` <i class="fa-${altAlertHit ? 'solid' : 'regular'} fa-bell alt-alert-ico"></i>` : ''} <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
@@ -5005,55 +5016,57 @@ function openPcieSim() {
 }
 
 /* ---------- Delivery ---------- */
-const CARRIERS = ['Chronopost', 'Colissimo', 'DHL', 'UPS', 'FedEx', 'Mondial Relay', 'Relais Colis', 'Amazon Logistics', 'Autre'];
 const STATUSES = ['', 'ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'];
 const TRACKING_READER = 'https://r.jina.ai/';
+const TRACKING_SOURCE = 'https://parcelsapp.com/fr/tracking/';
 const TRACKING_TTL = 10 * 60 * 1000;
+const TRACKING_CONCURRENCY = 3;
 const trackingBusy = new Set();
 const trackingRefreshingPids = new Set();
 const DELIVERY_PROGRESS = { ordered: 12, preparing: 28, shipped: 48, transit: 68, out: 88, delivered: 100, issue: 100 };
 const DELIVERY_ICONS = { ordered: 'fa-clipboard-check', preparing: 'fa-cart-flatbed', shipped: 'fa-truck-ramp-box', transit: 'fa-truck-plane', out: 'fa-truck-fast', delivered: 'fa-house-circle-check', issue: 'fa-triangle-exclamation' };
-function deliveryIcon(p) { return (p && DELIVERY_ICONS[p.tstatus]) || 'fa-truck-fast'; }
+function deliveryDisplayStatus(p) { return p ? (p.tstatus || (p.ordered ? 'ordered' : '')) : ''; }
+function deliveryIcon(p) { return DELIVERY_ICONS[deliveryDisplayStatus(p)] || 'fa-truck-fast'; }
 function deliveryProgress(p) {
   if (!p) return 0;
-  if (DELIVERY_PROGRESS[p.tstatus] != null) return DELIVERY_PROGRESS[p.tstatus];
+  const s = deliveryDisplayStatus(p);
+  if (DELIVERY_PROGRESS[s] != null) return DELIVERY_PROGRESS[s];
   return p.tracking ? 6 : 0;
 }
 function statusLabel(s, hasTracking) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (hasTracking ? (lang === 'en' ? 'Status unknown' : 'Statut inconnu') : (lang === 'en' ? 'No tracking' : 'Pas de suivi')); }
-function trackingUrl(carrier, number) {
+function trackingPageUrl(number) {
   const n = String(number || '').trim();
-  if (!n) return '';
-  const q = encodeURIComponent(n);
-  if (carrier === 'Chronopost') return `https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${q}`;
-  if (carrier === 'Colissimo') return `https://www.laposte.fr/outils/suivre-vos-envois?code=${q}`;
-  if (carrier === 'DHL') return `https://www.dhl.com/fr-fr/home/tracking/tracking-express.html?submit=1&tracking-id=${q}`;
-  if (carrier === 'UPS') return `https://www.ups.com/track?loc=fr_FR&tracknum=${q}`;
-  if (carrier === 'FedEx') return `https://www.fedex.com/fedextrack/?trknbr=${q}`;
-  if (carrier === 'Mondial Relay') return `https://www.mondialrelay.fr/suivi-de-colis?numeroExpedition=${q}`;
-  if (carrier === 'Relais Colis') return `https://www.relaiscolis.com/suivi-de-colis/?numero=${q}`;
-  if (carrier === 'Amazon Logistics') return `https://track.amazon.fr/tracking/${q}`;
-  return `https://t.17track.net/fr#nums=${q}`;
+  return n ? `https://t.17track.net/fr#nums=${encodeURIComponent(n)}` : '';
 }
-function trackingStatusFromText(text) {
+function trackingStatusFromText(text, number) {
   const clean = String(text || '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, ' ')
     .replace(/[#>*_`|]/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/[^\S\r\n]+/g, ' ');
-  const lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  const strong = clean.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
+  let lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const num = String(number || '').trim();
+  if (num) {
+    const compact = num.replace(/\s+/g, '').toUpperCase();
+    const start = lines.findIndex(l => l.replace(/\s+/g, '').toUpperCase().includes(compact));
+    if (start >= 0) {
+      const stop = lines.findIndex((l, i) => i > start && /(why is my parcel|pourquoi le suivi|track any package|no information about your package|aucune information sur votre colis)/i.test(l));
+      lines = lines.slice(start, stop > start ? stop + 1 : Math.min(lines.length, start + 120));
+    }
+  }
+  const scope = lines.join('\n');
+  const strong = scope.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
   if (strong) return { status: 'delivered', msg: strong[0] };
-  const dated = lines.filter(l => /\b\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}\b/.test(l) && /\b\d{1,2}:\d{2}\b/.test(l));
-  const pool = dated.length ? dated.slice(0, 8) : lines.filter(l => /statut|status|état|derni[eè]re|dernier|suivi|tracking/i.test(l)).slice(0, 20);
+  const pool = lines.slice(0, 120);
   const detect = line => {
     const noIssue = /(aucun incident|no issue|sans incident)/i.test(line);
-    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
+    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|returned|attempted|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
     if (/(livr[ée]|remis|delivered)/i.test(line)) return 'delivered';
     if (/(en cours de livraison|out for delivery|en livraison)/i.test(line)) return 'out';
-    if (/(acheminement|en transit|in transit|transit)/i.test(line)) return 'transit';
-    if (/(pris en charge|expédi|expedie|collected|shipped|déposé|depose)/i.test(line)) return 'shipped';
-    if (/(prépar|preparing|en attente|pending)/i.test(line)) return 'preparing';
+    if (/(acheminement|en transit|in transit|transit|arrived at|departed|processed through|customs|douane)/i.test(line)) return 'transit';
+    if (/(pris en charge|expédi|expedie|collected|shipped|picked up|accepted|déposé|depose)/i.test(line)) return 'shipped';
+    if (/(prépar|preparing|en attente|pending|label created|info received|information received|shipment information)/i.test(line)) return 'preparing';
     if (/(commandé|commande|ordered)/i.test(line)) return 'ordered';
     return '';
   };
@@ -5061,46 +5074,51 @@ function trackingStatusFromText(text) {
     const status = detect(line);
     if (status) return { status, msg: line.slice(0, 180) };
   }
-  const notFound = /(introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(clean);
-  return { status: '', msg: notFound ? (lang === 'en' ? 'Tracking number not found' : 'Numéro de suivi introuvable') : '' };
+  const notFound = /(aucune information sur votre colis|no information about your package|introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(scope);
+  return { status: '', msg: notFound ? (lang === 'en' ? 'No tracking information yet' : 'Aucune information de suivi pour le moment') : '' };
 }
-async function checkTrackingStatus(carrier, number) {
-  const url = trackingUrl(carrier, number);
-  if (!url) return { error: 'missing' };
+async function fetchTrackingStatus(number) {
+  const num = String(number || '').trim();
+  if (!num) return { error: 'missing' };
+  const url = TRACKING_SOURCE + encodeURIComponent(num);
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 30000);
   try {
-    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal });
+    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal, cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    return { ...trackingStatusFromText(text), url };
+    return { ...trackingStatusFromText(text, num), url };
   } catch (e) {
     return { error: String((e && e.message) || e), url };
   } finally { clearTimeout(timer); }
 }
+function applyTrackingStatus(p, r, number) {
+  if (!p || p.tracking !== number) return false;
+  p.tstatusAt = Date.now();
+  if (r.status) {
+    p.tstatus = r.status;
+    p.tstatusMsg = r.msg || '';
+    p.tstatusSource = 'auto';
+  } else if (r.error) {
+    p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
+  } else {
+    p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
+  }
+  return true;
+}
 async function refreshTrackingStatus(p, force) {
   if (!p || !p.tracking) return { error: 'missing' };
   if (!force && p.tstatusSource === 'manual') return { skipped: true };
-  const carrier = p.carrier, number = p.tracking;
-  const key = p.id + '|' + carrier + '|' + number;
-  if (trackingBusy.has(key)) return { busy: true };
-  trackingBusy.add(key);
+  const number = p.tracking;
+  if (trackingBusy.has(number)) return { busy: true };
+  trackingBusy.add(number);
   try {
-    const r = await checkTrackingStatus(carrier, number);
-    if (p.carrier !== carrier || p.tracking !== number) return { stale: true };
-    p.tstatusAt = Date.now();
-    if (r.status) {
-      p.tstatus = r.status;
-      p.tstatusMsg = r.msg || '';
-      p.tstatusSource = 'auto';
-    } else if (r.error) {
-      p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
-    } else {
-      p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
-    }
+    const r = await fetchTrackingStatus(number);
+    if (p.tracking !== number) return { stale: true };
+    applyTrackingStatus(p, r, number);
     persist();
     return r;
-  } finally { trackingBusy.delete(key); }
+  } finally { trackingBusy.delete(number); }
 }
 function deliveryStatusHtml(p) {
   const when = p.tstatusAt ? new Date(p.tstatusAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
@@ -5111,10 +5129,54 @@ function deliveryStatusHtml(p) {
 function shouldAutoCheckTracking(p) {
   return !!(p && p.ordered && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
 }
-async function refreshProductTracking(p, force) {
-  trackingRefreshingPids.add(p.id); renderSlots();
-  try { return await refreshTrackingStatus(p, force); }
-  finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+async function refreshTrackingBatch(targets, opts = {}) {
+  const force = !!opts.force;
+  const list = (targets || []).filter(p => p && p.tracking && (force || p.tstatusSource !== 'manual'));
+  const unique = new Map();
+  list.forEach(p => {
+    const number = String(p.tracking).trim();
+    if (!number) return;
+    if (!unique.has(number)) unique.set(number, []);
+    unique.get(number).push(p);
+  });
+  const numbers = [...unique.keys()];
+  if (!numbers.length) return { updated: 0, failed: 0 };
+  list.forEach(p => trackingRefreshingPids.add(p.id));
+  renderSlots();
+  let updated = 0, failed = 0;
+  try {
+    const results = await mapLimit(numbers, TRACKING_CONCURRENCY, async number => {
+      if (opts.shouldCancel && opts.shouldCancel()) return { number, cancelled: true };
+      if (trackingBusy.has(number)) return { number, busy: true };
+      trackingBusy.add(number);
+      try {
+        return { number, r: await fetchTrackingStatus(number) };
+      } finally { trackingBusy.delete(number); }
+    });
+    results.forEach(result => {
+      if (!result || result.cancelled || result.busy || !result.r) return;
+      if (result.r.error) failed++;
+      else if (result.r.status) updated++;
+      unique.get(result.number).forEach(p => applyTrackingStatus(p, result.r, result.number));
+    });
+    persist();
+    return { updated, failed };
+  } finally {
+    list.forEach(p => trackingRefreshingPids.delete(p.id));
+    renderSlots();
+  }
 }
 async function refreshOrderedTracking(force = false, onlyPid = null) {
   if (!state || !Array.isArray(state.order)) return { updated: 0, failed: 0 };
@@ -5125,17 +5187,12 @@ async function refreshOrderedTracking(force = false, onlyPid = null) {
       if (!p || !p.ordered || !p.tracking) return;
       if (onlyPid && p.id !== onlyPid) return;
       if (!force && !shouldAutoCheckTracking(p)) return;
-      if (p.tstatus === 'delivered' || seen.has(p.id)) return;
+      if (p.tstatusSource === 'manual' || p.tstatus === 'delivered' || seen.has(p.id)) return;
       seen.add(p.id);
       targets.push(p);
     });
   });
-  let updated = 0, failed = 0;
-  for (const p of targets) {
-    const r = await refreshProductTracking(p, force);
-    if (r && r.status) updated++;
-    else if (r && !r.busy && r.error) failed++;
-  }
+  const { updated, failed } = await refreshTrackingBatch(targets, { force });
   if (updated || failed) {
     const msg = updated
       ? `${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${updated})${failed ? ` · ${failed} ${lang === 'en' ? 'failed' : 'en échec'}` : ''}`
@@ -5148,32 +5205,27 @@ function openDelivery(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
   openModal((lang === 'en' ? 'Delivery tracker — ' : 'Suivi colis — ') + p.name, `
     <div class="form-grid">
-      <div class="fld"><label>${lang === 'en' ? 'Carrier' : 'Transporteur'}</label><select id="d_car">${CARRIERS.map(c => `<option ${p.carrier === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-      <div class="fld"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}"></div>
+      <div class="fld full"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}" autocomplete="off" spellcheck="false" placeholder="${lang === 'en' ? 'e.g. 6A12345678901' : 'ex. 6A12345678901'}"></div>
       <div class="fld full"><label>Status</label><select id="d_st">${STATUSES.map(x => `<option value="${x}" ${p.tstatus === x ? 'selected' : ''}>${x ? statusLabel(x) : '—'}</option>`).join('')}</select></div>
     </div>
     <div class="delivery-status" id="d_statusBox" data-slot="${esc(slotId)}">${deliveryStatusHtml(p)}</div>
     <div class="btn-row"><button class="btn btn-primary" id="d_save"><i class="fa-solid fa-check"></i> OK</button>
     <button class="btn" id="d_check"${p.tracking ? '' : ' disabled'}><i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}</button>
-    <a class="btn" id="d_open" target="_blank" rel="noopener" href="${esc(trackingUrl(p.carrier, p.tracking))}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> ${lang === 'en' ? 'Open tracking' : 'Ouvrir le suivi'}</a>
-    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${p.tracking ? esc('https://t.17track.net/fr#nums=' + encodeURIComponent(p.tracking)) : '#'}"${p.tracking ? '' : ' hidden'}>17track</a></div>`);
+    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${esc(trackingPageUrl(p.tracking) || '#')}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> 17track</a></div>`);
   let checking = false;
   const syncLink = () => {
-    const car = $('#d_car').value, num = $('#d_tr').value.trim();
-    const link = trackingUrl(car, num);
-    const open = $('#d_open'), alt = $('#d_17'), check = $('#d_check');
-    if (open) { open.href = link || '#'; open.hidden = !num; }
-    if (alt) { alt.href = num ? 'https://t.17track.net/fr#nums=' + encodeURIComponent(num) : '#'; alt.hidden = !num; }
+    const num = $('#d_tr').value.trim();
+    const alt = $('#d_17'), check = $('#d_check');
+    if (alt) { alt.href = trackingPageUrl(num) || '#'; alt.hidden = !num; }
     if (check) check.disabled = !num;
   };
-  $('#d_car').onchange = syncLink;
   $('#d_tr').oninput = syncLink;
   const runCheck = async force => {
     if (checking || !p.tracking) return;
     checking = true;
     const check = $('#d_check'), box = $('#d_statusBox');
     if (check) { check.disabled = true; check.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking…' : 'Vérification…'}`; }
-    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking carrier status…' : 'Vérification du statut…'}</div>`;
+    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking tracking status…' : 'Vérification du statut…'}</div>`;
     const r = await refreshTrackingStatus(p, force);
     checking = false;
     if (check) { check.disabled = !p.tracking; check.innerHTML = `<i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}`; }
@@ -5184,13 +5236,14 @@ function openDelivery(slotId) {
     }
     if (r && r.status) { refresh(); toast(lang === 'en' ? 'Status updated' : 'Statut mis à jour'); }
     else if (r && r.error) toast(lang === 'en' ? 'Automatic status unavailable' : 'Statut automatique indisponible');
+    else if (r && r.msg) toast(r.msg);
   };
   $('#d_check').onclick = () => runCheck(true);
   $('#d_save').onclick = () => {
-    const car = $('#d_car').value, num = $('#d_tr').value.trim(), st = $('#d_st').value;
+    const num = $('#d_tr').value.trim(), st = $('#d_st').value;
     const oldStatus = p.tstatus, statusChanged = st !== oldStatus;
-    const changed = car !== p.carrier || num !== p.tracking;
-    p.carrier = car;
+    const changed = num !== p.tracking;
+    delete p.carrier;
     p.tracking = num;
     if (changed) {
       p.tstatus = statusChanged ? st : '';
@@ -5209,7 +5262,7 @@ function openDelivery(slotId) {
     }
     const autoCheck = !!num && !p.tstatus && p.tstatusSource !== 'manual';
     persist(); closeModal(); refresh();
-    if (autoCheck) refreshOrderedTracking(true, p.id);
+    if (autoCheck) refreshOrderedTracking(false, p.id);
   };
   if (shouldAutoCheckTracking(p)) runCheck(false);
 }
@@ -8370,37 +8423,42 @@ function applyOfferRefresh(cur, offers, withFlags) {
 async function refreshPageData(quiet, opts = {}) {
   if (priceRefreshRunning) return;
   const skipPrices = !!opts.skipPrices;
+  const trackingTargets = [];
   const tasks = [];
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
+    (s.products || []).forEach(p => {
+      if (p && p.ordered && p.tracking && shouldAutoCheckTracking(p)) trackingTargets.push(p);
+    });
     const chosen = sel(s);
-    if (chosen && chosen.ordered) {
-      if (chosen.tracking) tasks.push({ kind: 'tracking', id, p: chosen });
-      return;
-    }
+    if (chosen && chosen.ordered) return;
     if (skipPrices || typeof Idealo === 'undefined') return;
     const products = (s.products || []).filter(x => x && !x.ordered
       && /idealo\.fr\/prix\//i.test(x.idealo || '')
       && !(editingPid && editingPid === x.id));
     if (products.length) tasks.push({ kind: 'price', id, products });
   });
-  if (!tasks.length) return;
+  if (!tasks.length && !trackingTargets.length) return;
   priceRefreshRunning = true;
   priceRefreshCancel = false;
   const prog = lang === 'en' ? 'Refreshing components' : 'Actualisation des composants';
-  if (!quiet) showProgress(`${prog} (0/${tasks.length})…`, { cancelable: true });
+  const totalSteps = tasks.length + (trackingTargets.length ? 1 : 0);
+  if (!quiet) showProgress(`${prog} (0/${totalSteps})…`, { cancelable: true });
   let priceUpdated = 0, priceFailed = 0, statusUpdated = 0, statusFailed = 0;
+  let step = 0;
+  if (trackingTargets.length) {
+    if (!quiet) showProgress(`${lang === 'en' ? 'Refreshing delivery statuses' : 'Actualisation des suivis'} (${trackingTargets.length})…`, { cancelable: true });
+    const r = await refreshTrackingBatch(trackingTargets, { shouldCancel: () => priceRefreshCancel });
+    statusUpdated = r.updated;
+    statusFailed = r.failed;
+    step = 1;
+    if (!quiet && !priceRefreshCancel) showProgress(`${prog} (${step}/${totalSteps})…`, { cancelable: true });
+  }
   const offersByUrl = new Map();
   for (let i = 0; i < tasks.length; i++) {
     if (priceRefreshCancel) break;
     const task = tasks[i];
-    if (!quiet) showProgress(`${prog} (${i + 1}/${tasks.length})…`, { cancelable: true });
-    if (task.kind === 'tracking') {
-      const r = await refreshProductTracking(task.p, true);
-      if (r && r.status) statusUpdated++;
-      else if (r && !r.busy && r.error) statusFailed++;
-      continue;
-    }
+    if (!quiet) showProgress(`${prog} (${step + i + 1}/${totalSteps})…`, { cancelable: true });
     for (const item of task.products) {
       if (priceRefreshCancel) break;
       const s = state.slots[task.id]; if (!s) break;
@@ -8441,7 +8499,8 @@ async function refreshPageData(quiet, opts = {}) {
   if (priceUpdated || priceFailed) parts.push(`${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${priceUpdated})${priceFailed ? ' · ' + priceFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
   if (statusUpdated || statusFailed) parts.push(`${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${statusUpdated})${statusFailed ? ' · ' + statusFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
   if (parts.length) toast(parts.join(' · '));
-  else if (tasks.some(t => t.kind === 'price')) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
+  else if (tasks.length) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
+  else if (trackingTargets.length) toast(lang === 'en' ? 'Delivery statuses already up to date' : 'Suivis déjà à jour');
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
 const EXPORT_PARTS = [
