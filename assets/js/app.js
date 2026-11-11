@@ -5045,24 +5045,29 @@ function trackingStatusFromText(text, number) {
     .replace(/[#>*_`|]/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/[^\S\r\n]+/g, ' ');
-  let lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const num = String(number || '').trim();
-  if (num) {
-    const compact = num.replace(/\s+/g, '').toUpperCase();
-    const start = lines.findIndex(l => l.replace(/\s+/g, '').toUpperCase().includes(compact));
-    if (start >= 0) {
-      const stop = lines.findIndex((l, i) => i > start && /(why is my parcel|pourquoi le suivi|track any package|no information about your package|aucune information sur votre colis)/i.test(l));
-      lines = lines.slice(start, stop > start ? stop + 1 : Math.min(lines.length, start + 120));
-    }
-  }
-  const scope = lines.join('\n');
-  const strong = scope.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
-  if (strong) return { status: 'delivered', msg: strong[0] };
-  const pool = lines.slice(0, 120);
+  const noInfo = /(aucune information sur votre colis|no information about your package)/i.test(clean);
+  const noInfoMsg = lang === 'en' ? 'No tracking information yet' : 'Aucune information de suivi pour le moment';
+  if (!num) return { status: '', msg: noInfo ? noInfoMsg : '' };
+  const compact = num.replace(/\s+/g, '').toUpperCase();
+  const start = lines.findIndex(l => {
+    const normalized = l.replace(/\s+/g, '').toUpperCase();
+    if (!normalized.includes(compact)) return false;
+    if (/^published time:/i.test(l)) return false;
+    if (/^url source:/i.test(l)) return true;
+    return normalized.length <= compact.length + 60 && !/(other shipments|such packages|tracking codes look|format of the universal)/i.test(l);
+  });
+  if (start < 0) return { status: '', msg: noInfo ? noInfoMsg : '' };
+  const stopRe = /(why is my parcel|pourquoi (?:mon|le)? ?suivi|pourquoi mon colis|track any package|suivre n'importe quel colis|recently tracked|recherches récentes|tracking status guide|guide des statuts|what is a tracking number|qu'est-ce qu'un numéro de suivi|delivery time|délai de livraison|tracking ebay|livré mais non reçu|delivered but not received|colis bloqué en transit)/i;
+  let end = lines.findIndex((l, i) => i > start && stopRe.test(l));
+  if (end < 0) end = Math.min(lines.length, start + 160);
+  const pool = lines.slice(start + 1, end);
   const detect = line => {
+    if (/(livré mais non reçu|delivered but not received|delivered by courier|can be delivered|right until delivery|delivery time|estimated delivery|livraison estimée|livraison prévue|délai de livraison)/i.test(line)) return '';
     const noIssue = /(aucun incident|no issue|sans incident)/i.test(line);
     if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|returned|attempted|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
-    if (/(livr[ée]|remis|delivered)/i.test(line)) return 'delivered';
+    if (/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|livr[ée]|delivered|parcel delivered)/i.test(line)) return 'delivered';
     if (/(en cours de livraison|out for delivery|en livraison)/i.test(line)) return 'out';
     if (/(acheminement|en transit|in transit|transit|arrived at|departed|processed through|customs|douane)/i.test(line)) return 'transit';
     if (/(pris en charge|expédi|expedie|collected|shipped|picked up|accepted|déposé|depose)/i.test(line)) return 'shipped';
@@ -5074,8 +5079,7 @@ function trackingStatusFromText(text, number) {
     const status = detect(line);
     if (status) return { status, msg: line.slice(0, 180) };
   }
-  const notFound = /(aucune information sur votre colis|no information about your package|introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(scope);
-  return { status: '', msg: notFound ? (lang === 'en' ? 'No tracking information yet' : 'Aucune information de suivi pour le moment') : '' };
+  return { status: '', msg: noInfo ? noInfoMsg : '' };
 }
 async function fetchTrackingStatus(number) {
   const num = String(number || '').trim();
