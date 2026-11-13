@@ -1002,6 +1002,14 @@ function syncPillSliders(root = document) {
     ind.style.width = active.offsetWidth + 'px';
     ind.style.height = active.offsetHeight + 'px';
     ind.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+    if (group.scrollWidth > group.clientWidth + 1) {
+      const max = group.scrollWidth - group.clientWidth;
+      const target = active.offsetLeft - (group.clientWidth - active.offsetWidth) / 2;
+      const left = Math.max(0, Math.min(max, target));
+      if (Math.abs(group.scrollLeft - left) > 2) {
+        try { group.scrollTo({ left, behavior: 'smooth' }); } catch { group.scrollLeft = left; }
+      }
+    }
   });
 }
 function schedulePillSliders() {
@@ -1136,10 +1144,11 @@ function updateCompatBadge() {
     pill.classList.toggle('has-err', err > 0);
     pill.classList.toggle('has-warn', err === 0 && warn > 0);
   }
-  const b = $('#compatCount'); if (!b) return;
-  b.innerHTML = (err || warn)
+  const b = $('#compatCount');
+  if (b) b.innerHTML = (err || warn)
     ? `${err ? `<span class="mini-count err" title="${err} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${err}</span>` : ''}${warn ? `<span class="mini-count warn" title="${warn} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${warn}</span>` : ''}`
     : '';
+  schedulePillSliders();
 }
 function priceAlertHitCount() {
   let n = 0;
@@ -1149,12 +1158,13 @@ function priceAlertHitCount() {
   return n;
 }
 function updateAlertBadge() {
-  const b = $('#alertCount'); if (!b) return;
+  const b = $('#alertCount');
   const n = priceAlertHitCount();
   const title = lang === 'en'
     ? `${n} price alert${n === 1 ? '' : 's'} reached`
     : `${n} alerte${n === 1 ? '' : 's'} prix atteinte${n === 1 ? '' : 's'}`;
-  b.innerHTML = n ? `<span class="mini-count warn alert" title="${esc(title)}"><i class="fa-solid fa-bell"></i>${n}</span>` : '';
+  if (b) b.innerHTML = n ? `<span class="mini-count warn alert" title="${esc(title)}"><i class="fa-solid fa-bell"></i>${n}</span>` : '';
+  schedulePillSliders();
 }
 /* Pure helper: {err, warn} issue counts per section (pc/setup/others). Testable. */
 function compatCountsBySec(cc, slotsMap, secOf) {
@@ -5307,6 +5317,28 @@ function switchSum(which) {
   updatePowerTotalsReveal();
   schedulePillSliders();
 }
+function summaryProductRow(id, s, p, opts = {}) {
+  const alternative = !!opts.alternative;
+  const row = document.createElement('div');
+  const cst = alternative ? null : getCompat().statusOf[id];
+  const alertOn = priceAlertEnabled(p);
+  const alertHit = priceAlertHit(p);
+  row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
+  if (alternative) { row.classList.add('alt-alert-row'); row.dataset.priceAlertRow = '1'; }
+  const typeLabel = alternative
+    ? `${esc(slotName(id))} · ${esc(lang === 'en' ? 'Alternative' : 'Alternative')}`
+    : esc(slotName(id));
+  row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${typeLabel}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price">${alertOn ? `<span class="di-alert${alertHit ? ' hit' : ''}" title="${esc(alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></span>` : ''}<strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + (alternative ? p.id : id))}</strong></span>`;
+  row.style.cursor = 'pointer';
+  row.title = alternative
+    ? (lang === 'en' ? 'Show alternative in page' : 'Voir l’alternative dans la page')
+    : (lang === 'en' ? 'Show in page' : 'Voir dans la page');
+  row.onclick = () => {
+    if (alternative) { openAlts.add(id); renderSlots(); }
+    focusComponent(id);
+  };
+  return row;
+}
 function renderSummary() {
   const T = totals();
   updateAlertBadge();
@@ -5327,16 +5359,10 @@ function renderSummary() {
     if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
-      const row = document.createElement('div');
-      const cst = getCompat().statusOf[id];
-      const alertOn = priceAlertEnabled(p);
-      const alertHit = priceAlertHit(p);
-      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
-      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price">${alertOn ? `<span class="di-alert${alertHit ? ' hit' : ''}" title="${esc(alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></span>` : ''}<strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + id)}</strong></span>`;
-      row.style.cursor = 'pointer';
-      row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
-      row.onclick = () => focusComponent(id);
-      secEl.appendChild(row);
+      secEl.appendChild(summaryProductRow(id, s, p));
+      (s.products || [])
+        .filter(x => x && x.id !== p.id && priceAlertHit(x))
+        .forEach(alt => secEl.appendChild(summaryProductRow(id, s, alt, { alternative: true })));
     });
     host.appendChild(secEl);
     secEl.querySelector('.dsec-head').onclick = () => {
@@ -8516,11 +8542,12 @@ const EXPORT_PARTS = [
   { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés, tutoriels perso et playlists.', hintEn: 'Selected-component tutorials, custom tutorials and playlists.', pdf: true, json: true },
   { id: 'library', icon: 'fa-solid fa-book-open', fr: 'Bibliothèques produits', en: 'Product libraries', hintFr: 'Manuels, unboxings, reviews et installations par composant.', hintEn: 'Manuals, unboxings, reviews and installations per component.', pdf: true, json: true },
   { id: 'priceHistory', icon: 'fa-solid fa-clock-rotate-left', fr: 'Historique des prix', en: 'Price history', hintFr: 'Courbes et points de prix enregistrés.', hintEn: 'Saved curves and price points.', pdf: true, json: true },
+  { id: 'priceAlerts', icon: 'fa-solid fa-bell', fr: 'Alertes prix', en: 'Price alerts', hintFr: 'Objectifs et alertes atteintes rattachés aux composants (JSON uniquement).', hintEn: 'Component alert targets and reached states (JSON only).', pdf: false, json: true },
   { id: 'savedVersions', icon: 'fa-solid fa-box-archive', fr: 'Sauvegardes', en: 'Saved versions', hintFr: 'Versions sauvegardées de cette config (JSON uniquement).', hintEn: 'Saved versions of this config (JSON only).', pdf: false, json: true },
 ];
 const EXPORT_PRESETS = [
   { id: 'all', fr: 'Tout', en: 'Everything', parts: null },
-  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption'] },
+  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption', 'priceAlerts'] },
   { id: 'configPerf', fr: 'Config + performances', en: 'Config + performance', parts: ['config', 'performances'] },
   { id: 'config', fr: 'Configuration seule', en: 'Configuration only', parts: ['config'] },
 ];
@@ -8570,14 +8597,19 @@ function exportPresetForParts(list, format) {
 function readExportSelection() {
   const saved = prefs && prefs.exportSelection;
   const format = exportFormatOf(saved && saved.format);
-  const parts = exportPartsForFormat(saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds(), format);
-  return { preset: (saved && saved.preset) || exportPresetForParts(parts, format), parts, format };
+  const savedPreset = saved && saved.preset;
+  const presetParts = savedPreset && savedPreset !== 'custom' ? exportPresetParts(savedPreset, format) : null;
+  const source = presetParts || (saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds());
+  const parts = exportPartsForFormat(source, format);
+  return { preset: savedPreset || exportPresetForParts(parts, format), parts, format };
 }
 function saveExportSelection(sel) {
   const previous = (prefs && prefs.exportSelection) || {};
   const format = exportFormatOf(sel && sel.format ? sel.format : previous.format);
-  const parts = exportPartsForFormat(sel && sel.parts, format);
-  const preset = (sel && sel.preset && sel.preset !== 'custom') ? sel.preset : exportPresetForParts(parts, format);
+  const wantedPreset = sel && sel.preset;
+  const presetParts = wantedPreset && wantedPreset !== 'custom' ? exportPresetParts(wantedPreset, format) : null;
+  const parts = presetParts || exportPartsForFormat(sel && sel.parts, format);
+  const preset = (wantedPreset && wantedPreset !== 'custom') ? wantedPreset : exportPresetForParts(parts, format);
   prefs.exportSelection = { preset, parts, format };
   try { save(LS.prefs, { ...load(LS.prefs, {}), exportSelection: prefs.exportSelection }); } catch { /* ignore */ }
   return { preset, parts, format };
@@ -8606,7 +8638,7 @@ function exportPickerHtml(sel, locked, format) {
         <span class="se-pick-tag">${esc(tags)}</span>
       </label>`;
     }).join('')}</div>
-    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : fmt === 'pdf' ? exportText('Configuration is always included. Saved versions are excluded from PDF exports.', 'La configuration est toujours incluse. Les sauvegardes sont exclues des exports PDF.') : exportText('Configuration is always included. Saved versions are available in JSON.', 'La configuration est toujours incluse. Les sauvegardes sont disponibles dans le JSON.'))}</p>
+    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : fmt === 'pdf' ? exportText('Configuration is always included. Saved versions and price alerts are excluded from PDF exports.', 'La configuration est toujours incluse. Les sauvegardes et les alertes prix sont exclues des exports PDF.') : exportText('Configuration is always included. Saved versions and price alerts are available in JSON.', 'La configuration est toujours incluse. Les sauvegardes et les alertes prix sont disponibles dans le JSON.'))}</p>
   </div>`;
 }
 function openShareExport(pill) {
@@ -8622,7 +8654,7 @@ function openShareExport(pill) {
     <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
     <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
   const exportPane = `
-    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('Choose PDF or JSON above. JSON is re-importable; PDF is a printable report and excludes saved versions.', 'Choisissez PDF ou JSON ci-dessus. Le JSON est réimportable ; le PDF est un rapport imprimable et exclut les sauvegardes.')}</p>
+    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('Choose PDF or JSON above. JSON is re-importable; PDF is a printable report and excludes saved versions and price alerts.', 'Choisissez PDF ou JSON ci-dessus. Le JSON est réimportable ; le PDF est un rapport imprimable et exclut les sauvegardes et les alertes prix.')}</p>
     <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs.')}</p>
     <div class="btn-row"><button class="btn btn-primary" id="e_go"><i class="fa-solid fa-file-export"></i> ${T('Export', 'Exporter')}</button></div>`;
   openModal(T('Share / Export', 'Partager / Exporter'), `
@@ -8687,7 +8719,7 @@ function openShareExport(pill) {
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
       b.onclick = () => {
         if (exportSel.format === b.dataset.exportFormat) return;
-        exportSel = saveExportSelection({ parts: exportSel.parts, format: b.dataset.exportFormat });
+        exportSel = saveExportSelection({ preset: exportSel.preset, parts: exportSel.parts, format: b.dataset.exportFormat });
         renderAll();
       };
     });
@@ -8772,7 +8804,7 @@ function prCleanPane(node) {
      clear it so the printed report shows every pane fully expanded */
   node.classList.remove('hidden', 'collapsed');
   node.querySelectorAll('.hidden, .collapsed').forEach(n => n.classList.remove('hidden', 'collapsed'));
-  node.querySelectorAll('.foldchev, .mini-btn, .verify-btn').forEach(n => n.remove());
+  node.querySelectorAll('.foldchev, .mini-btn, .verify-btn, .di-alert, .alt-alert-row, [data-price-alert-row]').forEach(n => n.remove());
   return prStripIds(node);
 }
 /* Clone a left-column component card and turn its action row into real
@@ -9194,17 +9226,28 @@ function exportLibraryData() {
   });
   return { items };
 }
+function stripPriceAlerts(st) {
+  if (!st || typeof st !== 'object') return st;
+  Object.values(st.slots || {}).forEach(s => {
+    if (!s || !Array.isArray(s.products)) return;
+    s.products.forEach(p => { if (p && typeof p === 'object') delete p.priceAlert; });
+  });
+  return st;
+}
 /* JSON export of the currently selected config. Configuration is always
    present so the file stays re-importable; the selection controls the rest. */
 function exportConfigJson(parts) {
   const name = state.name || 'Ma Config';
   const selected = normalizeExportParts(parts && parts.length ? parts : readExportSelection().parts);
   const chosen = new Set(selected);
+  const keepAlerts = chosen.has('priceAlerts');
+  const exportState = JSON.parse(JSON.stringify(state));
+  if (!keepAlerts) stripPriceAlerts(exportState);
   const obj = {
     app: 'ConfigMaker', version: APP_VERSION, kind: 'config',
     exportedAt: new Date().toISOString(),
     selection: { preset: exportPresetForParts(selected, 'json'), parts: selected },
-    config: state,
+    config: exportState,
   };
   if (chosen.has('performances')) obj.performances = exportPerformanceData();
   if (chosen.has('graphs')) obj.graphs = exportGraphData();
@@ -9213,7 +9256,11 @@ function exportConfigJson(parts) {
   if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
   if (chosen.has('library')) obj.library = exportLibraryData();
   if (chosen.has('priceHistory')) obj.prices = load(LS.hist, {})[name] || [];
-  if (chosen.has('savedVersions')) obj.history = load(LS.configs, {})[name] || [];
+  if (chosen.has('savedVersions')) {
+    const history = JSON.parse(JSON.stringify(load(LS.configs, {})[name] || []));
+    if (!keepAlerts && Array.isArray(history)) history.forEach(v => { if (v && v.snapshot) stripPriceAlerts(v.snapshot); });
+    obj.history = history;
+  }
   download(name + '.configmaker.json', JSON.stringify(obj, null, 2), 'application/json');
 }
 /* JSON export of everything stored (all configs, all history, prefs). */
