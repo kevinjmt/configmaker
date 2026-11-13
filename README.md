@@ -7,7 +7,7 @@
 **Build, compare and understand your PC setup — locally.**
 
 [![Open ConfigMaker](https://img.shields.io/badge/Open-ConfigMaker-1a8744?style=for-the-badge&logo=githubpages&logoColor=white)](https://kevinjmt.github.io/configmaker)
-[![Version](https://img.shields.io/badge/version-2.1.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-22c55e?style=for-the-badge)](https://github.com/kevinjmt/configmaker/releases)
 [![PWA](https://img.shields.io/badge/PWA-installable-60a5fa?style=for-the-badge&logo=pwa&logoColor=white)](https://kevinjmt.github.io/configmaker)
 [![Issues](https://img.shields.io/badge/issues-welcome-ff6b6b?style=for-the-badge&logo=github&logoColor=white)](https://github.com/kevinjmt/configmaker/issues)
 
@@ -86,6 +86,18 @@ Open <http://localhost:8080>.
 - External services are contacted only when you use the features that need them: prices, product data, benchmarks, tutorials, AI or web fonts.
 - Exporting JSON gives you a portable copy of your data. Clearing browser storage removes local data.
 
+### Release 2.2.0
+
+This release brings:
+
+- price alerts on components, alternatives and summary rows, with a target price, a ringing/blinking state, a pulsing card outline and a count badge in the Description tab when reached;
+- alerts checked only when prices are refreshed, never on page load or when saving the target;
+- a simple alert popup with the component photo, a short description, the target price, a remove action and a direct link to the Idealo product page;
+- a link to the Idealo account page for users who want a real-time alert;
+- delivery tracking without a carrier choice, with all ordered parcels refreshed in one batch through ParcelsApp and a single 17track link per parcel.
+
+See the in-app **Changelog** for the full history.
+
 ### Release 2.1.0
 
 This release brings:
@@ -105,7 +117,9 @@ ConfigMaker stands on the shoulders of excellent services and open-source projec
 | Service | Used for |
 |---|---|
 | [Idealo](https://www.idealo.fr/) | Prices, merchant offers and much of the product data. |
-| [Jina Reader](https://jina.ai/reader/) | Reading Idealo pages without CORS blocking. |
+| [Jina Reader](https://jina.ai/reader/) | Reading Idealo and ParcelsApp pages without CORS blocking. |
+| [ParcelsApp](https://parcelsapp.com/) | Automatic parcel tracking statuses. |
+| [17track](https://t.17track.net/) | Opening the detailed tracking page for a parcel. |
 | [IObit FPS Calculator](https://www.iobit.com/en/fps-calculator.php) | In-game FPS estimates. |
 | [3DMark](https://www.3dmark.com/) | Public Time Spy benchmark scores. |
 | [Geekbench Browser](https://browser.geekbench.com/) | Single-core and multi-core CPU scores. |
@@ -198,6 +212,6 @@ Les rapports de bugs, idées et pull requests sont les bienvenus.
 
 <div align="center">
 
-**ConfigMaker v2.1.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
+**ConfigMaker v2.2.0** · Made with ❤️ by [KJ](https://kevinjmt.github.io/) using AI
 
 </div>
