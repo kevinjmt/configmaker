@@ -1,11 +1,11 @@
-/* ConfigMaker v2.1.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
+/* ConfigMaker v2.2.0 — vanilla JS, 100% local (localStorage), GitHub Pages friendly.
    Idealo: native listings via Jina Reader (cached 6h) + manual fiches. No "add to cart". */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LS = { state: 'cmv2.state', configs: 'cmv2.configs', hist: 'cmv2.hist', prefs: 'cmv2.prefs', favorites: 'cmv2.favorites', kjSeen: 'cmv2.kjSeen' };
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const APP_URL = 'https://kevinjmt.github.io/configmaker';
 const load = (k, fb) => { try { const v = (typeof StoreDB !== 'undefined' ? StoreDB.getRaw(k) : localStorage.getItem(k)); return v != null ? JSON.parse(v) : fb; } catch { return fb; } };
 /* save() reports quota failures instead of swallowing them (callers must check). */
@@ -639,6 +639,8 @@ function normalizeStateExtras(st) {
       if (!p || typeof p !== 'object') return;
       p.ordered = !!p.ordered;
       p.orderedAt = Number(p.orderedAt) || 0;
+      const alert = normalizePriceAlert(p.priceAlert);
+      if (alert) p.priceAlert = alert; else delete p.priceAlert;
       if (migrateTrackingOrder && p.tracking && !p.ordered) {
         p.ordered = true;
         p.orderedAt = p.orderedAt || Date.now();
@@ -651,7 +653,44 @@ function normalizeStateExtras(st) {
   if (migrateTrackingOrder) st.deliveryOrderedMigrated = true;
   return st;
 }
-function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, carrier: '', tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
+function roundMoney(value) { return Math.round((Number(value) || 0) * 100) / 100; }
+function normalizePriceAlert(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const target = Math.max(0, roundMoney(raw.target));
+  const enabled = raw.enabled === true;
+  if (!enabled && !(target > 0)) return null;
+  const createdAt = Number(raw.createdAt) || Date.now();
+  return {
+    enabled,
+    target,
+    hit: enabled && target > 0 && raw.hit === true,
+    hitAt: Number(raw.hitAt) || 0,
+    createdAt,
+    updatedAt: Number(raw.updatedAt) || createdAt,
+  };
+}
+function priceAlertOf(p) { return p && p.priceAlert && typeof p.priceAlert === 'object' ? p.priceAlert : null; }
+function priceAlertHit(p) { const a = priceAlertOf(p); return !!(a && a.enabled && a.target > 0 && a.hit); }
+function priceAlertEnabled(p) { const a = priceAlertOf(p); return !!(a && a.enabled && a.target > 0); }
+function evaluatePriceAlert(p) {
+  const a = priceAlertOf(p);
+  if (!a) return false;
+  const price = Number(p.price) || 0;
+  const hit = !!(a.enabled && a.target > 0 && price > 0 && price <= a.target + 1e-9);
+  if (!!a.hit === hit) return false;
+  a.hit = hit;
+  a.hitAt = hit ? Date.now() : 0;
+  a.updatedAt = Date.now();
+  return true;
+}
+function setPriceAlert(p, patch) {
+  if (!p) return null;
+  const previous = normalizePriceAlert(p.priceAlert) || {};
+  const next = normalizePriceAlert({ ...previous, ...patch, hit: false, hitAt: 0, updatedAt: Date.now() });
+  if (next) p.priceAlert = next; else delete p.priceAlert;
+  return next;
+}
 function setOfferPromo(target, offer, opts = {}) {
   if (!target || !offer) return false;
   let changed = false;
@@ -889,6 +928,65 @@ const MODAL_SIZES = ['modal-xl', 'modal-wide', 'modal-cards', 'share-mode'];
 function openModal(title, html, cls) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modalBody').classList.remove('share-mode'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); if (cls) box.classList.add(cls); } $('#modalOverlay').classList.remove('hidden'); schedulePillSliders(); }
 function closeModal() { $('#modalOverlay').classList.add('hidden'); const box = $('#modalBox'); if (box) { box.classList.remove(...MODAL_SIZES); box.style.removeProperty('--cmp-card-count'); box.style.removeProperty('--cmp-card-w'); } $('#modalBody').classList.remove('share-mode'); editingPid = null; cmpCardsState = null; cmpCloseOptPop(); }
 let editingPid = null;
+function findProductById(pid) {
+  for (const slotId of Object.keys(state.slots || {})) {
+    const slot = state.slots[slotId];
+    const p = slot && Array.isArray(slot.products) ? slot.products.find(x => x && x.id === pid) : null;
+    if (p) return { slotId, slot, p };
+  }
+  return null;
+}
+function priceAlertModalHtml(pid) {
+  const hit = findProductById(pid);
+  if (!hit) return '';
+  const p = hit.p, a = priceAlertOf(p);
+  const target = a && a.target > 0 ? a.target : (Number(p.price) > 0 ? Number(p.price) : '');
+  const current = Number(p.price) > 0
+    ? eur(p.price)
+    : (lang === 'en' ? 'No price yet' : 'Prix inconnu');
+  const state = a
+    ? `<p class="hint pa-state${a.hit ? ' hit' : ''}"><i class="fa-${a.hit ? 'solid' : 'regular'} fa-bell"></i> ${esc(a.hit ? (lang === 'en' ? 'Target reached' : 'Cible atteinte') : (lang === 'en' ? 'Watching' : 'En surveillance'))} · ${esc(eur(a.target))}</p>`
+    : '';
+  const idealo = p.idealo
+    ? `<a class="mini-btn" href="${esc(p.idealo)}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Idealo</a>`
+    : '';
+  const desc = String(p.summary || p.specs || '').replace(/\s+/g, ' ').trim();
+  const descHtml = desc
+    ? `<span class="pa-desc">${esc(desc.length > 240 ? desc.slice(0, 237).trimEnd() + '…' : desc)}</span>`
+    : '';
+  const image = p.image || (Array.isArray(p.images) ? p.images[0] : '') || '';
+  const thumb = image
+    ? `<img class="pa-thumb" src="${esc(image)}" alt="${esc(p.name || '')}" loading="lazy" onerror="this.remove()">`
+    : `<span class="pa-thumb pa-noimg" aria-hidden="true"><i class="fa-solid fa-microchip"></i></span>`;
+  return `<div class="pa-wrap">
+    <div class="list-row">${thumb}<span class="grow"><strong>${esc(p.name || (lang === 'en' ? 'Component' : 'Composant'))}</strong><br><small style="color:var(--muted)">${esc(slotName(hit.slotId))} · ${esc(current)}</small>${descHtml}</span>${idealo}</div>
+    <p class="hint">${lang === 'en' ? 'The alert is checked only when prices are refreshed. For a real-time alert, create an Idealo account: <a href="https://account.idealo.fr/login" target="_blank" rel="noopener">account.idealo.fr/login</a>.' : 'L’alerte est vérifiée uniquement lors de l’actualisation des prix. Pour une alerte en temps réel, créez un compte Idealo : <a href="https://account.idealo.fr/login" target="_blank" rel="noopener">account.idealo.fr/login</a>.'}</p>
+    <div class="fld"><label for="paTarget">${esc(lang === 'en' ? 'Target price' : 'Prix cible')}</label><input type="number" min="0" step="0.01" inputmode="decimal" id="paTarget" value="${target > 0 ? Number(target).toFixed(2) : ''}" placeholder="${esc(lang === 'en' ? 'e.g. 499.00' : 'ex. 499,00')}"></div>
+    ${state}
+    <div class="btn-row"><button type="button" class="btn btn-primary" id="paSave"><i class="fa-solid fa-check"></i> ${esc(lang === 'en' ? 'Save' : 'Enregistrer')}</button>${a ? `<button type="button" class="btn" id="paClear"><i class="fa-solid fa-trash"></i> ${esc(lang === 'en' ? 'Remove' : 'Supprimer')}</button>` : ''}</div>
+  </div>`;
+}
+function openPriceAlert(slotId, pid) {
+  const hit = findProductById(pid);
+  if (!hit) return;
+  const p = hit.p;
+  openModal((lang === 'en' ? 'Price alert — ' : 'Alerte prix — ') + (p.name || (lang === 'en' ? 'Component' : 'Composant')), priceAlertModalHtml(pid));
+  const save = $('#paSave');
+  if (save) save.onclick = () => {
+    const raw = (($('#paTarget') || {}).value || '').replace(',', '.');
+    const target = Math.max(0, roundMoney(raw));
+    if (!(target > 0)) { toast(lang === 'en' ? 'Enter a target price' : 'Saisissez un prix cible'); return; }
+    setPriceAlert(p, { enabled: true, target });
+    persist(); refresh(); closeModal();
+    toast(lang === 'en' ? 'Price alert saved' : 'Alerte prix enregistrée');
+  };
+  const clear = $('#paClear');
+  if (clear) clear.onclick = () => {
+    delete p.priceAlert;
+    persist(); refresh(); closeModal();
+    toast(lang === 'en' ? 'Price alert removed' : 'Alerte prix supprimée');
+  };
+}
 
 let pillSlideRaf = 0;
 function syncPillSliders(root = document) {
@@ -904,6 +1002,14 @@ function syncPillSliders(root = document) {
     ind.style.width = active.offsetWidth + 'px';
     ind.style.height = active.offsetHeight + 'px';
     ind.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+    if (group.scrollWidth > group.clientWidth + 1) {
+      const max = group.scrollWidth - group.clientWidth;
+      const target = active.offsetLeft - (group.clientWidth - active.offsetWidth) / 2;
+      const left = Math.max(0, Math.min(max, target));
+      if (Math.abs(group.scrollLeft - left) > 2) {
+        try { group.scrollTo({ left, behavior: 'smooth' }); } catch { group.scrollLeft = left; }
+      }
+    }
   });
 }
 function schedulePillSliders() {
@@ -994,6 +1100,7 @@ async function ensureAlternativeData(slotId) {
           if (o.delivered > 0 && o.price) c2.delivery = Math.max(0, Math.round((o.delivered - o.price) * 100) / 100);
           if (o.url && !c2.store) c2.store = o.url;
           refreshFailed.delete(cur.id);
+          evaluatePriceAlert(c2);
         } else refreshFailed.add(cur.id);
       } catch { refreshFailed.add(cur.id); }
       refreshingPids.delete(cur.id);
@@ -1037,10 +1144,27 @@ function updateCompatBadge() {
     pill.classList.toggle('has-err', err > 0);
     pill.classList.toggle('has-warn', err === 0 && warn > 0);
   }
-  const b = $('#compatCount'); if (!b) return;
-  b.innerHTML = (err || warn)
+  const b = $('#compatCount');
+  if (b) b.innerHTML = (err || warn)
     ? `${err ? `<span class="mini-count err" title="${err} ${lang === 'en' ? 'issue(s)' : 'problème(s)'}"><i class="fa-solid fa-xmark"></i>${err}</span>` : ''}${warn ? `<span class="mini-count warn" title="${warn} ${lang === 'en' ? 'warning(s)' : 'avertissement(s)'}"><i class="fa-solid fa-triangle-exclamation"></i>${warn}</span>` : ''}`
     : '';
+  schedulePillSliders();
+}
+function priceAlertHitCount() {
+  let n = 0;
+  Object.values(state.slots || {}).forEach(s => {
+    (s && Array.isArray(s.products) ? s.products : []).forEach(p => { if (priceAlertHit(p)) n++; });
+  });
+  return n;
+}
+function updateAlertBadge() {
+  const b = $('#alertCount');
+  const n = priceAlertHitCount();
+  const title = lang === 'en'
+    ? `${n} price alert${n === 1 ? '' : 's'} reached`
+    : `${n} alerte${n === 1 ? '' : 's'} prix atteinte${n === 1 ? '' : 's'}`;
+  if (b) b.innerHTML = n ? `<span class="mini-count warn alert" title="${esc(title)}"><i class="fa-solid fa-bell"></i>${n}</span>` : '';
+  schedulePillSliders();
 }
 /* Pure helper: {err, warn} issue counts per section (pc/setup/others). Testable. */
 function compatCountsBySec(cc, slotsMap, secOf) {
@@ -1530,12 +1654,28 @@ function slotCard(id) {
   const isRefreshing = !!(p && refreshingPids.has(p.id));
   const altRefreshing = s.products.some(x => (!p || x.id !== p.id) && refreshingPids.has(x.id));
   const trackingChecking = !!(p && trackingRefreshingPids.has(p.id));
-  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(p.tstatus) ? ' st-' + p.tstatus : '';
+  const deliveryViewStatus = deliveryDisplayStatus(p);
+  const deliveryClass = p && ['ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'].includes(deliveryViewStatus) ? ' st-' + deliveryViewStatus : '';
+  const deliveryTag = p && (p.tracking || p.tstatus) ? (() => {
+    const href = p.tracking ? trackingPageUrl(p.tracking) : '';
+    const cls = `delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}`;
+    const label = `${esc(p.tracking || '')}${p.tracking ? ' — ' : ''}${esc(statusLabel(deliveryViewStatus, !!p.tracking))}`;
+    const tip = p.tstatusMsg || (href ? (lang === 'en' ? 'Open on 17track' : 'Ouvrir sur 17track') : (lang === 'en' ? 'Delivery tracker' : 'Suivi colis'));
+    const inner = `<i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${label}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span>`;
+    return href
+      ? `<a class="${cls}" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(tip)}"${trackingChecking ? ' aria-busy="true"' : ''}>${inner}</a>`
+      : `<button type="button" class="${cls}" data-act="delivery" title="${esc(tip)}"${trackingChecking ? ' aria-busy="true"' : ''}>${inner}</button>`;
+  })() : '';
   const stale = !!(p && refreshFailed.has(p.id));
   const stKj = p ? kjStatusFor(p, slotCatKey(id)) : null;
   const kjTint = kjTintClass(stKj);
   const noComponent = !p && !!s.none;
-  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '');
+  const alert = p ? priceAlertOf(p) : null;
+  const alertOn = priceAlertEnabled(p);
+  const alertHit = priceAlertHit(p);
+  const altAlertOn = s.products.some(x => priceAlertEnabled(x));
+  const altAlertHit = s.products.some(x => priceAlertHit(x));
+  el.className = 'slot' + (activeSlot === id ? ' sel' : '') + (stale ? ' stale' : '') + (kjTint ? ' ' + kjTint : '') + (noComponent ? ' none' : '') + (p && p.ordered ? ' ordered' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
   el.dataset.slot = id;
   if (p && p.idealo) ensureVariants(id);
   const cc = getCompat(), cks = p ? (cc.checks[id] || []) : [], cst = cc.statusOf[id];
@@ -1576,7 +1716,7 @@ function slotCard(id) {
         ? `<span class="slot-stale-row"><span class="slot-refetch" data-act="refetch" title="${lang === 'en' ? 'Refresh price' : 'Actualiser le prix'}"><i class="fa-solid fa-rotate-right"></i></span>${priceDiv}<span class="slot-warn" title="${lang === 'en' ? 'Price refresh failed' : 'Échec actualisation du prix'}"><i class="fa-solid fa-triangle-exclamation"></i></span></span>${vendorDiv}${delivDiv}`
         : priceHtml}</span>
     </button>
-    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Ordered' : 'Commandé') : (lang === 'en' ? 'Not ordered' : 'Non commandé')}</span></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
+    ${p ? `<div class="slot-badges">${p.ai ? `<span class="kj-pill slot-ai-pill" title="${lang === 'en' ? 'Added by Perplexity' : 'Ajouté par Perplexity'}"><i class="fa-solid fa-wand-magic-sparkles"></i>Perplexity</span>` : ''}${kjPillsHtml(stKj)}<button type="button" class="kj-heart slot-ordered${p.ordered ? ' on' : ''}" data-act="ordered" aria-pressed="${p.ordered ? 'true' : 'false'}" title="${p.ordered ? (lang === 'en' ? 'Ordered — price refresh locked' : 'Commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Mark as ordered' : 'Marquer comme commandé')}"><i class="fa-${p.ordered ? 'solid fa-square-check' : 'regular fa-square'}"></i><span class="slot-ordered-txt">${p.ordered ? (lang === 'en' ? 'Ordered' : 'Commandé') : (lang === 'en' ? 'Not ordered' : 'Non commandé')}</span></button><button type="button" class="kj-heart slot-alert${alertOn ? ' on' : ''}${alertHit ? ' hit' : ''}" data-act="alert" aria-pressed="${alertOn ? 'true' : 'false'}" title="${esc(alertOn ? (alertHit ? (lang === 'en' ? `Price alert reached: ${eur(alert.target)}` : `Alerte prix atteinte : ${eur(alert.target)}`) : (lang === 'en' ? `Price alert: ${eur(alert.target)}` : `Alerte prix : ${eur(alert.target)}`)) : (lang === 'en' ? 'Set a price alert' : 'Créer une alerte prix'))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></button>${kjHeartHtml(stKj.fav, 'slot-fav', 'data-act="fav"')}</div>` : ''}
     ${(cks.length || (p && p.idealo && !p.datasheet && dsLoading.has(p.id))) ? `<div class="slot-compat">${p && p.idealo && !p.datasheet && dsLoading.has(p.id) ? `<span class="compat-badge loading" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i>Datasheet…</span>` : ''}${cks.map(c => { const v = c.status === 'warn' && Array.isArray(p.verified) && p.verified.includes(c.key); const st = v ? 'checked' : c.status; return `<span class="compat-badge ${st}" title="${esc(c.tip)}${v ? ` (${lang === 'en' ? 'verified' : 'vérifié'})` : ''}"><i class="fa-solid fa-${st === 'ok' || st === 'checked' ? 'check' : st === 'warn' ? 'triangle-exclamation' : st === 'err' ? 'xmark' : 'minus'}"></i>${esc(c.label)}</span>`; }).join('')}${cks.length ? `<button class="mini-btn compat-more" data-act="compat" title="${lang === 'en' ? 'Compatibility details' : 'Détails de compatibilité'}">…</button>` : ''}</div>` : ''}
     ${p && p.variants && p.variants.items && p.variants.items.length ? renderVariantRow(id, p) : ''}
     ${p ? `<div class="slot-actions">
@@ -1592,13 +1732,14 @@ function slotCard(id) {
       <button class="mini-btn" data-act="delivery" title="${lang === 'en' ? 'Delivery tracker' : 'Suivi colis'}"><i class="fa-solid fa-truck-fast"></i>${mlbl('Suivi', 'Track')}</button>
       <button class="mini-btn danger" data-act="del" title="${lang === 'en' ? 'Remove' : 'Supprimer'}"><i class="fa-solid fa-trash"></i>${mlbl('Suppr.', 'Remove')}</button>
     </div>
-    ${p.tracking || p.tstatus ? `<div class="delivery-tag${deliveryClass}${trackingChecking ? ' checking' : ''}" title="${esc(p.tstatusMsg || '')}"${trackingChecking ? ' aria-busy="true"' : ''}><i class="fa-solid ${deliveryIcon(p)} delivery-ico"></i><span class="delivery-txt">${esc(p.carrier || '')} ${esc(p.tracking || '')} — ${esc(statusLabel(p.tstatus, !!p.tracking))}</span><span class="delivery-bar" aria-hidden="true"><span style="width:${deliveryProgress(p)}%"></span></span></div>` : ''}` : ''}
+    ${deliveryTag}` : ''}
     </div>
-    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length}) <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
+    ${(p || (Array.isArray(s.products) && s.products.length)) ? `<div class="slot-alt-tab"><button class="alt-toggle${altRefreshing ? ' refreshing-alt' : ''}${altAlertOn ? ' has-price-alert' : ''}${altAlertHit ? ' price-alert-hit' : ''}" data-act="alts"><i class="fa-solid fa-layer-group"></i> ${t('alts.see')} (${s.products.length})${altAlertOn ? ` <i class="fa-${altAlertHit ? 'solid' : 'regular'} fa-bell alt-alert-ico"></i>` : ''} <i class="fa-solid fa-chevron-${openAlts.has(id) ? 'up' : 'down'}"></i></button>
     <div class="alt-list${openAlts.has(id) ? '' : ' hidden'}" data-alts></div></div>` : ''}`;
   el.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
     if (b.dataset.act === 'fav') { if (p) { toggleFavorite(p, slotCatKey(id)); syncFavoriteViews(); } return; }
+    if (b.dataset.act === 'alert') { if (p) openPriceAlert(id, p.id); return; }
     if (b.dataset.act === 'ordered') { if (p) { p.ordered = !p.ordered; p.orderedAt = p.ordered ? Date.now() : 0; if (p.ordered) refreshFailed.delete(p.id); persist(); renderSlots(); toast(p.ordered ? (lang === 'en' ? 'Marked as ordered — price refresh locked' : 'Marqué comme commandé — actualisation du prix bloquée') : (lang === 'en' ? 'Order mark removed' : 'Marque de commande retirée')); } return; }
     if (b.dataset.act === 'alts') { const opening = !openAlts.has(id); opening ? openAlts.add(id) : openAlts.delete(id); renderSlots(); if (opening) queueAlternativeData(id); return; }
     if (b.dataset.act === 'rmslot') { removeSlot(id); return; }
@@ -1659,7 +1800,9 @@ function renderAlts(host, s, slotId) {
       : isCurrent ? (lang === 'en' ? 'current' : 'actuel') : !cur ? '' : `${diff > 0 ? '+' : ''}${eur(diff)}`;
     const row = document.createElement('div');
     const rowSpin = !noComp && refreshingPids.has(p.id) && (!cur || p.id !== cur.id);
-    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '');
+    const alertOn = priceAlertEnabled(p);
+    const alertHit = priceAlertHit(p);
+    row.className = 'alt-item' + (isCurrent ? ' current' : '') + (rowSpin ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
     row.innerHTML = noComp
       ? `<span class="grow"><strong><i class="fa-regular fa-square"></i> ${esc(noneAltLabel(slotId))}</strong></span><span class="diff ${cls}">${lbl}</span>`
       : `<span class="grow"><strong>${esc(productDisplayName(p))}</strong>${dsLoading.has(p.id) ? ` <span class="alt-ds-spin" title="${lang === 'en' ? 'Loading datasheet…' : 'Chargement de la fiche technique…'}"><i class="fa-solid fa-circle-notch fa-spin"></i></span>` : ''} · ${eur(p.price)}</span><span class="diff ${cls}">${lbl}</span>`;
@@ -1672,6 +1815,13 @@ function renderAlts(host, s, slotId) {
     const acts = document.createElement('div');
     acts.style.display = 'flex'; acts.style.gap = '4px'; acts.style.justifyContent = 'center';
     if (!noComp) {
+      const alertBtn = document.createElement('button');
+      alertBtn.className = 'mini-btn alt-alert' + (alertOn ? ' on' : '') + (alertHit ? ' hit' : '');
+      alertBtn.innerHTML = `<i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i>`;
+      alertBtn.title = alertOn
+        ? (alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))
+        : (lang === 'en' ? 'Set a price alert' : 'Créer une alerte prix');
+      alertBtn.onclick = e => { e.stopPropagation(); openPriceAlert(slotId, p.id); };
       const open = document.createElement('button');
       open.className = 'mini-btn'; open.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i>`;
       open.title = 'Idealo';
@@ -1680,7 +1830,7 @@ function renderAlts(host, s, slotId) {
       edit.className = 'mini-btn'; edit.innerHTML = `<i class="fa-solid fa-pen"></i>`;
       edit.title = lang === 'en' ? 'Edit' : 'Modifier';
       edit.onclick = e => { e.stopPropagation(); openProductForm(slotId, p); };
-      acts.append(open, edit);
+      acts.append(alertBtn, open, edit);
     }
     const del = document.createElement('button');
     del.className = 'mini-btn danger'; del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
@@ -4876,36 +5026,29 @@ function openPcieSim() {
 }
 
 /* ---------- Delivery ---------- */
-const CARRIERS = ['Chronopost', 'Colissimo', 'DHL', 'UPS', 'FedEx', 'Mondial Relay', 'Relais Colis', 'Amazon Logistics', 'Autre'];
 const STATUSES = ['', 'ordered', 'preparing', 'shipped', 'transit', 'out', 'delivered', 'issue'];
 const TRACKING_READER = 'https://r.jina.ai/';
+const TRACKING_SOURCE = 'https://parcelsapp.com/fr/tracking/';
 const TRACKING_TTL = 10 * 60 * 1000;
+const TRACKING_CONCURRENCY = 3;
 const trackingBusy = new Set();
 const trackingRefreshingPids = new Set();
 const DELIVERY_PROGRESS = { ordered: 12, preparing: 28, shipped: 48, transit: 68, out: 88, delivered: 100, issue: 100 };
 const DELIVERY_ICONS = { ordered: 'fa-clipboard-check', preparing: 'fa-cart-flatbed', shipped: 'fa-truck-ramp-box', transit: 'fa-truck-plane', out: 'fa-truck-fast', delivered: 'fa-house-circle-check', issue: 'fa-triangle-exclamation' };
-function deliveryIcon(p) { return (p && DELIVERY_ICONS[p.tstatus]) || 'fa-truck-fast'; }
+function deliveryDisplayStatus(p) { return p ? (p.tstatus || (p.ordered ? 'ordered' : '')) : ''; }
+function deliveryIcon(p) { return DELIVERY_ICONS[deliveryDisplayStatus(p)] || 'fa-truck-fast'; }
 function deliveryProgress(p) {
   if (!p) return 0;
-  if (DELIVERY_PROGRESS[p.tstatus] != null) return DELIVERY_PROGRESS[p.tstatus];
+  const s = deliveryDisplayStatus(p);
+  if (DELIVERY_PROGRESS[s] != null) return DELIVERY_PROGRESS[s];
   return p.tracking ? 6 : 0;
 }
 function statusLabel(s, hasTracking) { return { ordered: lang === 'en' ? 'Ordered' : 'Commandé', preparing: lang === 'en' ? 'Preparing' : 'En préparation', shipped: lang === 'en' ? 'Shipped' : 'Expédié', transit: lang === 'en' ? 'In transit' : 'En transit', out: lang === 'en' ? 'Out for delivery' : 'En livraison', delivered: lang === 'en' ? 'Delivered' : 'Livré', issue: lang === 'en' ? 'Issue' : 'Problème' }[s] || (hasTracking ? (lang === 'en' ? 'Status unknown' : 'Statut inconnu') : (lang === 'en' ? 'No tracking' : 'Pas de suivi')); }
-function trackingUrl(carrier, number) {
+function trackingPageUrl(number) {
   const n = String(number || '').trim();
-  if (!n) return '';
-  const q = encodeURIComponent(n);
-  if (carrier === 'Chronopost') return `https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=${q}`;
-  if (carrier === 'Colissimo') return `https://www.laposte.fr/outils/suivre-vos-envois?code=${q}`;
-  if (carrier === 'DHL') return `https://www.dhl.com/fr-fr/home/tracking/tracking-express.html?submit=1&tracking-id=${q}`;
-  if (carrier === 'UPS') return `https://www.ups.com/track?loc=fr_FR&tracknum=${q}`;
-  if (carrier === 'FedEx') return `https://www.fedex.com/fedextrack/?trknbr=${q}`;
-  if (carrier === 'Mondial Relay') return `https://www.mondialrelay.fr/suivi-de-colis?numeroExpedition=${q}`;
-  if (carrier === 'Relais Colis') return `https://www.relaiscolis.com/suivi-de-colis/?numero=${q}`;
-  if (carrier === 'Amazon Logistics') return `https://track.amazon.fr/tracking/${q}`;
-  return `https://t.17track.net/fr#nums=${q}`;
+  return n ? `https://t.17track.net/fr#nums=${encodeURIComponent(n)}` : '';
 }
-function trackingStatusFromText(text) {
+function trackingStatusFromText(text, number) {
   const clean = String(text || '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]+>/g, ' ')
@@ -4913,18 +5056,32 @@ function trackingStatusFromText(text) {
     .replace(/&nbsp;/gi, ' ')
     .replace(/[^\S\r\n]+/g, ' ');
   const lines = clean.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  const strong = clean.match(/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|parcel delivered)/i);
-  if (strong) return { status: 'delivered', msg: strong[0] };
-  const dated = lines.filter(l => /\b\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}\b/.test(l) && /\b\d{1,2}:\d{2}\b/.test(l));
-  const pool = dated.length ? dated.slice(0, 8) : lines.filter(l => /statut|status|état|derni[eè]re|dernier|suivi|tracking/i.test(l)).slice(0, 20);
+  const num = String(number || '').trim();
+  const noInfo = /(aucune information sur votre colis|no information about your package)/i.test(clean);
+  const noInfoMsg = lang === 'en' ? 'No tracking information yet' : 'Aucune information de suivi pour le moment';
+  if (!num) return { status: '', msg: noInfo ? noInfoMsg : '' };
+  const compact = num.replace(/\s+/g, '').toUpperCase();
+  const start = lines.findIndex(l => {
+    const normalized = l.replace(/\s+/g, '').toUpperCase();
+    if (!normalized.includes(compact)) return false;
+    if (/^published time:/i.test(l)) return false;
+    if (/^url source:/i.test(l)) return true;
+    return normalized.length <= compact.length + 60 && !/(other shipments|such packages|tracking codes look|format of the universal)/i.test(l);
+  });
+  if (start < 0) return { status: '', msg: noInfo ? noInfoMsg : '' };
+  const stopRe = /(why is my parcel|pourquoi (?:mon|le)? ?suivi|pourquoi mon colis|track any package|suivre n'importe quel colis|recently tracked|recherches récentes|tracking status guide|guide des statuts|what is a tracking number|qu'est-ce qu'un numéro de suivi|delivery time|délai de livraison|tracking ebay|livré mais non reçu|delivered but not received|colis bloqué en transit)/i;
+  let end = lines.findIndex((l, i) => i > start && stopRe.test(l));
+  if (end < 0) end = Math.min(lines.length, start + 160);
+  const pool = lines.slice(start + 1, end);
   const detect = line => {
+    if (/(livré mais non reçu|delivered but not received|delivered by courier|can be delivered|right until delivery|delivery time|estimated delivery|livraison estimée|livraison prévue|délai de livraison)/i.test(line)) return '';
     const noIssue = /(aucun incident|no issue|sans incident)/i.test(line);
-    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
-    if (/(livr[ée]|remis|delivered)/i.test(line)) return 'delivered';
+    if (!noIssue && /(incident|exception|échec|echec|failed|refus|retour|returned|attempted|introuvable|not found|aucun colis)/i.test(line)) return 'issue';
+    if (/(livraison effectuée|colis livré|votre colis a été livré|remis au destinataire|livr[ée]|delivered|parcel delivered)/i.test(line)) return 'delivered';
     if (/(en cours de livraison|out for delivery|en livraison)/i.test(line)) return 'out';
-    if (/(acheminement|en transit|in transit|transit)/i.test(line)) return 'transit';
-    if (/(pris en charge|expédi|expedie|collected|shipped|déposé|depose)/i.test(line)) return 'shipped';
-    if (/(prépar|preparing|en attente|pending)/i.test(line)) return 'preparing';
+    if (/(acheminement|en transit|in transit|transit|arrived at|departed|processed through|customs|douane)/i.test(line)) return 'transit';
+    if (/(pris en charge|expédi|expedie|collected|shipped|picked up|accepted|déposé|depose)/i.test(line)) return 'shipped';
+    if (/(prépar|preparing|en attente|pending|label created|info received|information received|shipment information)/i.test(line)) return 'preparing';
     if (/(commandé|commande|ordered)/i.test(line)) return 'ordered';
     return '';
   };
@@ -4932,46 +5089,50 @@ function trackingStatusFromText(text) {
     const status = detect(line);
     if (status) return { status, msg: line.slice(0, 180) };
   }
-  const notFound = /(introuvable|not found|numéro inconnu|numero inconnu|aucun résultat|aucun resultat)/i.test(clean);
-  return { status: '', msg: notFound ? (lang === 'en' ? 'Tracking number not found' : 'Numéro de suivi introuvable') : '' };
+  return { status: '', msg: noInfo ? noInfoMsg : '' };
 }
-async function checkTrackingStatus(carrier, number) {
-  const url = trackingUrl(carrier, number);
-  if (!url) return { error: 'missing' };
+async function fetchTrackingStatus(number) {
+  const num = String(number || '').trim();
+  if (!num) return { error: 'missing' };
+  const url = TRACKING_SOURCE + encodeURIComponent(num);
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 30000);
   try {
-    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal });
+    const res = await fetch(TRACKING_READER + url, { signal: ctl.signal, cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    return { ...trackingStatusFromText(text), url };
+    return { ...trackingStatusFromText(text, num), url };
   } catch (e) {
     return { error: String((e && e.message) || e), url };
   } finally { clearTimeout(timer); }
 }
+function applyTrackingStatus(p, r, number) {
+  if (!p || p.tracking !== number) return false;
+  p.tstatusAt = Date.now();
+  if (r.status) {
+    p.tstatus = r.status;
+    p.tstatusMsg = r.msg || '';
+    p.tstatusSource = 'auto';
+  } else if (r.error) {
+    p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
+  } else {
+    p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
+  }
+  return true;
+}
 async function refreshTrackingStatus(p, force) {
   if (!p || !p.tracking) return { error: 'missing' };
   if (!force && p.tstatusSource === 'manual') return { skipped: true };
-  const carrier = p.carrier, number = p.tracking;
-  const key = p.id + '|' + carrier + '|' + number;
-  if (trackingBusy.has(key)) return { busy: true };
-  trackingBusy.add(key);
+  const number = p.tracking;
+  if (trackingBusy.has(number)) return { busy: true };
+  trackingBusy.add(number);
   try {
-    const r = await checkTrackingStatus(carrier, number);
-    if (p.carrier !== carrier || p.tracking !== number) return { stale: true };
-    p.tstatusAt = Date.now();
-    if (r.status) {
-      p.tstatus = r.status;
-      p.tstatusMsg = r.msg || '';
-      p.tstatusSource = 'auto';
-    } else if (r.error) {
-      p.tstatusMsg = (lang === 'en' ? 'Automatic check unavailable: ' : 'Vérification auto indisponible : ') + r.error;
-    } else {
-      p.tstatusMsg = r.msg || (lang === 'en' ? 'Status not found' : 'Statut introuvable');
-    }
+    const r = await fetchTrackingStatus(number);
+    if (p.tracking !== number) return { stale: true };
+    applyTrackingStatus(p, r, number);
     persist();
     return r;
-  } finally { trackingBusy.delete(key); }
+  } finally { trackingBusy.delete(number); }
 }
 function deliveryStatusHtml(p) {
   const when = p.tstatusAt ? new Date(p.tstatusAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
@@ -4982,10 +5143,54 @@ function deliveryStatusHtml(p) {
 function shouldAutoCheckTracking(p) {
   return !!(p && p.ordered && p.tracking && p.tstatus !== 'delivered' && p.tstatusSource !== 'manual' && (!p.tstatusAt || Date.now() - p.tstatusAt > TRACKING_TTL));
 }
-async function refreshProductTracking(p, force) {
-  trackingRefreshingPids.add(p.id); renderSlots();
-  try { return await refreshTrackingStatus(p, force); }
-  finally { trackingRefreshingPids.delete(p.id); renderSlots(); }
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+async function refreshTrackingBatch(targets, opts = {}) {
+  const force = !!opts.force;
+  const list = (targets || []).filter(p => p && p.tracking && (force || p.tstatusSource !== 'manual'));
+  const unique = new Map();
+  list.forEach(p => {
+    const number = String(p.tracking).trim();
+    if (!number) return;
+    if (!unique.has(number)) unique.set(number, []);
+    unique.get(number).push(p);
+  });
+  const numbers = [...unique.keys()];
+  if (!numbers.length) return { updated: 0, failed: 0 };
+  list.forEach(p => trackingRefreshingPids.add(p.id));
+  renderSlots();
+  let updated = 0, failed = 0;
+  try {
+    const results = await mapLimit(numbers, TRACKING_CONCURRENCY, async number => {
+      if (opts.shouldCancel && opts.shouldCancel()) return { number, cancelled: true };
+      if (trackingBusy.has(number)) return { number, busy: true };
+      trackingBusy.add(number);
+      try {
+        return { number, r: await fetchTrackingStatus(number) };
+      } finally { trackingBusy.delete(number); }
+    });
+    results.forEach(result => {
+      if (!result || result.cancelled || result.busy || !result.r) return;
+      if (result.r.error) failed++;
+      else if (result.r.status) updated++;
+      unique.get(result.number).forEach(p => applyTrackingStatus(p, result.r, result.number));
+    });
+    persist();
+    return { updated, failed };
+  } finally {
+    list.forEach(p => trackingRefreshingPids.delete(p.id));
+    renderSlots();
+  }
 }
 async function refreshOrderedTracking(force = false, onlyPid = null) {
   if (!state || !Array.isArray(state.order)) return { updated: 0, failed: 0 };
@@ -4996,17 +5201,12 @@ async function refreshOrderedTracking(force = false, onlyPid = null) {
       if (!p || !p.ordered || !p.tracking) return;
       if (onlyPid && p.id !== onlyPid) return;
       if (!force && !shouldAutoCheckTracking(p)) return;
-      if (p.tstatus === 'delivered' || seen.has(p.id)) return;
+      if (p.tstatusSource === 'manual' || p.tstatus === 'delivered' || seen.has(p.id)) return;
       seen.add(p.id);
       targets.push(p);
     });
   });
-  let updated = 0, failed = 0;
-  for (const p of targets) {
-    const r = await refreshProductTracking(p, force);
-    if (r && r.status) updated++;
-    else if (r && !r.busy && r.error) failed++;
-  }
+  const { updated, failed } = await refreshTrackingBatch(targets, { force });
   if (updated || failed) {
     const msg = updated
       ? `${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${updated})${failed ? ` · ${failed} ${lang === 'en' ? 'failed' : 'en échec'}` : ''}`
@@ -5019,32 +5219,27 @@ function openDelivery(slotId) {
   const s = state.slots[slotId], p = sel(s); if (!p) return;
   openModal((lang === 'en' ? 'Delivery tracker — ' : 'Suivi colis — ') + p.name, `
     <div class="form-grid">
-      <div class="fld"><label>${lang === 'en' ? 'Carrier' : 'Transporteur'}</label><select id="d_car">${CARRIERS.map(c => `<option ${p.carrier === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-      <div class="fld"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}"></div>
+      <div class="fld full"><label>${lang === 'en' ? 'Tracking number' : 'N° de suivi'}</label><input id="d_tr" value="${esc(p.tracking || '')}" autocomplete="off" spellcheck="false" placeholder="${lang === 'en' ? 'e.g. 6A12345678901' : 'ex. 6A12345678901'}"></div>
       <div class="fld full"><label>Status</label><select id="d_st">${STATUSES.map(x => `<option value="${x}" ${p.tstatus === x ? 'selected' : ''}>${x ? statusLabel(x) : '—'}</option>`).join('')}</select></div>
     </div>
     <div class="delivery-status" id="d_statusBox" data-slot="${esc(slotId)}">${deliveryStatusHtml(p)}</div>
     <div class="btn-row"><button class="btn btn-primary" id="d_save"><i class="fa-solid fa-check"></i> OK</button>
     <button class="btn" id="d_check"${p.tracking ? '' : ' disabled'}><i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}</button>
-    <a class="btn" id="d_open" target="_blank" rel="noopener" href="${esc(trackingUrl(p.carrier, p.tracking))}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> ${lang === 'en' ? 'Open tracking' : 'Ouvrir le suivi'}</a>
-    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${p.tracking ? esc('https://t.17track.net/fr#nums=' + encodeURIComponent(p.tracking)) : '#'}"${p.tracking ? '' : ' hidden'}>17track</a></div>`);
+    <a class="btn" id="d_17" target="_blank" rel="noopener" href="${esc(trackingPageUrl(p.tracking) || '#')}"${p.tracking ? '' : ' hidden'}><i class="fa-solid fa-truck-fast"></i> 17track</a></div>`);
   let checking = false;
   const syncLink = () => {
-    const car = $('#d_car').value, num = $('#d_tr').value.trim();
-    const link = trackingUrl(car, num);
-    const open = $('#d_open'), alt = $('#d_17'), check = $('#d_check');
-    if (open) { open.href = link || '#'; open.hidden = !num; }
-    if (alt) { alt.href = num ? 'https://t.17track.net/fr#nums=' + encodeURIComponent(num) : '#'; alt.hidden = !num; }
+    const num = $('#d_tr').value.trim();
+    const alt = $('#d_17'), check = $('#d_check');
+    if (alt) { alt.href = trackingPageUrl(num) || '#'; alt.hidden = !num; }
     if (check) check.disabled = !num;
   };
-  $('#d_car').onchange = syncLink;
   $('#d_tr').oninput = syncLink;
   const runCheck = async force => {
     if (checking || !p.tracking) return;
     checking = true;
     const check = $('#d_check'), box = $('#d_statusBox');
     if (check) { check.disabled = true; check.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking…' : 'Vérification…'}`; }
-    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking carrier status…' : 'Vérification du statut…'}</div>`;
+    if (box) box.innerHTML = `<div class="delivery-status-head"><i class="fa-solid fa-circle-notch fa-spin"></i> ${lang === 'en' ? 'Checking tracking status…' : 'Vérification du statut…'}</div>`;
     const r = await refreshTrackingStatus(p, force);
     checking = false;
     if (check) { check.disabled = !p.tracking; check.innerHTML = `<i class="fa-solid fa-rotate"></i> ${lang === 'en' ? 'Refresh status' : 'Actualiser le statut'}`; }
@@ -5055,13 +5250,14 @@ function openDelivery(slotId) {
     }
     if (r && r.status) { refresh(); toast(lang === 'en' ? 'Status updated' : 'Statut mis à jour'); }
     else if (r && r.error) toast(lang === 'en' ? 'Automatic status unavailable' : 'Statut automatique indisponible');
+    else if (r && r.msg) toast(r.msg);
   };
   $('#d_check').onclick = () => runCheck(true);
   $('#d_save').onclick = () => {
-    const car = $('#d_car').value, num = $('#d_tr').value.trim(), st = $('#d_st').value;
+    const num = $('#d_tr').value.trim(), st = $('#d_st').value;
     const oldStatus = p.tstatus, statusChanged = st !== oldStatus;
-    const changed = car !== p.carrier || num !== p.tracking;
-    p.carrier = car;
+    const changed = num !== p.tracking;
+    delete p.carrier;
     p.tracking = num;
     if (changed) {
       p.tstatus = statusChanged ? st : '';
@@ -5080,7 +5276,7 @@ function openDelivery(slotId) {
     }
     const autoCheck = !!num && !p.tstatus && p.tstatusSource !== 'manual';
     persist(); closeModal(); refresh();
-    if (autoCheck) refreshOrderedTracking(true, p.id);
+    if (autoCheck) refreshOrderedTracking(false, p.id);
   };
   if (shouldAutoCheckTracking(p)) runCheck(false);
 }
@@ -5121,8 +5317,31 @@ function switchSum(which) {
   updatePowerTotalsReveal();
   schedulePillSliders();
 }
+function summaryProductRow(id, s, p, opts = {}) {
+  const alternative = !!opts.alternative;
+  const row = document.createElement('div');
+  const cst = alternative ? null : getCompat().statusOf[id];
+  const alertOn = priceAlertEnabled(p);
+  const alertHit = priceAlertHit(p);
+  row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '') + (alertOn ? ' has-price-alert' : '') + (alertHit ? ' price-alert-hit' : '');
+  if (alternative) { row.classList.add('alt-alert-row'); row.dataset.priceAlertRow = '1'; }
+  const typeLabel = alternative
+    ? `${esc(slotName(id))} · ${esc(lang === 'en' ? 'Alternative' : 'Alternative')}`
+    : esc(slotName(id));
+  row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${typeLabel}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price">${alertOn ? `<span class="di-alert${alertHit ? ' hit' : ''}" title="${esc(alertHit ? (lang === 'en' ? `Price alert reached: ${eur(p.priceAlert.target)}` : `Alerte prix atteinte : ${eur(p.priceAlert.target)}`) : (lang === 'en' ? `Price alert: ${eur(p.priceAlert.target)}` : `Alerte prix : ${eur(p.priceAlert.target)}`))}"><i class="fa-${alertOn ? 'solid' : 'regular'} fa-bell"></i></span>` : ''}<strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + (alternative ? p.id : id))}</strong></span>`;
+  row.style.cursor = 'pointer';
+  row.title = alternative
+    ? (lang === 'en' ? 'Show alternative in page' : 'Voir l’alternative dans la page')
+    : (lang === 'en' ? 'Show in page' : 'Voir dans la page');
+  row.onclick = () => {
+    if (alternative) { openAlts.add(id); renderSlots(); }
+    focusComponent(id);
+  };
+  return row;
+}
 function renderSummary() {
   const T = totals();
+  updateAlertBadge();
   const host = $('#sumDescPane'); host.innerHTML = '';
   const secs = [['pc', T.pc], ['setup', T.setup], ['others', T.others]];
   const cc = getCompat(), cnt = compatCountsBySec(cc, state.slots, s => defOf(s).sec);
@@ -5140,14 +5359,10 @@ function renderSummary() {
     if (foldedSecs.has(sec)) secEl.classList.add('collapsed');
     ids.forEach(id => {
       const s = state.slots[id], p = sel(s);
-      const row = document.createElement('div');
-      const cst = getCompat().statusOf[id];
-      row.className = 'ditem' + (cst === 'err' ? ' has-err' : cst === 'warn' ? ' has-warn' : '') + (refreshingPids.has(p.id) ? ' refreshing' : '');
-      row.innerHTML = `<span class="di-ico">${iconHtml(defOf(s).icon)}</span><span class="di-txt"><span class="di-type">${esc(slotName(id))}</span><span class="di-name">${esc(p.name)}${(p.qty || 1) > 1 ? ` <small style="color:var(--muted)">×${p.qty}</small>` : ''}</span></span><span class="di-price"><strong>${countNum(unitTotal(p), 'eur', 0, '', 'sum-part:' + id)}</strong></span>`;
-      row.style.cursor = 'pointer';
-      row.title = lang === 'en' ? 'Show in page' : 'Voir dans la page';
-      row.onclick = () => focusComponent(id);
-      secEl.appendChild(row);
+      secEl.appendChild(summaryProductRow(id, s, p));
+      (s.products || [])
+        .filter(x => x && x.id !== p.id && priceAlertHit(x))
+        .forEach(alt => secEl.appendChild(summaryProductRow(id, s, alt, { alternative: true })));
     });
     host.appendChild(secEl);
     secEl.querySelector('.dsec-head').onclick = () => {
@@ -7403,6 +7618,14 @@ function guardUnsaved(run, onCancel) {
   };
 }
 function newConfig() { guardUnsaved(wipeToNew); }
+function openNews() {
+  const cfgs = load(LS.configs, {});
+  const names = Object.keys(cfgs);
+  openModal(lang === 'en' ? 'News' : 'News', `
+    <div class="btn-row" style="justify-content:start"></div>
+    <p class="hint">${lang === 'en' ? 'No news for now. :)' : 'Pas de news pour le moment. :)'}</p></div>`);
+    {/* <div id="l_list" style="margin-top:12px">${names.length ? '' : `<p class="hint">${lang === 'en' ? 'No news for now. :)' : 'Pas de news pour le moment. :)'}</p>`}</div>`); */}
+}
 function openLoad() {
   const cfgs = load(LS.configs, {});
   const names = Object.keys(cfgs);
@@ -8224,42 +8447,48 @@ function applyOfferRefresh(cur, offers, withFlags) {
     const ref = o;
     if (ref && setOfferPromo(cur, ref, { clear: true })) ch = true;
   }
+  if (evaluatePriceAlert(cur)) ch = true;
   return ch;
 }
 async function refreshPageData(quiet, opts = {}) {
   if (priceRefreshRunning) return;
   const skipPrices = !!opts.skipPrices;
+  const trackingTargets = [];
   const tasks = [];
   state.order.forEach(id => {
     const s = state.slots[id]; if (!s) return;
+    (s.products || []).forEach(p => {
+      if (p && p.ordered && p.tracking && shouldAutoCheckTracking(p)) trackingTargets.push(p);
+    });
     const chosen = sel(s);
-    if (chosen && chosen.ordered) {
-      if (chosen.tracking) tasks.push({ kind: 'tracking', id, p: chosen });
-      return;
-    }
+    if (chosen && chosen.ordered) return;
     if (skipPrices || typeof Idealo === 'undefined') return;
     const products = (s.products || []).filter(x => x && !x.ordered
       && /idealo\.fr\/prix\//i.test(x.idealo || '')
       && !(editingPid && editingPid === x.id));
     if (products.length) tasks.push({ kind: 'price', id, products });
   });
-  if (!tasks.length) return;
+  if (!tasks.length && !trackingTargets.length) return;
   priceRefreshRunning = true;
   priceRefreshCancel = false;
   const prog = lang === 'en' ? 'Refreshing components' : 'Actualisation des composants';
-  if (!quiet) showProgress(`${prog} (0/${tasks.length})…`, { cancelable: true });
+  const totalSteps = tasks.length + (trackingTargets.length ? 1 : 0);
+  if (!quiet) showProgress(`${prog} (0/${totalSteps})…`, { cancelable: true });
   let priceUpdated = 0, priceFailed = 0, statusUpdated = 0, statusFailed = 0;
+  let step = 0;
+  if (trackingTargets.length) {
+    if (!quiet) showProgress(`${lang === 'en' ? 'Refreshing delivery statuses' : 'Actualisation des suivis'} (${trackingTargets.length})…`, { cancelable: true });
+    const r = await refreshTrackingBatch(trackingTargets, { shouldCancel: () => priceRefreshCancel });
+    statusUpdated = r.updated;
+    statusFailed = r.failed;
+    step = 1;
+    if (!quiet && !priceRefreshCancel) showProgress(`${prog} (${step}/${totalSteps})…`, { cancelable: true });
+  }
   const offersByUrl = new Map();
   for (let i = 0; i < tasks.length; i++) {
     if (priceRefreshCancel) break;
     const task = tasks[i];
-    if (!quiet) showProgress(`${prog} (${i + 1}/${tasks.length})…`, { cancelable: true });
-    if (task.kind === 'tracking') {
-      const r = await refreshProductTracking(task.p, true);
-      if (r && r.status) statusUpdated++;
-      else if (r && !r.busy && r.error) statusFailed++;
-      continue;
-    }
+    if (!quiet) showProgress(`${prog} (${step + i + 1}/${totalSteps})…`, { cancelable: true });
     for (const item of task.products) {
       if (priceRefreshCancel) break;
       const s = state.slots[task.id]; if (!s) break;
@@ -8300,7 +8529,8 @@ async function refreshPageData(quiet, opts = {}) {
   if (priceUpdated || priceFailed) parts.push(`${lang === 'en' ? 'Prices updated' : 'Prix actualisés'} (${priceUpdated})${priceFailed ? ' · ' + priceFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
   if (statusUpdated || statusFailed) parts.push(`${lang === 'en' ? 'Delivery status updated' : 'Statut de livraison mis à jour'} (${statusUpdated})${statusFailed ? ' · ' + statusFailed + (lang === 'en' ? ' failed' : ' en échec') : ''}`);
   if (parts.length) toast(parts.join(' · '));
-  else if (tasks.some(t => t.kind === 'price')) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
+  else if (tasks.length) toast(lang === 'en' ? 'Prices already up to date' : 'Prix déjà à jour');
+  else if (trackingTargets.length) toast(lang === 'en' ? 'Delivery statuses already up to date' : 'Suivis déjà à jour');
 }
 /* ---------- Share / Export (one mutual popup, pill-switched) ---------- */
 const EXPORT_PARTS = [
@@ -8312,11 +8542,12 @@ const EXPORT_PARTS = [
   { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés, tutoriels perso et playlists.', hintEn: 'Selected-component tutorials, custom tutorials and playlists.', pdf: true, json: true },
   { id: 'library', icon: 'fa-solid fa-book-open', fr: 'Bibliothèques produits', en: 'Product libraries', hintFr: 'Manuels, unboxings, reviews et installations par composant.', hintEn: 'Manuals, unboxings, reviews and installations per component.', pdf: true, json: true },
   { id: 'priceHistory', icon: 'fa-solid fa-clock-rotate-left', fr: 'Historique des prix', en: 'Price history', hintFr: 'Courbes et points de prix enregistrés.', hintEn: 'Saved curves and price points.', pdf: true, json: true },
+  { id: 'priceAlerts', icon: 'fa-solid fa-bell', fr: 'Alertes prix', en: 'Price alerts', hintFr: 'Objectifs et alertes atteintes rattachés aux composants (JSON uniquement).', hintEn: 'Component alert targets and reached states (JSON only).', pdf: false, json: true },
   { id: 'savedVersions', icon: 'fa-solid fa-box-archive', fr: 'Sauvegardes', en: 'Saved versions', hintFr: 'Versions sauvegardées de cette config (JSON uniquement).', hintEn: 'Saved versions of this config (JSON only).', pdf: false, json: true },
 ];
 const EXPORT_PRESETS = [
   { id: 'all', fr: 'Tout', en: 'Everything', parts: null },
-  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption'] },
+  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption', 'priceAlerts'] },
   { id: 'configPerf', fr: 'Config + performances', en: 'Config + performance', parts: ['config', 'performances'] },
   { id: 'config', fr: 'Configuration seule', en: 'Configuration only', parts: ['config'] },
 ];
@@ -8366,14 +8597,19 @@ function exportPresetForParts(list, format) {
 function readExportSelection() {
   const saved = prefs && prefs.exportSelection;
   const format = exportFormatOf(saved && saved.format);
-  const parts = exportPartsForFormat(saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds(), format);
-  return { preset: (saved && saved.preset) || exportPresetForParts(parts, format), parts, format };
+  const savedPreset = saved && saved.preset;
+  const presetParts = savedPreset && savedPreset !== 'custom' ? exportPresetParts(savedPreset, format) : null;
+  const source = presetParts || (saved && Array.isArray(saved.parts) ? saved.parts : exportAllPartIds());
+  const parts = exportPartsForFormat(source, format);
+  return { preset: savedPreset || exportPresetForParts(parts, format), parts, format };
 }
 function saveExportSelection(sel) {
   const previous = (prefs && prefs.exportSelection) || {};
   const format = exportFormatOf(sel && sel.format ? sel.format : previous.format);
-  const parts = exportPartsForFormat(sel && sel.parts, format);
-  const preset = (sel && sel.preset && sel.preset !== 'custom') ? sel.preset : exportPresetForParts(parts, format);
+  const wantedPreset = sel && sel.preset;
+  const presetParts = wantedPreset && wantedPreset !== 'custom' ? exportPresetParts(wantedPreset, format) : null;
+  const parts = presetParts || exportPartsForFormat(sel && sel.parts, format);
+  const preset = (wantedPreset && wantedPreset !== 'custom') ? wantedPreset : exportPresetForParts(parts, format);
   prefs.exportSelection = { preset, parts, format };
   try { save(LS.prefs, { ...load(LS.prefs, {}), exportSelection: prefs.exportSelection }); } catch { /* ignore */ }
   return { preset, parts, format };
@@ -8402,7 +8638,7 @@ function exportPickerHtml(sel, locked, format) {
         <span class="se-pick-tag">${esc(tags)}</span>
       </label>`;
     }).join('')}</div>
-    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : fmt === 'pdf' ? exportText('Configuration is always included. Saved versions are excluded from PDF exports.', 'La configuration est toujours incluse. Les sauvegardes sont exclues des exports PDF.') : exportText('Configuration is always included. Saved versions are available in JSON.', 'La configuration est toujours incluse. Les sauvegardes sont disponibles dans le JSON.'))}</p>
+    <p class="hint se-pick-note"><i class="fa-solid fa-circle-info"></i> ${esc(locked ? exportText('The share link itself never includes exports, history or compatibility data.', 'Le lien de partage lui-même n’inclut jamais les exports, l’historique ni la compatibilité.') : fmt === 'pdf' ? exportText('Configuration is always included. Saved versions and price alerts are excluded from PDF exports.', 'La configuration est toujours incluse. Les sauvegardes et les alertes prix sont exclues des exports PDF.') : exportText('Configuration is always included. Saved versions and price alerts are available in JSON.', 'La configuration est toujours incluse. Les sauvegardes et les alertes prix sont disponibles dans le JSON.'))}</p>
   </div>`;
 }
 function openShareExport(pill) {
@@ -8418,7 +8654,7 @@ function openShareExport(pill) {
     <div class="fld"><label>${T('Link (prefilled)', 'Lien (pré-rempli)')}</label><input id="s_link" readonly value="${esc(link)}"></div>
     <div class="btn-row"><button class="btn btn-sm btn-primary" id="s_copy"><i class="fa-solid fa-copy"></i> ${T('Copy link', 'Copier le lien')}</button></div>`;
   const exportPane = `
-    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('Choose PDF or JSON above. JSON is re-importable; PDF is a printable report and excludes saved versions.', 'Choisissez PDF ou JSON ci-dessus. Le JSON est réimportable ; le PDF est un rapport imprimable et exclut les sauvegardes.')}</p>
+    <p class="hint"><i class="fa-solid fa-circle-info"></i> ${T('Choose PDF or JSON above. JSON is re-importable; PDF is a printable report and excludes saved versions and price alerts.', 'Choisissez PDF ou JSON ci-dessus. Le JSON est réimportable ; le PDF est un rapport imprimable et exclut les sauvegardes et les alertes prix.')}</p>
     <p class="hint">${T('Tip: in the print window pick the “Save as PDF” destination (not a system/network printer). A system printer rasterizes the page — text then can’t be selected and links stop working.', 'Astuce : dans la fenêtre d’impression, choisissez la destination « Enregistrer au format PDF » (pas une imprimante système/réseau). Une imprimante système rastérise la page : le texte n’est alors plus sélectionnable et les liens deviennent inactifs.')}</p>
     <div class="btn-row"><button class="btn btn-primary" id="e_go"><i class="fa-solid fa-file-export"></i> ${T('Export', 'Exporter')}</button></div>`;
   openModal(T('Share / Export', 'Partager / Exporter'), `
@@ -8483,7 +8719,7 @@ function openShareExport(pill) {
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
       b.onclick = () => {
         if (exportSel.format === b.dataset.exportFormat) return;
-        exportSel = saveExportSelection({ parts: exportSel.parts, format: b.dataset.exportFormat });
+        exportSel = saveExportSelection({ preset: exportSel.preset, parts: exportSel.parts, format: b.dataset.exportFormat });
         renderAll();
       };
     });
@@ -8568,7 +8804,7 @@ function prCleanPane(node) {
      clear it so the printed report shows every pane fully expanded */
   node.classList.remove('hidden', 'collapsed');
   node.querySelectorAll('.hidden, .collapsed').forEach(n => n.classList.remove('hidden', 'collapsed'));
-  node.querySelectorAll('.foldchev, .mini-btn, .verify-btn').forEach(n => n.remove());
+  node.querySelectorAll('.foldchev, .mini-btn, .verify-btn, .di-alert, .alt-alert-row, [data-price-alert-row]').forEach(n => n.remove());
   return prStripIds(node);
 }
 /* Clone a left-column component card and turn its action row into real
@@ -8990,17 +9226,28 @@ function exportLibraryData() {
   });
   return { items };
 }
+function stripPriceAlerts(st) {
+  if (!st || typeof st !== 'object') return st;
+  Object.values(st.slots || {}).forEach(s => {
+    if (!s || !Array.isArray(s.products)) return;
+    s.products.forEach(p => { if (p && typeof p === 'object') delete p.priceAlert; });
+  });
+  return st;
+}
 /* JSON export of the currently selected config. Configuration is always
    present so the file stays re-importable; the selection controls the rest. */
 function exportConfigJson(parts) {
   const name = state.name || 'Ma Config';
   const selected = normalizeExportParts(parts && parts.length ? parts : readExportSelection().parts);
   const chosen = new Set(selected);
+  const keepAlerts = chosen.has('priceAlerts');
+  const exportState = JSON.parse(JSON.stringify(state));
+  if (!keepAlerts) stripPriceAlerts(exportState);
   const obj = {
     app: 'ConfigMaker', version: APP_VERSION, kind: 'config',
     exportedAt: new Date().toISOString(),
     selection: { preset: exportPresetForParts(selected, 'json'), parts: selected },
-    config: state,
+    config: exportState,
   };
   if (chosen.has('performances')) obj.performances = exportPerformanceData();
   if (chosen.has('graphs')) obj.graphs = exportGraphData();
@@ -9009,7 +9256,11 @@ function exportConfigJson(parts) {
   if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
   if (chosen.has('library')) obj.library = exportLibraryData();
   if (chosen.has('priceHistory')) obj.prices = load(LS.hist, {})[name] || [];
-  if (chosen.has('savedVersions')) obj.history = load(LS.configs, {})[name] || [];
+  if (chosen.has('savedVersions')) {
+    const history = JSON.parse(JSON.stringify(load(LS.configs, {})[name] || []));
+    if (!keepAlerts && Array.isArray(history)) history.forEach(v => { if (v && v.snapshot) stripPriceAlerts(v.snapshot); });
+    obj.history = history;
+  }
   download(name + '.configmaker.json', JSON.stringify(obj, null, 2), 'application/json');
 }
 /* JSON export of everything stored (all configs, all history, prefs). */
@@ -9023,6 +9274,9 @@ function exportAll() {
 }
 function openChangelog() {
   openModal('Changelog — v' + APP_VERSION, `
+    <div class="chlog"><h3>v2.2.0 — Alertes prix Idealo</h3>
+      <p class="hint"><strong>Ajouts :</strong> cloche d’alerte prix à côté du favori, sur les cartes, les alternatives et le résumé, avec objectif de prix, état orange, sonnerie, contour clignotant des cartes et pastille de comptage dans l’onglet Description quand la cible est atteinte. Une popup simple reprend la photo, une courte description et le prix du composant, permet de saisir le prix cible, de supprimer l’alerte et d’ouvrir directement la fiche du produit sur Idealo. Les alertes ne sont vérifiées que lors de l’actualisation des prix, jamais à l’ouverture ni à l’enregistrement de la cible ; un lien vers la connexion Idealo est proposé pour une alerte en temps réel. Le thème Black Month utilise désormais des surfaces ardoise plus claires, entre les thèmes clair et sombre.</p>
+    </div>
     <div class="chlog"><h3>v2.1.0 — Commandes, bibliothèque et nouvelles catégories</h3>
       <p class="hint"><strong>Ajouts :</strong> bouton « Commandé » à gauche du bouton favori, avec verrouillage de l’actualisation des prix et carte composant grisée, ainsi que les boutons « Commandé » / « Non commandé ». Thème « Black Month » activé par défaut en novembre. Option « Aucun &lt;type de composant&gt; » dans la sélection, à côté de « Nouvelle fiche ». Bouton « Ajouter un tutoriel » dans la section Tutoriels pour enregistrer des vidéos et les réorganiser. Mini-bouton « Bibliothèque » : ouverture de la bibliothèque comme les tutoriels, onglets Manuel / Unboxing / Review / Installation, ajout, édition, réorganisation et suppression de vidéos, photos et liens ; le bouton Manuel ouvre le premier lien manuel et les éléments Installation sont automatiquement ajoutés aux tutoriels ; la bibliothèque peut être exportée en PDF et JSON via la popup d’export. Actualisation automatique du suivi de livraison.</p>
       <p class="hint"><strong>Correctifs :</strong> bouton des pastilles KJ dans la sélection de composants ; bouton retour remplacé par un bouton fermer dans la fiche composant ; fonds des cartes composants sur mobile ; slots PCIe.</p>
@@ -9448,7 +9702,7 @@ function applyTheme() {
     : { light: 'clair', dark: 'sombre', black: 'noir', system: 'système' };
   $('#themeBtn').title = (lang === 'en' ? 'Theme: ' : 'Thème : ') + (names[mode] || names.system);
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
-    m.content = mode === 'black' ? '#000000' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
+    m.content = mode === 'black' ? '#273441' : mode === 'light' ? '#f5f7f5' : mode === 'dark' ? '#0b0f0d' : (/light/i.test(m.media || '') ? '#f5f7f5' : '#0b0f0d');
   });
 }
 function applyLang() {
@@ -9614,6 +9868,7 @@ function bind() {
   $('#historyBtn').onclick = openHistory;
   $('#shareBtn').onclick = () => openShareExport('share');
   $('#exportBtn').onclick = () => openShareExport('export');
+  $('#newsBtn').onclick = openNews;
   $('#settingsBtn').onclick = openSettings;
   wireProgressCancel();
   $('#footExport').onclick = e => { e.preventDefault(); exportAll(); };
