@@ -271,7 +271,8 @@ const I18N = {
     'settings.on': 'Activé', 'settings.off': 'Désactivé',
     'hero.configName': 'Nom de la config', 'hero.budget': 'Budget (€)',
     'hero.new': 'Nouveau', 'hero.load': 'Charger', 'hero.save': 'Sauvegarder', 'hero.history': 'Historique', 'hero.share': 'Partager', 'hero.export': 'Exporter', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
+    'tabs.config': 'Config', 'tabs.overview': 'Vue PC', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutoriels', 'tabs.compare': 'Comparer', 'tabs.prices': 'Prix',
+    'ov.title': 'Vue d’ensemble du PC et du setup', 'ov.subtitle': 'Visualisez le boîtier, le flux d’air, le PCIe, l’alimentation, le bureau et les simulations de charge. Les valeurs sont des estimations transparentes.',
     'tut.title': 'Tutoriels', 'tut.leftHint': 'Sélectionnez un composant pour voir les deux tutoriels correspondants.', 'tut.custom': 'Mes tutoriels', 'tut.add': 'Ajouter',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Ouvrez une playlist complète sur YouTube ou choisissez un composant pour afficher les tutoriels correspondants.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'Montage PC · 18 vidéos', 'tut.materielSub': 'Montage PC · 16 vidéos',
@@ -416,7 +417,8 @@ const I18N = {
     'settings.on': 'On', 'settings.off': 'Off',
     'hero.configName': 'Config name', 'hero.budget': 'Budget (€)',
     'hero.new': 'New', 'hero.load': 'Load', 'hero.save': 'Save', 'hero.history': 'History', 'hero.share': 'Share', 'hero.export': 'Export', 'hero.bench': 'Benchmarks',
-    'tabs.config': 'Config', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
+    'tabs.config': 'Config', 'tabs.overview': 'PC overview', 'tabs.bench': 'Benchmarks', 'tabs.tutorials': 'Tutorials', 'tabs.compare': 'Compare', 'tabs.prices': 'Prices',
+    'ov.title': 'PC and setup overview', 'ov.subtitle': 'Explore the case, airflow, PCIe, power, desk layout and load simulations. Values are transparent estimates.',
     'tut.title': 'Tutorials', 'tut.leftHint': 'Select a component to see both matching tutorials.', 'tut.custom': 'My tutorials', 'tut.add': 'Add',
     'tut.playlists': 'Playlists', 'tut.playlistsHint': 'Open a full playlist on YouTube or select a component to show the matching tutorials.',
     'tut.topachat': 'TopAchat', 'tut.materiel': 'Materiel.net', 'tut.topachatSub': 'PC build · 18 videos', 'tut.materielSub': 'PC build · 16 videos',
@@ -651,6 +653,7 @@ function normalizeStateExtras(st) {
     if (selectedProduct && selectedProduct.noComponent) { s.selectedId = null; s.none = true; }
   });
   if (migrateTrackingOrder) st.deliveryOrderedMigrated = true;
+  if (typeof Overview !== 'undefined' && Overview.normalize) st.overview = Overview.normalize(st.overview);
   return st;
 }
 function blankProduct() { return { id: uid(), name: '', baseName: '', variantName: '', image: '', images: [], specs: '', datasheet: '', dsClean: false, dsManual: false, dsSections: null, variants: null, verified: [], vendor: '', price: 0, oldPrice: 0, delivery: 0, qty: 1, idealo: '', manual: '', store: '', watts: 0, capW: 0, tracking: '', tstatus: '', tstatusAt: 0, tstatusMsg: '', tstatusSource: '', best: null, promo: false, promoCode: '', promoDesc: '', isBest: false, src: '', offerToken: '', ai: false, ordered: false, orderedAt: 0, library: blankLibrary() }; }
@@ -707,7 +710,7 @@ function setOfferPromo(target, offer, opts = {}) {
 function defaultState() {
   const slots = {};
   SLOT_DEFS.filter(d => !d.extra).forEach(d => { slots[d.id] = { defId: d.id, customLabel: '', products: [], selectedId: null, none: false }; });
-  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage(), customTutorials: [] };
+  return { name: 'Ma Config', budget: 1500, version: '', slots, order: SLOT_DEFS.filter(d => !d.extra).map(d => d.id), usage: defaultUsage(), customTutorials: [], overview: typeof Overview !== 'undefined' ? Overview.defaultState() : {} };
 }
 let state = load(LS.state, null) || defaultState();
 if (!state.order) state.order = Object.keys(state.slots);
@@ -8538,6 +8541,7 @@ const EXPORT_PARTS = [
   { id: 'performances', icon: 'fa-solid fa-chart-line', fr: 'Performances', en: 'Performance', hintFr: 'Résumé d’usage, FPS, Geekbench et 3DMark.', hintEn: 'Usage summary, FPS, Geekbench and 3DMark.', pdf: true, json: true },
   { id: 'graphs', icon: 'fa-solid fa-chart-pie', fr: 'Graphiques', en: 'Graphs', hintFr: 'Répartition du budget et données des graphiques.', hintEn: 'Budget allocation and chart data.', pdf: true, json: true },
   { id: 'consumption', icon: 'fa-solid fa-bolt', fr: 'Consommation', en: 'Power draw', hintFr: 'Puissance, calendriers d’usage et tarification.', hintEn: 'Power, usage calendars and pricing.', pdf: true, json: true },
+  { id: 'overview', icon: 'fa-solid fa-cubes-stacked', fr: 'Vue PC & setup', en: 'PC & setup overview', hintFr: 'Flux d’air, PCIe, alimentation, plan de bureau, ports, tâches, stockage et transferts simulés.', hintEn: 'Airflow, PCIe, power, desk layout, ports, tasks, storage and simulated transfers.', pdf: true, json: true },
   { id: 'compatibility', icon: 'fa-solid fa-shield-halved', fr: 'Compatibilité', en: 'Compatibility', hintFr: 'Vérifications, alertes et justifications.', hintEn: 'Checks, warnings and explanations.', pdf: true, json: true },
   { id: 'tutorials', icon: 'fa-solid fa-graduation-cap', fr: 'Tutoriels', en: 'Tutorials', hintFr: 'Tutoriels des composants sélectionnés, tutoriels perso et playlists.', hintEn: 'Selected-component tutorials, custom tutorials and playlists.', pdf: true, json: true },
   { id: 'library', icon: 'fa-solid fa-book-open', fr: 'Bibliothèques produits', en: 'Product libraries', hintFr: 'Manuels, unboxings, reviews et installations par composant.', hintEn: 'Manuals, unboxings, reviews and installations per component.', pdf: true, json: true },
@@ -8547,7 +8551,7 @@ const EXPORT_PARTS = [
 ];
 const EXPORT_PRESETS = [
   { id: 'all', fr: 'Tout', en: 'Everything', parts: null },
-  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption', 'priceAlerts'] },
+  { id: 'current', fr: 'Données actuelles', en: 'Current data', parts: ['config', 'performances', 'graphs', 'consumption', 'overview', 'priceAlerts'] },
   { id: 'configPerf', fr: 'Config + performances', en: 'Config + performance', parts: ['config', 'performances'] },
   { id: 'config', fr: 'Configuration seule', en: 'Configuration only', parts: ['config'] },
 ];
@@ -9027,6 +9031,11 @@ function buildPrintReport(parts) {
     if (powerDock && powerDock.children.length) power.appendChild(prCleanPane(powerDock.cloneNode(true)));
   }
 
+  if (show('overview') && typeof Overview !== 'undefined' && Overview.printHtml) {
+    const ovHtml = Overview.printHtml(overviewContext());
+    if (ovHtml) root.insertAdjacentHTML('beforeend', ovHtml);
+  }
+
   /* 6 — compatibility */
   if (show('compatibility')) {
     const compat = prSection(root, L('Compatibility', 'Compatibilité'), 'fa-solid fa-shield-halved');
@@ -9252,6 +9261,7 @@ function exportConfigJson(parts) {
   if (chosen.has('performances')) obj.performances = exportPerformanceData();
   if (chosen.has('graphs')) obj.graphs = exportGraphData();
   if (chosen.has('consumption')) obj.consumption = exportConsumptionData();
+  if (chosen.has('overview')) obj.overview = (typeof Overview !== 'undefined' && Overview.exportData) ? Overview.exportData(overviewContext()) : { inputs: JSON.parse(JSON.stringify(state.overview || {})) };
   if (chosen.has('compatibility')) obj.compatibility = exportCompatibilityData();
   if (chosen.has('tutorials')) obj.tutorials = exportTutorialData();
   if (chosen.has('library')) obj.library = exportLibraryData();
@@ -9574,8 +9584,35 @@ function closeTutorialVideo() {
   else finish();
 }
 /* ---------- Tabs / pages ---------- */
+function overviewContext() {
+  let power = null;
+  try {
+    if (typeof Compat !== 'undefined' && Compat.powerBreakdown) {
+      power = Compat.powerBreakdown({ order: state.order, slots: state.slots, sel, def: defOf, totals: totals(), lang });
+    }
+  } catch { power = null; }
+  let pcieUrl = 'https://pcie-simulator.vercel.app/';
+  try {
+    if (typeof PCIe !== 'undefined' && PCIe.buildUrl) {
+      const built = PCIe.buildUrl();
+      pcieUrl = (built && built.url) || (typeof built === 'string' ? built : '') || pcieUrl;
+    }
+  } catch {}
+  return {
+    state, lang, esc, money: eur, power, pcieUrl,
+    kwhPrice: typeof KWH_PRICE !== 'undefined' ? KWH_PRICE : 0.2516,
+    persist,
+    slotName,
+    defId: id => { const s = state.slots[id]; return s ? s.defId : id; },
+    sectionOf: id => { const s = state.slots[id]; return s ? defOf(s).sec : null; },
+  };
+}
+function renderOverview() {
+  if (typeof Overview === 'undefined') return;
+  try { Overview.render(overviewContext()); } catch (e) { console.error('Overview render failed', e); }
+}
 function showPage(which) {
-  ['config', 'bench', 'tutorials', 'compare', 'prices'].forEach(x => {
+  ['config', 'overview', 'bench', 'tutorials', 'compare', 'prices'].forEach(x => {
     $('#page-' + x).classList.toggle('hidden', x !== which);
     const tab = $('#tab' + x[0].toUpperCase() + x.slice(1));
     tab.classList.toggle('active', x === which);
@@ -9598,6 +9635,7 @@ function showPage(which) {
   updateMobileTotalBar();
   if (which === 'tutorials') showTutorials();
   else clearTutorialVideos();
+  if (which === 'overview') renderOverview();
   if (which === 'bench') showBench();
   if (which === 'compare') showCompare();
   if (which === 'prices') drawPrices();
@@ -9851,6 +9889,7 @@ function refresh() {
   renderSlots(); renderSummary();
   updateCompatBadge();
   if (sumTab === 'compat') renderCompat();
+  if (!$('#page-overview').classList.contains('hidden')) renderOverview();
   if (!$('#page-prices').classList.contains('hidden')) drawPrices();
   if (!$('#page-compare').classList.contains('hidden')) showCompare();
   if (!$('#page-bench').classList.contains('hidden')) showBench();
@@ -9875,6 +9914,7 @@ function bind() {
   $('#versionBtn').onclick = openChangelog;
   $('#footChangelog').onclick = e => { e.preventDefault(); openChangelog(); };
   $('#tabConfig').onclick = () => showPage('config');
+  $('#tabOverview').onclick = () => showPage('overview');
   $('#tabBench').onclick = () => showPage('bench');
   $('#tabTutorials').onclick = () => showPage('tutorials');
   $('#tabCompare').onclick = () => showPage('compare');
